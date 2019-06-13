@@ -5,6 +5,7 @@
 #' @importFrom matrixStats rowSds rowVars rowMedians
 #' @import tensorflow
 #' @import tfprobability 
+#' @import keras
 #' @importFrom futile.logger flog.info
 #' @importFrom GenomicRanges tileGenome resize intersect reduce
 #' @importFrom GenomeInfoDb seqlengths
@@ -21,7 +22,7 @@ NULL
 #'
 #' @author Wuming Gong
 #'
-seatac <- function(filenames, time_points, genome, num_states = 2, width = 200, expand = 2000, tilewidth = 1e7, fragment_size_range = c(70, 750), fragment_size_interval = 10, min_reads_per_bin = 20, epochs = 5){
+seatac <- function(filenames, time_points, genome, latent_dims = 10, num_states = 2, width = 200, expand = 2000, tilewidth = 1e7, fragment_size_range = c(70, 750), fragment_size_interval = 10, min_reads_per_bin = 20, epochs = 5){
 
   if (missing(filenames))
     stop('filenames are missing')
@@ -67,15 +68,23 @@ seatac <- function(filenames, time_points, genome, num_states = 2, width = 200, 
   seqlevels(bins, pruning.mode = 'coarse') <- seqlevels(gr)
   flog.info(sprintf('dividing genome into %d overlapping bins (width=%d, expand=%d)', length(bins), width, expand))
 
-  Theta <- tf$Variable(matrix(rnorm(num_states * M), num_states, M), dtype = tf$float32)
-  Theta <- Theta %>% tf$reshape(shape(1, num_states, M))
+  sampling <- function(arg){
+    z_mean <- arg[, 1:(latent_dims)]
+    z_log_var <- arg[, (latent_dims+ 1):(2 * latent_dims)]
+    epsilon <- k_random_normal(
+      shape = c(k_shape(z_mean)[[1]]), 
+      mean = 0.,
+      stddev = 1.0
+    )
+    z_mean + k_exp(z_log_var / 2) * epsilon
+  }
 
-  Beta <- tf$Variable(matrix(rnorm(num_stages * M), num_stages, M), dtype = tf$float32) # background distribution: num_stages ~ M
-  Beta <- Beta %>% tf$reshape(shape(num_stages, 1L, M))
+  get_gamma <- function(z){
+  }
 
-  # library size weight 
-  b_stage <- tf$Variable(rnorm(num_stages), dtype = tf$float32)
-  b_stage <- b_stage %>% tf$reshape(shape(1L, num_stages, 1L, 1L))
+  pii <- tf$Variable(rep(1 / num_states, num_states), dtype = tf$float32)  # prior for membership
+  U <- tf$Variable(matrix(0, latent_dims, num_states), dtype = tf$float32)  # cluster mean
+  Lambda <- tf$Variable(matrix(1, latent_dims, num_states), dtype = tf$float32) # cluster variance
 
   for (epoch in 1:epochs){
     for (g in 1:length(tiles)){ # for each tile
@@ -90,24 +99,79 @@ seatac <- function(filenames, time_points, genome, num_states = 2, width = 200, 
       included <- rowSums(do.call('cbind', lapply(X, rowSums)) > min_reads_per_bin) == num_samples
       X <- lapply(1:num_samples, function(i) X[[i]][included, ])
       X <- abind(lapply(X, as.matrix), along = 1.5)  # combine a list of n_intervals ~ n_segment matrices into a n_intervals ~ n_stages ~ n_segmentsarray
-      X <- log(X + 1)
+      X <- X[, 1, ]
 
-      N <- 10000L
-      X <- X[sample.int(dim(X)[1], N), , ]
-#      N <- dim(X)[1]
+      input_layer <- layer_input(shape = shape(M))
+      encoder_layers <- input_layer %>% 
+        layer_reshape(target_shape = shape(M, 1)) %>% 
+        layer_conv_1d(filters = 5, kernel_size = 10,  activation = 'relu', padding = 'same') %>%
+        layer_max_pooling_1d(pool_size = 4) %>% 
+        layer_flatten() 
 
-      S <- tf$Variable(array(rnorm(N * num_stages * num_states), dim = c(N, num_stages, num_states)), dtype = tf$float32) # stage ~ cluster
-      P <- tf$nn$softmax(S)
+      z_mean <- layer_dense(encoder_layers, latent_dims)
+      z_log_var <- layer_dense(encoder_layers, latent_dims)
+      z <- layer_concatenate(list(z_mean, z_log_var)) %>% layer_lambda(sampling)
+      decoder_layers <- layer_dense(units = M, activation = 'relu')
+      output_layer <- decoder_layers(z)
+
+      browser()
+
+      vae <- keras_model(input_layer, output_layer)
+
+      vae_loss <- function(x, x_decoded_mean){
+
+        xent_loss <- (M / 1.0) * loss_mean_squared_error(x, x_decoded_mean) # the reconstruction loss
+        kl_loss <- -0.5 * k_mean(1 + z_log_var - k_square(z_mean) - k_exp(z_log_var), axis = -1L)
+        xent_loss + kl_loss
+      }
+
+      vae %>% compile(optimizer = 'rmsprop', loss = vae_loss)
+
+      vae %>% fit(X, X, shuffle = TRUE, epochs = 10, batch_size = 256)
+      Xp <- vae %>% predict(X)
+
+      encoder <- keras_model(input_layer, z_mean)
+      Zp <- encoder %>% predict(X)
+
+      Xp <- vae %>% predict(X)
+      
+      browser()
+
+
+      basis <- k_random_normal(shape = shape(num_states, M))
+      basis <- k_exp(basis)
+      Y <- k_dot(V, basis)
+
+      model <- keras_model(list(input_layer), Y)
+      model_optimizer <- optimizer_adam(lr = 1e-2)
+      model %>% compile(optimizer = model_optimizer, loss = 'mse')
+
+
+
+#      X <- log(X + 1)
+
+#      N <- 10000L
+#      X <- X[sample.int(dim(X)[1], N), , ]
+      N <- dim(X)[1]
+
+      #S <- tf$Variable(array(rnorm(N * num_stages * num_states), dim = c(N, num_stages, num_states)), dtype = tf$float32) # stage ~ cluster
+#      P <- tf$nn$softmax(S)
+
+      U <- tf$Variable(array(rnorm(N * num_stages * num_states), dim = c(N, num_stages, num_states)) %>% tf$cast(tf$float32))
+      U <- tf$exp(U)
+      V <- tf$Variable(array(rnorm(num_states * M), dim = c(num_states, M)) %>% tf$cast(tf$float32))
+      V <- tf$exp(V)
+      pois <- tfd_poisson(tf$matmul(U, V))
+      J1 <- -pois$log_prob(X) %>% tf$reduce_sum()
 
       # the segment weight
-      b_interval <- tf$Variable(rnorm(N), dtype = tf$float32)
-      b_interval <- b_interval %>% tf$reshape(shape(N, 1L, 1L, 1L))
+#      b_interval <- tf$Variable(rnorm(N), dtype = tf$float32)
+ #     b_interval <- b_interval %>% tf$reshape(shape(N, 1L, 1L, 1L))
 
-#      Xe <- b_interval + b_stage + Beta + Theta
-      Xe <- b_interval + b_stage + Theta
+  #    Xe <- b_interval + b_stage + Beta + Theta
        
-      Xd <- X %>% tf$cast(tf$float32) %>% tf$reshape(shape(N, num_stages, 1L, M)) - Xe
-      J1 <- Xd %>% tf$square() %>% tf$reduce_sum(axis = 3L) %>% tf$multiply(P) %>% tf$reduce_sum()
+  #    Xd <- X %>% tf$cast(tf$float32) %>% tf$reshape(shape(N, num_stages, 1L, M)) - Xe
+  #    J1 <- Xd %>% tf$square() %>% tf$reduce_sum(axis = 3L) %>% tf$multiply(P) %>% tf$reduce_sum()
 #      J2 <- -tf$reduce_sum(P[, 1, ] * P[, 2, ] + P[, 2, ] * P[, 3, ] + P[, 3, ] * P[, 4, ])
       loss <- J1
 
@@ -130,12 +194,15 @@ seatac <- function(filenames, time_points, genome, num_states = 2, width = 200, 
         plot(sess$run(Beta)[stage, 1, ], type = 'l', main = sprintf('stage %d', stage))
       })
       lapply(1:num_states, function(state){
-        plot(sess$run(Theta)[1, state, ], type = 'l', main = sprintf('stage %d', state))
+        plot(sess$run(Theta)[1, state, ], type = 'l', main = sprintf('state %d', state))
+      })
+      lapply(1:num_states, function(state){
+        plot(sess$run(V[state, ]), type = 'l', main = sprintf('state %d', state))
       })
 
       clusters <- sess$run(tf$argmax(P, axis = 2L))
       lapply(1:num_stages, function(stage){
-        plot(colMeans(X[clusters[, stage] == 0, stage, ]), type = 'l', main = sprintf('stage %d', stage), ylim = c(0, 5))
+        plot(colMeans(X[clusters[, stage] == 0, stage, ]), type = 'l', main = sprintf('stage %d', stage), ylim = c(0, 2))
         lapply(2:num_states, function(state) lines(colMeans(X[clusters[, stage] == state - 1, stage, ]), col = state))
       })
 
@@ -211,5 +278,7 @@ seatac <- function(filenames, time_points, genome, num_states = 2, width = 200, 
     }
   }
   browser()
-
 }
+
+
+

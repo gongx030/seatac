@@ -16,7 +16,7 @@ filenames <- sprintf('analysis/seatac/data/%s', filenames)
 se_files <- gsub('.bam', '.fragment_size.rds', filenames)
 time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
-devtools::load_all('analysis/seatac/packages/seatac'); seatac(filenames, time_points, genome = BSgenome.Mmusculus.UCSC.mm10, num_states = 2)
+devtools::load_all('analysis/seatac/packages/seatac'); seatac(filenames, time_points, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dims = 10, num_states = 3)
 
 devtools::load_all('analysis/seatac/packages/seatac'); se <- readFragmentSize(filenames[1], which = GRanges('chr1', range = IRanges(1, 1e7)), genome = BSgenome.Mmusculus.UCSC.mm10)
 
