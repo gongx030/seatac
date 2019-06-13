@@ -67,24 +67,7 @@ seatac <- function(filenames, time_points, genome, latent_dims = 10, num_states 
   bins <- subsetByOverlaps(bins, tiles)
   seqlevels(bins, pruning.mode = 'coarse') <- seqlevels(gr)
   flog.info(sprintf('dividing genome into %d overlapping bins (width=%d, expand=%d)', length(bins), width, expand))
-
-  sampling <- function(arg){
-    z_mean <- arg[, 1:(latent_dims)]
-    z_log_var <- arg[, (latent_dims+ 1):(2 * latent_dims)]
-    epsilon <- k_random_normal(
-      shape = c(k_shape(z_mean)[[1]]), 
-      mean = 0.,
-      stddev = 1.0
-    )
-    z_mean + k_exp(z_log_var / 2) * epsilon
-  }
-
-  get_gamma <- function(z){
-  }
-
-  pii <- tf$Variable(rep(1 / num_states, num_states), dtype = tf$float32)  # prior for membership
-  U <- tf$Variable(matrix(0, latent_dims, num_states), dtype = tf$float32)  # cluster mean
-  Lambda <- tf$Variable(matrix(1, latent_dims, num_states), dtype = tf$float32) # cluster variance
+	model <- vae(M, latent_dims)
 
   for (epoch in 1:epochs){
     for (g in 1:length(tiles)){ # for each tile
@@ -101,40 +84,15 @@ seatac <- function(filenames, time_points, genome, latent_dims = 10, num_states 
       X <- abind(lapply(X, as.matrix), along = 1.5)  # combine a list of n_intervals ~ n_segment matrices into a n_intervals ~ n_stages ~ n_segmentsarray
       X <- X[, 1, ]
 
-      input_layer <- layer_input(shape = shape(M))
-      encoder_layers <- input_layer %>% 
-        layer_reshape(target_shape = shape(M, 1)) %>% 
-        layer_conv_1d(filters = 5, kernel_size = 10,  activation = 'relu', padding = 'same') %>%
-        layer_max_pooling_1d(pool_size = 4) %>% 
-        layer_flatten() 
+      model %>% fit(X, X, shuffle = TRUE, epochs = 10, batch_size = 256)
+			browser()
 
-      z_mean <- layer_dense(encoder_layers, latent_dims)
-      z_log_var <- layer_dense(encoder_layers, latent_dims)
-      z <- layer_concatenate(list(z_mean, z_log_var)) %>% layer_lambda(sampling)
-      decoder_layers <- layer_dense(units = M, activation = 'relu')
-      output_layer <- decoder_layers(z)
-
-      browser()
-
-      vae <- keras_model(input_layer, output_layer)
-
-      vae_loss <- function(x, x_decoded_mean){
-
-        xent_loss <- (M / 1.0) * loss_mean_squared_error(x, x_decoded_mean) # the reconstruction loss
-        kl_loss <- -0.5 * k_mean(1 + z_log_var - k_square(z_mean) - k_exp(z_log_var), axis = -1L)
-        xent_loss + kl_loss
-      }
-
-      vae %>% compile(optimizer = 'rmsprop', loss = vae_loss)
-
-      vae %>% fit(X, X, shuffle = TRUE, epochs = 10, batch_size = 256)
       Xp <- vae %>% predict(X)
 
       encoder <- keras_model(input_layer, z_mean)
       Zp <- encoder %>% predict(X)
 
       Xp <- vae %>% predict(X)
-      
       browser()
 
 
