@@ -1,7 +1,7 @@
 #' readFragmentSize
 #' @export
 
-readFragmentSize <- function(filename, bins, fragment_size_range = c(50, 1000), fragment_size_interval = 10){
+readFragmentSize <- function(filename, bins, fragment_size_range = c(70, 750), fragment_size_interval = 10){
 
   if (missing(filename))
     stop('filename are missing')
@@ -13,6 +13,7 @@ readFragmentSize <- function(filename, bins, fragment_size_range = c(50, 1000), 
     stop(sprintf('%s is not paired-end file.', filename))
 
   breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
+  M <- length(breaks)
 
   flag <- scanBamFlag(
     isSecondaryAlignment = FALSE,
@@ -24,6 +25,7 @@ readFragmentSize <- function(filename, bins, fragment_size_range = c(50, 1000), 
   param <- ScanBamParam(which = reduce(bins), flag = flag)
   x <- readGAlignmentPairs(filename, param = param)
   if (length(x) > 0){
+
     x <- as(x, 'GRanges') # convert GAlignmentPairs into GRanges where two paired end reads are merged
     x$fragment_size <- width(x)
     x$fragment_size <- as.numeric(cut(x$fragment_size, breaks))
@@ -33,9 +35,36 @@ readFragmentSize <- function(filename, bins, fragment_size_range = c(50, 1000), 
     mm <- as.matrix(findOverlaps(bins, x))
     A <- as(sparseMatrix(mm[, 1], mm[, 2], dims = c(length(bins), length(x))), 'dgCMatrix') # bins ~ read center
     X <- A %*% B  # bins ~ fragment size
+
   }else
     X <- Matrix(0, dims = c(length(bins), length(x)))
 
   X
 } # readFragmentSize
+
+
+getFragmentSizeMatrix <- function(filenames, bins, expand = 2000, fragment_size_range = c(70, 500), fragment_size_interval = 10, min_reads_per_bin = 20, library_size = 1e5){
+
+  num_samples <- length(filenames)
+
+  bins2 <- resize(bins, expand, fix = 'center')
+  bins2 <- trim(bins2)
+
+  X <- NULL
+  pos <- NULL
+  group <- NULL
+  for (i in 1:num_samples){
+    Xi <- readFragmentSize(filenames[i], bins2, fragment_size_range, fragment_size_interval)
+    included <- rowSums(Xi) >= min_reads_per_bin
+    Xi <- Xi[included, ]
+
+#    Xi <- Xi * library_size / sum(Xi)
+
+    group <- c(group, rep(i, nrow(Xi)))
+    pos <- c(pos, which(included))
+    X <- rbind(X, Xi)
+  }
+  list(X = X, bins = bins[pos], group = group)
+
+} # getFragmentSizeMatrix
 

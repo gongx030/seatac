@@ -14,15 +14,19 @@ vae <- function(M, latent_dims = 10){
 	input_layer <- layer_input(shape = shape(M))
 	encoder_layers <- input_layer %>% 
 		layer_reshape(target_shape = shape(M, 1)) %>% 
-		layer_conv_1d(filters = 5, kernel_size = 10,  activation = 'relu', padding = 'same') %>%
-		layer_max_pooling_1d(pool_size = 4) %>% 
-		layer_flatten() 
+		layer_conv_1d(filters = 10, kernel_size = 10,  activation = 'relu', padding = 'same') %>%
+		layer_max_pooling_1d(pool_size = 5) %>% 
+		layer_flatten() %>%
+#    layer_dropout(rate = 0.1) %>%
+#    layer_dense(units = 32, activation = 'relu')
+    layer_dropout(rate = 0.5)
 
-	z_mean <- layer_dense(encoder_layers, latent_dims)
-	z_log_var <- layer_dense(encoder_layers, latent_dims)
+	z_mean <- encoder_layers %>% layer_dense(units = latent_dims)
+	z_log_var <- encoder_layers %>% layer_dense(units = latent_dims)
 	z <- layer_concatenate(list(z_mean, z_log_var)) %>% layer_lambda(sampling)
-		decoder_layers <- layer_dense(units = M, activation = 'relu')
-		output_layer <- decoder_layers(z)
+
+  output_layer <- z %>%
+	  layer_dense(units = M, activation = 'relu')
 
 	vae <- keras_model(input_layer, output_layer)
 
@@ -32,5 +36,10 @@ vae <- function(M, latent_dims = 10){
 		xent_loss + kl_loss
 	}
 	vae %>% compile(optimizer = 'rmsprop', loss = vae_loss)
+
+  list(
+    vae = vae,
+    encoder = keras_model(input_layer, z_mean)
+  )
 
 } #  vae

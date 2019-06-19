@@ -4,10 +4,10 @@
 \alias{seatac}
 \title{seatac}
 \usage{
-seatac(filenames, time_points, genome, latent_dims = 10,
-  num_states = 2, width = 200, expand = 2000, tilewidth = 1e+07,
-  fragment_size_range = c(70, 750), fragment_size_interval = 10,
-  min_reads_per_bin = 20, epochs = 5)
+seatac(filenames, which = NULL, genome, latent_dim = 10,
+  num_states = 3, width = 200, expand = 2000,
+  fragment_size_range = c(70, 500), fragment_size_interval = 10,
+  min_reads_per_bin = 20, epochs = 5, batch_size = 256)
 }
 \description{
 Integrating multiple sources of temporal scRNA-seq data by neighborhood component analysis
