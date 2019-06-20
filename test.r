@@ -19,8 +19,8 @@ filenames <- c(
 filenames <- sprintf('analysis/seatac/data/%s', filenames)
 time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
-which <- GRanges(seqnames = 'chr7', range = IRanges(10000000, 40000000))
-devtools::load_all('analysis/seatac/packages/seatac'); se <- seatac(filenames[c(1, 2)], which, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dim = 10, num_states = 3, epochs = 200)
+which <- GRanges(seqnames = 'chr7', range = IRanges(10000001, 20000000))
+devtools::load_all('analysis/seatac/packages/seatac'); se <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dim = 20, window_size = 20000, bin_size = 50, epochs = 10)
 
 sess <- tf$Session()
 sess$run(tf$global_variables_initializer())
@@ -400,3 +400,125 @@ hmm$posterior_mode(Y)
   multinom <- tfd_multinomial(10, probs = P)
   X <- tfd_mixture_same_family()
 
+  M <- ncol(fs$X)
+  N <- nrow(fs$X)
+  train_dataset <- fs$X %>% 
+    as.matrix() %>% 
+    tf$cast(tf$float32) %>% 
+    tensor_slices_dataset() %>% 
+    dataset_batch(batch_size)
+
+  encoder_model <- function(latent_dim, name = NULL){
+    keras_model_custom(name = name, function(self){
+      self$dense <- layer_dense(units = 2 * latent_dim)
+      function(x, mask = NULL){
+        x <- x %>% self$dense()
+        tfd_multivariate_normal_diag(
+          loc = x[, 1:latent_dim],
+          scale_diag = tf$nn$softplus(x[, (latent_dim + 1):(2 * latent_dim)] + 1e-5)
+        ) 
+      }
+    })
+  }
+  encoder <- encoder_model(latent_dim)
+
+  decoder_model <- function(output_dim, name = NULL){
+    keras_model_custom(name = name, function(self){
+      self$dense <- layer_dense(units = output_dim)
+      function(x, mask = NULL){
+        x[[1]] <- self$dense(x[[1]])
+        tfd_multinomial(total_count = x[[2]], logits = x[[1]])
+      }
+    })
+  }
+  decoder <- decoder_model(M)
+
+  optimizer <- tf$train$AdamOptimizer(1e-4)
+  compute_kl_loss <- function(latent_prior, approx_posterior, approx_posterior_sample) {
+    kl_div <- approx_posterior$log_prob(approx_posterior_sample) - latent_prior$log_prob(approx_posterior_sample)
+    avg_kl_div <- tf$reduce_mean(kl_div)
+    avg_kl_div
+  }
+
+  latent_prior <- tfd_multivariate_normal_diag(loc = rep(0, latent_dim), scale_identity_multiplier = 1)
+
+  for (epoch in seq_len(epochs)) {
+
+    iter <- make_iterator_one_shot(train_dataset)
+
+    total_loss <- 0
+    total_loss_nll <- 0
+    total_loss_kl <- 0
+
+    until_out_of_range({
+
+      x <-  iterator_get_next(iter)
+      total_count <- tf$reduce_sum(x, axis = 1L)
+
+      with(tf$GradientTape(persistent = TRUE) %as% tape, {
+
+        approx_posterior <- encoder(x)
+        approx_posterior_sample <- approx_posterior$sample()
+        decoder_likelihood <- decoder(list(approx_posterior_sample, total_count))
+
+        nll <- -decoder_likelihood$log_prob(x)
+        avg_nll <- tf$reduce_mean(nll)
+
+        kl_loss <- compute_kl_loss(latent_prior, approx_posterior, approx_posterior_sample)
+
+        loss <- kl_loss + avg_nll
+      })
+
+      total_loss <- total_loss + loss
+      total_loss_nll <- total_loss_nll + avg_nll
+      total_loss_kl <- total_loss_kl + kl_loss
+
+      encoder_gradients <- tape$gradient(loss, encoder$variables)
+      decoder_gradients <- tape$gradient(loss, decoder$variables)
+
+      optimizer$apply_gradients(
+        purrr::transpose(list(encoder_gradients, encoder$variables)),
+        global_step = tf$train$get_or_create_global_step()
+      )
+
+      optimizer$apply_gradients(
+        purrr::transpose(list(decoder_gradients, decoder$variables)),
+        global_step = tf$train$get_or_create_global_step()
+      )
+    })
+    flog.info(sprintf('epoch=%d/%d | negative likelihood=%.3f | kl=%.3f | total=%.3f', epoch, epochs, total_loss_nll, total_loss_kl, total_loss))
+  }
+  browser()
+
+  Z <- encoder(fs$X %>% as.matrix())$loc %>% as.matrix()
+  cls <- kmeans(Z, num_states)$cluster
+  lapply(1:num_states, function(k) plot(colMeans(fs$X[cls == k, ]), type = 'l', main = k))
+
+}
+
+  sampling <- function(arg){
+    z_mean <- arg[, 1:(latent_dim)]
+    z_log_var <- arg[, (latent_dim + 1):(2 * latent_dim)]
+    epsilon <- k_random_normal(
+      shape = c(k_shape(z_mean)[[1]]),
+      mean = 0.,
+      stddev = 1.0
+    )
+    z_mean + k_exp(z_log_var / 2) * epsilon
+  }
+
+cae <- function(input_dim, feature_dim, latent_dim = 10){
+
+  input_layer <- layer_input(shape = shape(input_dim, feature_dim))
+  encoder <- input_layer %>% bidirectional(layer_gru(units = latent_dim))
+
+  decoder <- encoder %>%
+    layer_repeat_vector(input_dim) %>%
+    layer_gru(latent_dim, return_sequences = TRUE) %>%
+    time_distributed(layer_dense(units = feature_dim, activation = 'softmax'))
+
+  model <- keras_model(input_layer, decoder)
+  model %>% compile(optimizer = 'rmsprop', loss = 'binary_crossentropy')
+  model
+
+} #  vae

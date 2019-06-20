@@ -1,45 +1,30 @@
-vae <- function(M, latent_dims = 10){
+#' composite autoencoder
+#'
+cae <- function(input_dim, feature_dim, latent_dim = 10){
 
-  sampling <- function(arg){
-    z_mean <- arg[, 1:(latent_dims)]
-    z_log_var <- arg[, (latent_dims+ 1):(2 * latent_dims)]
-    epsilon <- k_random_normal(
-      shape = c(k_shape(z_mean)[[1]]), 
-      mean = 0.,
-      stddev = 1.0
-    )
-    z_mean + k_exp(z_log_var / 2) * epsilon
-  }
+	input_layer <- layer_input(shape = shape(input_dim, feature_dim))
+	encoder <- input_layer %>% 
+    bidirectional(layer_gru(units = latent_dim, return_sequences = TRUE, activation = 'relu', dropout = 0.3)) %>%
+    bidirectional(layer_gru(units = latent_dim, return_sequences = TRUE, activation = 'relu', dropout = 0.3))
 
-	input_layer <- layer_input(shape = shape(M))
-	encoder_layers <- input_layer %>% 
-		layer_reshape(target_shape = shape(M, 1)) %>% 
-		layer_conv_1d(filters = 10, kernel_size = 10,  activation = 'relu', padding = 'same') %>%
-		layer_max_pooling_1d(pool_size = 5) %>% 
-		layer_flatten() %>%
-#    layer_dropout(rate = 0.1) %>%
-#    layer_dense(units = 32, activation = 'relu')
-    layer_dropout(rate = 0.5)
+  decoder <- encoder %>% 
+    bidirectional(layer_gru(units = latent_dim, return_sequences = TRUE, activation = 'relu', dropout = 0.3)) %>%
+#    time_distributed(layer_dense(units = 32, activation = 'relu')) %>%
+    time_distributed(layer_dense(units = feature_dim, activation = 'softmax'))
 
-	z_mean <- encoder_layers %>% layer_dense(units = latent_dims)
-	z_log_var <- encoder_layers %>% layer_dense(units = latent_dims)
-	z <- layer_concatenate(list(z_mean, z_log_var)) %>% layer_lambda(sampling)
-
-  output_layer <- z %>%
-	  layer_dense(units = M, activation = 'relu')
-
-	vae <- keras_model(input_layer, output_layer)
-
-	vae_loss <- function(x, x_decoded_mean){
-		xent_loss <- (M / 1.0) * loss_mean_squared_error(x, x_decoded_mean) # the reconstruction loss
-		kl_loss <- -0.5 * k_mean(1 + z_log_var - k_square(z_mean) - k_exp(z_log_var), axis = -1L)
-		xent_loss + kl_loss
-	}
-	vae %>% compile(optimizer = 'rmsprop', loss = vae_loss)
-
-  list(
-    vae = vae,
-    encoder = keras_model(input_layer, z_mean)
-  )
+  model <- keras_model(input_layer, decoder)
+	model %>% compile(optimizer = 'adam', loss = weighted_binary_crossentropy)
+#	model %>% compile(optimizer = 'adam', loss = 'binary_crossentropy')
+  model
 
 } #  vae
+
+weighted_binary_crossentropy <- function(y_true, y_pred){
+  one_weight <- 1
+  zero_weight <- 0.1
+  K <- backend()
+  b_ce <- K$binary_crossentropy(y_true, y_pred)
+  weight_vector <- y_true * one_weight  + (1. - y_true) * zero_weight
+  weighted_b_ce <- weight_vector * b_ce
+  K$mean(weighted_b_ce)
+}

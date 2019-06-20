@@ -35,36 +35,52 @@ readFragmentSize <- function(filename, bins, fragment_size_range = c(70, 750), f
     mm <- as.matrix(findOverlaps(bins, x))
     A <- as(sparseMatrix(mm[, 1], mm[, 2], dims = c(length(bins), length(x))), 'dgCMatrix') # bins ~ read center
     X <- A %*% B  # bins ~ fragment size
-
+    X[X > 0] <- 1
+    X <- as.matrix(X)
   }else
-    X <- Matrix(0, dims = c(length(bins), length(x)))
+    X <- matrix(0, dims = c(length(bins), length(x)))
 
   X
 } # readFragmentSize
 
 
-getFragmentSizeMatrix <- function(filenames, bins, expand = 2000, fragment_size_range = c(70, 500), fragment_size_interval = 10, min_reads_per_bin = 20, library_size = 1e5){
+getFragmentSizeMatrix <- function(filenames, which, window_size = 2000, bin_size = 20, fragment_size_range = c(70, 500), fragment_size_interval = 10, min_reads_per_window = 20){
 
   num_samples <- length(filenames)
+  n_bins_per_window <- window_size / bin_size
+  n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval + 1
 
-  bins2 <- resize(bins, expand, fix = 'center')
-  bins2 <- trim(bins2)
+  if (missing(which) || length(which) > 1)
+    stop('which must contain one genomic range')
+
+  # every window has the same width
+  windows <- slidingWindows(which, width = window_size, step = window_size)
+  windows <- Reduce('c', windows)
+  windows <- windows[width(windows) == window_size]
+  seqlevels(windows, pruning.mode = 'coarse') <- seqlevels(which)
+  n_windows <- length(windows)
+
+  bins <- slidingWindows(windows, width = bin_size, step = bin_size)
+  bins <- unlist(bins)
 
   X <- NULL
   pos <- NULL
   group <- NULL
   for (i in 1:num_samples){
-    Xi <- readFragmentSize(filenames[i], bins2, fragment_size_range, fragment_size_interval)
-    included <- rowSums(Xi) >= min_reads_per_bin
-    Xi <- Xi[included, ]
+    Xi <- readFragmentSize(filenames[i], bins, fragment_size_range, fragment_size_interval)
 
-#    Xi <- Xi * library_size / sum(Xi)
+    # convert Xi into an array with bathc_size ~ n_bins_per_window ~ n_intervals
+    dim(Xi) <- c(n_bins_per_window, n_windows, n_intervals)
+    Xi <- aperm(Xi, c(2, 1, 3))
+    include <- apply(Xi, 1, sum) > min_reads_per_window
+    Xi <- Xi[include, , ]
 
     group <- c(group, rep(i, nrow(Xi)))
-    pos <- c(pos, which(included))
-    X <- rbind(X, Xi)
+    pos <- c(pos, which(include))
+    X <- abind(X, Xi, along = 1)
   }
-  list(X = X, bins = bins[pos], group = group)
+
+  list(X = X, bins = windows[pos], group = group)
 
 } # getFragmentSizeMatrix
 
