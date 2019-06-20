@@ -9,6 +9,7 @@ cae <- function(input_dim, feature_dim, latent_dim = 10){
 
   decoder <- encoder %>% 
     bidirectional(layer_gru(units = latent_dim, return_sequences = TRUE, activation = 'relu', dropout = 0.3)) %>%
+    bidirectional(layer_gru(units = latent_dim, return_sequences = TRUE, activation = 'relu', dropout = 0.3)) %>%
 #    time_distributed(layer_dense(units = 32, activation = 'relu')) %>%
     time_distributed(layer_dense(units = feature_dim, activation = 'softmax'))
 

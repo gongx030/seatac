@@ -5,9 +5,7 @@ library(roxygen2); library(devtools); devtools::document('analysis/seatac/packag
 # -----------------------------------------------------------------------------------
 # [2019-05-31] Generate the fragment size distribution file for each ATAC-seq BAM file
 # -----------------------------------------------------------------------------------
-library(tensorflow)
-tfe_enable_eager_execution(device_policy = 'silent')
-
+#tfe_enable_eager_execution(device_policy = 'silent')
 
 library(BSgenome.Mmusculus.UCSC.mm10)
 filenames <- c(
@@ -20,7 +18,7 @@ filenames <- sprintf('analysis/seatac/data/%s', filenames)
 time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
 which <- GRanges(seqnames = 'chr7', range = IRanges(10000001, 20000000))
-devtools::load_all('analysis/seatac/packages/seatac'); se <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dim = 20, window_size = 20000, bin_size = 50, epochs = 10)
+devtools::load_all('analysis/seatac/packages/seatac'); se <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dim = 20, window_size = 5000, bin_size = 10, epochs = 10)
 
 sess <- tf$Session()
 sess$run(tf$global_variables_initializer())

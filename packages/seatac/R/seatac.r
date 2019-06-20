@@ -4,7 +4,6 @@
 #' @import SummarizedExperiment
 #' @importFrom matrixStats rowSds rowVars rowMedians
 #' @import tensorflow
-#' @import tfprobability 
 #' @import keras
 #' @importFrom futile.logger flog.info
 #' @importFrom GenomicRanges tileGenome resize intersect reduce
@@ -12,7 +11,6 @@
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam
 #' @importFrom GenomicAlignments readGAlignmentPairs
 #' @importFrom abind abind
-#' @import tfdatasets
 NULL
 
 #' seatac 
