@@ -2,20 +2,23 @@
 #'
 cae <- function(input_dim, feature_dim, latent_dim = 10){
 
-	input_layer <- layer_input(shape = shape(input_dim, feature_dim))
-	encoder <- input_layer %>% 
-    bidirectional(layer_gru(units = latent_dim, return_sequences = TRUE, activation = 'relu', dropout = 0.3)) %>%
-    bidirectional(layer_gru(units = latent_dim, return_sequences = TRUE, activation = 'relu', dropout = 0.3))
+	gru_units <- 16L
 
-  decoder <- encoder %>% 
-    bidirectional(layer_gru(units = latent_dim, return_sequences = TRUE, activation = 'relu', dropout = 0.3)) %>%
-    bidirectional(layer_gru(units = latent_dim, return_sequences = TRUE, activation = 'relu', dropout = 0.3)) %>%
-#    time_distributed(layer_dense(units = 32, activation = 'relu')) %>%
+	input_layer <- layer_input(shape = shape(input_dim, feature_dim))
+	output_layer <- input_layer %>% 
+		layer_reshape(target_shape = c(input_dim, feature_dim, 1)) %>%
+		time_distributed(layer_conv_1d(filters = 16, kernel_size = 5, activation = 'relu')) %>%
+		time_distributed(layer_conv_1d(filters = 8, kernel_size = 2, activation = 'relu')) %>%
+		time_distributed(layer_flatten()) %>%
+    bidirectional(layer_cudnn_gru(units = gru_units, return_sequences = TRUE)) %>%
+    bidirectional(layer_cudnn_gru(units = gru_units, return_sequences = TRUE)) %>%
+    bidirectional(layer_cudnn_gru(units = gru_units, return_sequences = TRUE)) %>%
     time_distributed(layer_dense(units = feature_dim, activation = 'softmax'))
 
-  model <- keras_model(input_layer, decoder)
-	model %>% compile(optimizer = 'adam', loss = weighted_binary_crossentropy)
-#	model %>% compile(optimizer = 'adam', loss = 'binary_crossentropy')
+  model <- keras_model(input_layer, output_layer)
+	print(model)
+#	model %>% compile(optimizer = 'adam', loss = weighted_binary_crossentropy)
+	model %>% compile(optimizer = 'adam', loss = 'binary_crossentropy')
   model
 
 } #  vae

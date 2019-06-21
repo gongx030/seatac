@@ -18,7 +18,24 @@ filenames <- sprintf('analysis/seatac/data/%s', filenames)
 time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
 which <- GRanges(seqnames = 'chr7', range = IRanges(10000001, 20000000))
-devtools::load_all('analysis/seatac/packages/seatac'); se <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dim = 20, window_size = 5000, bin_size = 10, epochs = 10)
+devtools::load_all('analysis/seatac/packages/seatac'); se <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dim = 20, window_size = 10000, bin_size = 10, fragment_size_range = c(0, 500), fragment_size_interval = 10, epochs = 10)
+
+
+i <- 1
+
+Xp <- model %>% predict(fs$X[i, , , drop = FALSE])
+image(Xp[1, , ], breaks = c(seq(0, 0.1, length.out = 100), 1), col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+#image(Xp[1, , ], col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+y <- summary(as(fs$X[i, , ], 'dgCMatrix'))
+points(y[, 1] / nrow(fs$X[i, , ]), y[, 2] / ncol(fs$X[i, , ]), pch = 3, cex = 1.25, col = 'black')
+
+
+; image(fs$X[i, , ])
+
+  i <- 4
+  plot(colMeans(Xp[i, , ]), main = 'predicted'); plot(colMeans(fs$X[i, , ]), main = 'observed')
+	  plot(colMeans(Xp[1, , ]), main = 'predicted'); points(colMeans(Xp[2, , ]), col = 'red'); points(colMeans(Xp[3, , ]), col = 'blue')
+
 
 sess <- tf$Session()
 sess$run(tf$global_variables_initializer())

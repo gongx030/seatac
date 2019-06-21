@@ -1,7 +1,7 @@
 #' readFragmentSize
 #' @export
 
-readFragmentSize <- function(filename, bins, fragment_size_range = c(70, 750), fragment_size_interval = 10){
+readFragmentSize <- function(filename, bins, fragment_size_range = c(0, 750), fragment_size_interval = 10){
 
   if (missing(filename))
     stop('filename are missing')
@@ -44,7 +44,7 @@ readFragmentSize <- function(filename, bins, fragment_size_range = c(70, 750), f
 } # readFragmentSize
 
 
-getFragmentSizeMatrix <- function(filenames, which, window_size = 2000, bin_size = 20, fragment_size_range = c(70, 500), fragment_size_interval = 10, min_reads_per_window = 20){
+getFragmentSizeMatrix <- function(filenames, which, window_size = 2000, bin_size = 20, fragment_size_range = c(0, 500), fragment_size_interval = 10, min_reads_per_window = 20){
 
   num_samples <- length(filenames)
   n_bins_per_window <- window_size / bin_size
