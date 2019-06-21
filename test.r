@@ -17,15 +17,18 @@ filenames <- c(
 filenames <- sprintf('analysis/seatac/data/%s', filenames)
 time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
-which <- GRanges(seqnames = 'chr7', range = IRanges(10000001, 20000000))
-devtools::load_all('analysis/seatac/packages/seatac'); se <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dim = 20, window_size = 10000, bin_size = 10, fragment_size_range = c(0, 500), fragment_size_interval = 10, epochs = 10)
+# Etv2: chr7:30,604,535-30,664,933
+which <- GRanges(seqnames = 'chr7', range = IRanges(25000001, 37000000))
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, window_size = 10000, bin_size = 10, fragment_size_range = c(50, 500), fragment_size_interval = 10, epochs = 1, gpu = FALSE)
 
+
+devtools::load_all('analysis/seatac/packages/seatac'); vplot(gr[mcols(gr)$groups == 2], which = 'chr7:30,628,023-30,641,444')
 
 i <- 1
 
 Xp <- model %>% predict(fs$X[i, , , drop = FALSE])
-image(Xp[1, , ], breaks = c(seq(0, 0.1, length.out = 100), 1), col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
-#image(Xp[1, , ], col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+#image(Xp[1, , ], breaks = c(seq(0, 0.1, length.out = 100), 1), col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+image(Xp[1, , ], col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 y <- summary(as(fs$X[i, , ], 'dgCMatrix'))
 points(y[, 1] / nrow(fs$X[i, , ]), y[, 2] / ncol(fs$X[i, , ]), pch = 3, cex = 1.25, col = 'black')
 

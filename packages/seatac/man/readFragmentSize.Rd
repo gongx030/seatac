@@ -4,7 +4,7 @@
 \alias{readFragmentSize}
 \title{readFragmentSize}
 \usage{
-readFragmentSize(filename, bins, fragment_size_range = c(70, 750),
+readFragmentSize(filename, bins, fragment_size_range = c(0, 750),
   fragment_size_interval = 10)
 }
 \description{

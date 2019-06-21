@@ -9,20 +9,17 @@ Depends: R (>= 3.4.3)
 License: MIT License
 Imports:
   Matrix,
-  MASS,
   SummarizedExperiment,
   matrixStats,
 	tensorflow,
 	keras,
-  fields,
-  gplots,
   futile.logger,
   GenomicRanges,
   GenomeInfoDb,
   Rsamtools,
   GenomicAlignments,
-  igraph,
-  FNN
+  abind,
+  ggbio
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 6.1.1
