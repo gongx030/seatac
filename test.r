@@ -7,6 +7,10 @@ library(roxygen2); library(devtools); devtools::document('analysis/seatac/packag
 # -----------------------------------------------------------------------------------
 #tfe_enable_eager_execution(device_policy = 'silent')
 
+library(keras)
+library(tensorflow)
+#use_backend(backend = "plaidml")
+
 library(BSgenome.Mmusculus.UCSC.mm10)
 filenames <- c(
   'ATAC_MEF_NoDox.bam', 
@@ -19,7 +23,7 @@ time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
 # Etv2: chr7:30,604,535-30,664,933
 which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 40000000))
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, window_size = 10000, bin_size = 10, fragment_size_range = c(50, 500), fragment_size_interval = 20, epochs = 20, gpu = TRUE)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, window_size = 10000, bin_size = 50, fragment_size_range = c(50, 500), fragment_size_interval = 10, epochs = 20, gpu = FALSE)
 
 source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/test.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)

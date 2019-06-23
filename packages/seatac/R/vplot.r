@@ -38,11 +38,12 @@ vplot_core <- function(gr, which){
   flog.info(sprintf('found %d %d bp bins overlapping with %s:%d-%d', length(gr), metadata(gr)$bin_size, seqnames(which), start(which), end(which)))
 
 #  plot(mcols(gr)$coverage[, 1])
-  image(mcols(gr)$predicted_counts, breaks = c(seq(0, 0.15, length.out = 100), 1), col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+  image(mcols(gr)$predicted_counts, breaks = c(seq(0, 0.1, length.out = 100), 1), col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 #  image(mcols(gr)$predicted_counts, col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
   y <- summary(as(mcols(gr)$counts, 'dgCMatrix'))
   points(y[, 1] / nrow(mcols(gr)$counts), y[, 2] / ncol(mcols(gr)$counts), pch = 3, cex = 1.25, col = 'black')
   lines(1:length(gr) / length(gr), mcols(gr)$coverage / max(mcols(gr)$coverage), col = 'yellow')
+  plot(rowSums(mcols(gr)$predicted_counts[, 1:5]), type = 'l')
 
 #  browser()
 

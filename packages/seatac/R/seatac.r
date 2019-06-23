@@ -3,8 +3,6 @@
 #' @import Matrix
 #' @import SummarizedExperiment
 #' @importFrom matrixStats rowSds rowVars rowMedians
-#' @import tensorflow
-#' @import keras
 #' @importFrom futile.logger flog.info
 #' @importFrom GenomicRanges tileGenome resize intersect reduce
 #' @importFrom GenomeInfoDb seqlengths
@@ -52,12 +50,20 @@ seatac <- function(filenames, which = NULL, genome, window_size = 2000, bin_size
 
   fs <- getFragmentSizeMatrix(filenames, which, window_size, bin_size, fragment_size_range, fragment_size_interval)
 
+  sample_dim <- dim(fs$X)[1]
   input_dim <- dim(fs$X)[2]
   feature_dim <- dim(fs$X)[3]
-  model <- build_model(input_dim = input_dim, feature_dim = feature_dim, gpu = gpu)
-  model %>% fit(fs$X, fs$X, shuffle = TRUE, epochs = epochs, batch_size = batch_size, validation_split = 0.1)
 
-  Xp <- model %>% predict(fs$X, batch_size = batch_size, verbose = 1)
+  model <- build_model(input_dim = input_dim, feature_dim = feature_dim, gpu = gpu)
+
+  outputs <- list(
+    abind(array(0, dim = c(sample_dim, 1, feature_dim)), fs$X[, 1:(input_dim - 1), ], along = 2),
+    fs$X,
+    abind(fs$X[, 2:input_dim, ], array(0, dim = c(sample_dim, 1, feature_dim)), along = 2)
+   )
+  model %>% fit(fs$X, outputs, epochs = epochs, batch_size = batch_size, validation_split = 0.1)
+
+  Xp <- (model %>% predict(fs$X, batch_size = batch_size, verbose = 1))[[2]]
   Xp <- aperm(Xp, c(2, 1, 3)) 
   dim(Xp) <- c(prod(dim(Xp)[1:2]), dim(Xp)[3])
 

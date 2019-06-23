@@ -1,13 +1,5 @@
-#' readFragmentSize
+#' getFragmentSizeMatrix
 #' @export
-
-readFragmentSize <- function(filename, bins, fragment_size_range = c(0, 750), fragment_size_interval = 10){
-
-
-
-  list(X = X, coverage = sum(cvg[bins]))
-} # readFragmentSize
-
 
 getFragmentSizeMatrix <- function(filenames, which, window_size = 2000, bin_size = 20, fragment_size_range = c(0, 500), fragment_size_interval = 10, min_reads_per_window = 20){
 

@@ -11,8 +11,6 @@ Imports:
   Matrix,
   SummarizedExperiment,
   matrixStats,
-	tensorflow,
-	keras,
   futile.logger,
   GenomicRanges,
   GenomeInfoDb,
