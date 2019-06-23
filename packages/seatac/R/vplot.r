@@ -37,17 +37,17 @@ vplot_core <- function(gr, which){
   gr <- subsetByOverlaps(gr, which)
   flog.info(sprintf('found %d %d bp bins overlapping with %s:%d-%d', length(gr), metadata(gr)$bin_size, seqnames(which), start(which), end(which)))
 
-  browser()
 #  plot(mcols(gr)$coverage[, 1])
-  image(mcols(gr)$predicted_counts, col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+  image(mcols(gr)$predicted_counts, breaks = c(seq(0, 0.15, length.out = 100), 1), col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+#  image(mcols(gr)$predicted_counts, col = gplots::colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
   y <- summary(as(mcols(gr)$counts, 'dgCMatrix'))
   points(y[, 1] / nrow(mcols(gr)$counts), y[, 2] / ncol(mcols(gr)$counts), pch = 3, cex = 1.25, col = 'black')
-#  lines(1:length(gr) / length(gr), mcols(gr)$coverage[, 1] / max(mcols(gr)$coverage[, 1]), col = 'yellow')
-  lines(1:length(gr) / length(gr), mcols(gr)$coverage[, 2] / max(mcols(gr)$coverage[, 2]), col = 'yellow')
+  lines(1:length(gr) / length(gr), mcols(gr)$coverage / max(mcols(gr)$coverage), col = 'yellow')
 
-  p.ideo <- Ideogram(gr)
-  p.ideo <- Ideogram(genome = metadata(gr)$providerVersion)
-  p.ideo
+#  browser()
 
-  browser()
+#  p.ideo <- Ideogram(gr)
+#  p.ideo <- Ideogram(genome = metadata(gr)$providerVersion)
+#  p.ideo
+
 } # vplot

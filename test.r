@@ -18,11 +18,18 @@ filenames <- sprintf('analysis/seatac/data/%s', filenames)
 time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
 # Etv2: chr7:30,604,535-30,664,933
-which <- GRanges(seqnames = 'chr7', range = IRanges(25000001, 37000000))
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, window_size = 10000, bin_size = 10, fragment_size_range = c(50, 500), fragment_size_interval = 10, epochs = 1, gpu = FALSE)
+which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 40000000))
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, window_size = 10000, bin_size = 10, fragment_size_range = c(50, 500), fragment_size_interval = 20, epochs = 20, gpu = TRUE)
+
+source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/test.rds', PROJECT_DIR)
+saveRDS(gr, file = gr_file)
 
 
-devtools::load_all('analysis/seatac/packages/seatac'); vplot(gr[mcols(gr)$groups == 2], which = 'chr7:30,628,023-30,641,444')
+par(mfrow = c(4, 1))
+devtools::load_all('analysis/seatac/packages/seatac'); vplot(gr[mcols(gr)$groups == 1], which = 'chr7:30,628,023-30,641,444')
+plot(colMeans(mcols(gr)$predicted_counts), type = 'l')
+plot(colMeans(mcols(gr)$counts), type = 'l')
+
 
 i <- 1
 

@@ -95,7 +95,7 @@ getFragmentSizeMatrix <- function(filenames, which, window_size = 2000, bin_size
   list(
     X = X,  # input data: samples ~ input_dim ~ feature_dim
     group_window = group_window,  # group index for each window (used for training)
-    bins = rep(bins, num_samples)  # GRange for each bin
+    bins = bins # GRange for each bin
   )
 
 } # getFragmentSizeMatrix
