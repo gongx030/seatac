@@ -20,7 +20,7 @@ NULL
 #'
 #' @author Wuming Gong
 #'
-seatac <- function(filenames, which = NULL, genome, window_size = 2000, bin_size = 20, fragment_size_range = c(70, 500), fragment_size_interval = 10, epochs = 5, batch_size = 256, gpu = TRUE){
+seatac <- function(filenames, which = NULL, genome, latent_dim = 10, window_size = 2000, bin_size = 20, fragment_size_range = c(70, 500), fragment_size_interval = 10, epochs = 5, batch_size = 256, gpu = TRUE){
 
   if (missing(filenames))
     stop('filenames are missing')
@@ -54,14 +54,15 @@ seatac <- function(filenames, which = NULL, genome, window_size = 2000, bin_size
   input_dim <- dim(fs$X)[2]
   feature_dim <- dim(fs$X)[3]
 
-  model <- build_model(input_dim = input_dim, feature_dim = feature_dim, gpu = gpu)
+  model <- vae(input_dim = input_dim, feature_dim = feature_dim, latent_dim = latent_dim)
 
+	g <- array(0, dim = c(sample_dim, 1, feature_dim))
   outputs <- list(
-    abind(array(0, dim = c(sample_dim, 1, feature_dim)), fs$X[, 1:(input_dim - 1), ], along = 2),
+    abind(g, fs$X[, 1:(input_dim - 1), ], along = 2),
     fs$X,
-    abind(fs$X[, 2:input_dim, ], array(0, dim = c(sample_dim, 1, feature_dim)), along = 2)
+    abind(fs$X[, 2:input_dim, ], g, along = 2)
    )
-  model %>% fit(fs$X, outputs, epochs = epochs, batch_size = batch_size, validation_split = 0.1)
+  model %>% fit(fs$X, outputs, epochs = epochs, batch_size = batch_size, validation_split = 0.1, shuffle = TRUE)
 
   Xp <- (model %>% predict(fs$X, batch_size = batch_size, verbose = 1))[[2]]
   Xp <- aperm(Xp, c(2, 1, 3)) 

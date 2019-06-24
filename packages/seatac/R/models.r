@@ -10,7 +10,7 @@ model_20190621a <- function(input_dim, feature_dim, gpu = TRUE){
 	input_layer <- layer_input(shape = shape(input_dim, feature_dim))
   conv_1d_output_layer <- input_layer %>% 
   		layer_reshape(target_shape = c(input_dim, feature_dim, 1)) %>%
-      time_distributed(layer_conv_1d(filters = 4L, kernel_size = 10L, strides = 2L, activation = 'relu')) %>%
+      time_distributed(layer_conv_1d(filters = 4L, kernel_size = 5L, strides = 1L, activation = 'relu')) %>%
       time_distributed(layer_flatten()) %>%
       time_distributed(layer_dropout(rate = 0.3))
 
@@ -37,7 +37,6 @@ model_20190621a <- function(input_dim, feature_dim, gpu = TRUE){
       time_distributed(layer_dense(units = feature_dim, activation = 'softmax')) 
 
   model <- keras_model(input_layer, list(left_layer, center_layer, right_layer))
-#  model <- keras_model(input_layer, center_layer)
 	print(model)
 	model %>% compile(optimizer = 'adam', loss = c(loss_binary_crossentropy, loss_binary_crossentropy, loss_binary_crossentropy))
   model
