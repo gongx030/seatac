@@ -54,6 +54,9 @@ points(y[, 1] / nrow(fs$X[i, , ]), y[, 2] / ncol(fs$X[i, , ]), pch = 3, cex = 1.
 library(tensorflow)
 tfe_enable_eager_execution(device_policy = 'silent')
 library(keras)
+library(tfprobability)
+library(tfdatasets)
+library(futile.logger); flog.threshold(TRACE)
 
 library(BSgenome.Mmusculus.UCSC.mm10)
 filenames <- c(
@@ -67,7 +70,7 @@ time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
 # Etv2: chr7:30,604,535-30,664,933
 which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 30000000))
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dim = 10, window_size = 1000, bin_size = 20, fragment_size_range = c(50, 500), fragment_size_interval = 25, epochs = 50, gpu = TRUE)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dim = 20, n_components = 7, window_size = 320, bin_size = 10, fragment_size_range = c(50, 680), fragment_size_interval = 20, min_reads_per_window = 50, epochs = 50, steps_per_epoch = 10)
 
 source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/test.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)
@@ -524,83 +527,6 @@ hmm$posterior_mode(Y)
 
   latent_prior <- tfd_multivariate_normal_diag(loc = rep(0, latent_dim), scale_identity_multiplier = 1)
 
-  for (epoch in seq_len(epochs)) {
-
-    iter <- make_iterator_one_shot(train_dataset)
-
-    total_loss <- 0
-    total_loss_nll <- 0
-    total_loss_kl <- 0
-
-    until_out_of_range({
-
-      x <-  iterator_get_next(iter)
-      total_count <- tf$reduce_sum(x, axis = 1L)
-
-      with(tf$GradientTape(persistent = TRUE) %as% tape, {
-
-        approx_posterior <- encoder(x)
-        approx_posterior_sample <- approx_posterior$sample()
-        decoder_likelihood <- decoder(list(approx_posterior_sample, total_count))
-
-        nll <- -decoder_likelihood$log_prob(x)
-        avg_nll <- tf$reduce_mean(nll)
-
-        kl_loss <- compute_kl_loss(latent_prior, approx_posterior, approx_posterior_sample)
-
-        loss <- kl_loss + avg_nll
-      })
-
-      total_loss <- total_loss + loss
-      total_loss_nll <- total_loss_nll + avg_nll
-      total_loss_kl <- total_loss_kl + kl_loss
-
-      encoder_gradients <- tape$gradient(loss, encoder$variables)
-      decoder_gradients <- tape$gradient(loss, decoder$variables)
-
-      optimizer$apply_gradients(
-        purrr::transpose(list(encoder_gradients, encoder$variables)),
-        global_step = tf$train$get_or_create_global_step()
-      )
-
-      optimizer$apply_gradients(
-        purrr::transpose(list(decoder_gradients, decoder$variables)),
-        global_step = tf$train$get_or_create_global_step()
-      )
-    })
-    flog.info(sprintf('epoch=%d/%d | negative likelihood=%.3f | kl=%.3f | total=%.3f', epoch, epochs, total_loss_nll, total_loss_kl, total_loss))
-  }
-  browser()
-
-  Z <- encoder(fs$X %>% as.matrix())$loc %>% as.matrix()
-  cls <- kmeans(Z, num_states)$cluster
-  lapply(1:num_states, function(k) plot(colMeans(fs$X[cls == k, ]), type = 'l', main = k))
-
-}
-
-  sampling <- function(arg){
-    z_mean <- arg[, 1:(latent_dim)]
-    z_log_var <- arg[, (latent_dim + 1):(2 * latent_dim)]
-    epsilon <- k_random_normal(
-      shape = c(k_shape(z_mean)[[1]]),
-      mean = 0.,
-      stddev = 1.0
-    )
-    z_mean + k_exp(z_log_var / 2) * epsilon
-  }
-
-cae <- function(input_dim, feature_dim, latent_dim = 10){
-
-  input_layer <- layer_input(shape = shape(input_dim, feature_dim))
-  encoder <- input_layer %>% bidirectional(layer_gru(units = latent_dim))
-
-  decoder <- encoder %>%
-    layer_repeat_vector(input_dim) %>%
-    layer_gru(latent_dim, return_sequences = TRUE) %>%
-    time_distributed(layer_dense(units = feature_dim, activation = 'softmax'))
-
-  model <- keras_model(input_layer, decoder)
-  model %>% compile(optimizer = 'rmsprop', loss = 'binary_crossentropy')
-  model
-
-} #  vae
+	    cvg_i <- sum(coverage(x)[bins])  # total reads coverage at each bin
+	    names(cvg_i) <- NULL
+			    cvg <- c(cvg, cvg_i)

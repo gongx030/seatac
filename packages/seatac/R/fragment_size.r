@@ -11,13 +11,13 @@ getFragmentSizeMatrix <- function(filenames, which, window_size = 2000, bin_size
     stop('which must contain one genomic range')
 
   # every window has the same width
-  windows <- slidingWindows(which, width = window_size, step = window_size)
+  windows <- slidingWindows(which, width = window_size, step = bin_size)
   windows <- Reduce('c', windows)
   windows <- windows[width(windows) == window_size]
   seqlevels(windows, pruning.mode = 'coarse') <- seqlevels(which)
   n_windows <- length(windows)
 
-  bins <- slidingWindows(windows, width = bin_size, step = bin_size)
+  bins <- slidingWindows(reduce(windows), width = bin_size, step = bin_size)
   bins <- unlist(bins)
 
   breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
@@ -32,8 +32,7 @@ getFragmentSizeMatrix <- function(filenames, which, window_size = 2000, bin_size
 
   X <- NULL
   group_window <- NULL
-  group_bin <- NULL
-  cvg <- NULL
+	wi <- NULL	# window index
 
   for (i in 1:num_samples){
 
@@ -44,9 +43,6 @@ getFragmentSizeMatrix <- function(filenames, which, window_size = 2000, bin_size
       stop(sprintf('%s is not paired-end file.', filenames[i]))
 
     x <- readGAlignmentPairs(filenames[i], param = param)
-    cvg_i <- sum(coverage(x)[bins])  # total reads coverage at each bin
-    names(cvg_i) <- NULL
-    cvg <- c(cvg, cvg_i)
 
     if (length(x) > 0){
       x <- as(x, 'GRanges') # convert GAlignmentPairs into GRanges where two paired end reads are merged
@@ -54,40 +50,43 @@ getFragmentSizeMatrix <- function(filenames, which, window_size = 2000, bin_size
       x$fragment_size <- as.numeric(cut(x$fragment_size, breaks))
       x <- x[!is.na(x$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
       x <- resize(x, width = 1, fix = 'center')
+
+
       S <- sparseMatrix(1:length(x), x$fragment_size, dims = c(length(x), length(breaks)))  # read center ~ fragment size
-      mm <- as.matrix(findOverlaps(bins, x))
+      mm <- as.matrix(findOverlaps(bins, x))	# bins ~ read center
       A <- as(sparseMatrix(mm[, 1], mm[, 2], dims = c(length(bins), length(x))), 'dgCMatrix') # bins ~ read center
       Xi <- A %*% S  # bins ~ fragment size
       Xi[Xi > 0] <- 1
-      Xi <- as.matrix(Xi)
-    }else{
-      Xi <- matrix(0, dims = c(length(bins), length(x)))
+
+			mm <- as.matrix(findOverlaps(windows, bins))	# windows ~ bins
+      B <- as(sparseMatrix(mm[, 1], mm[, 2], dims = c(length(windows), length(bins))), 'dgCMatrix') # windows ~ bins
+			include_window <- rowSums(B %*% Xi) > min_reads_per_window # windows that have enough reads
+
+			mm <- summary(t(B[include_window, ]))[, 1:2]	# bins, windows, order by windows
+			Xi <- Xi[mm[, 1], ]	# only include the bins overlap with included windows (with enough reads)
+			Xi <- as.matrix(Xi) # convert dgCMatrix to matrix
+
+	    # convert Xi into an array with bathc_size ~ n_bins_per_window ~ n_intervals
+ 	    dim(Xi) <- c(n_bins_per_window, sum(include_window), n_intervals)
+    	Xi <- aperm(Xi, c(2, 1, 3))
     }
 
-    # convert Xi into an array with bathc_size ~ n_bins_per_window ~ n_intervals
-    dim(Xi) <- c(n_bins_per_window, n_windows, n_intervals)
-    Xi <- aperm(Xi, c(2, 1, 3))
-
-    #include <- apply(Xi, 1, sum) > min_reads_per_window # selecting windows with enough reads
-    #Xi <- Xi[include, , ]
-    #Bi <- Bi[include, ]
-
     group_window <- c(group_window, rep(i, nrow(Xi)))
-    group_bin <- c(group_bin, rep(i, n_bins_per_window * n_windows))
     X <- abind(X, Xi, along = 1)
+		wi <- c(wi, which(include_window))
   }
 
-  bins <- rep(bins, num_samples)
-  metadata(bins)$fragment_size_range  <- fragment_size_range
-  metadata(bins)$fragment_size_interval <- fragment_size_interval
-  metadata(bins)$bin_size <- bin_size
-  mcols(bins)$coverage <- cvg   # coverage of each bin: bins ~ group
-  mcols(bins)$groups <- group_bin   # group index for each bin
+	windows <- windows[wi]
+  metadata(windows)$fragment_size_range  <- fragment_size_range
+  metadata(windows)$fragment_size_interval <- fragment_size_interval
+  metadata(windows)$bin_size <- bin_size
+  metadata(windows)$window_size <- window_size 
+  mcols(windows)$groups <- group_window	# group index for each window
 
   list(
     X = X,  # input data: samples ~ input_dim ~ feature_dim
     group_window = group_window,  # group index for each window (used for training)
-    bins = bins # GRange for each bin
+    windows = windows # GRange for each window
   )
 
 } # getFragmentSizeMatrix
