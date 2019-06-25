@@ -69,8 +69,8 @@ filenames <- sprintf('analysis/seatac/data/%s', filenames)
 time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
 # Etv2: chr7:30,604,535-30,664,933
-which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 30000000))
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dim = 20, n_components = 7, window_size = 320, bin_size = 10, fragment_size_range = c(50, 680), fragment_size_interval = 20, min_reads_per_window = 50, epochs = 50, steps_per_epoch = 10)
+which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 40000000))
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, latent_dim = 10, n_components = 7, window_size = 320, bin_size = 10, fragment_size_range = c(50, 680), fragment_size_interval = 20, min_reads_per_window = 50, epochs = 50, steps_per_epoch = 10)
 
 source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/test.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)

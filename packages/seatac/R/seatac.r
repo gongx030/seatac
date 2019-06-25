@@ -20,7 +20,7 @@ NULL
 #'
 #' @author Wuming Gong
 #'
-seatac <- function(filenames, which = NULL, genome, latent_dim = 10, n_components = NULL, window_size = 2000, bin_size = 20, fragment_size_range = c(70, 500), fragment_size_interval = 10, min_reads_per_window = 20, epochs = 5, batch_size = 256, steps_per_epoch = 10){
+seatac <- function(filenames, which = NULL, genome, latent_dim = 10, n_components = 5, window_size = 2000, bin_size = 20, fragment_size_range = c(70, 500), fragment_size_interval = 10, min_reads_per_window = 20, epochs = 5, batch_size = 256, steps_per_epoch = 10){
 
   if (missing(filenames))
     stop('filenames are missing')
@@ -47,6 +47,9 @@ seatac <- function(filenames, which = NULL, genome, latent_dim = 10, n_component
   seqlevels(gr, pruning.mode = 'coarse') <- seqlevels(which)
   seqlengths(seqinfo(which)) <-  seqlengths(seqinfo(gr))
   genome(seqinfo(which)) <-  genome(seqinfo(gr))
+
+	flog.trace(sprintf('latent dimension(latent_dim):%d', latent_dim))
+	flog.trace(sprintf('# mixture components(n_components):%d', n_components))
 
   fs <- getFragmentSizeMatrix(filenames, which, window_size, bin_size, fragment_size_range, fragment_size_interval, min_reads_per_window)
 
