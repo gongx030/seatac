@@ -88,7 +88,90 @@ gmm_vae <- function(input_dim, feature_dim, latent_dim, n_components){
 	}
 	decoder <- decoder_model(input_dim, feature_dim)
 
-	list(encoder = encoder, decoder = decoder, latent_prior_model = latent_prior_model, trainable_prior = TRUE)
+	structure(list(
+		encoder = encoder, 
+		decoder = decoder, 
+		latent_prior_model = latent_prior_model, 
+		trainable_prior = TRUE,
+		input_dim = input_dim,
+		feature_dim = feature_dim,
+		latent_dim = latent_dim,
+		n_components = n_components
+	), class = 'seatac_model')
 
 } # gmm_vae
+
+
+saveModel <- function(x, dir){
+
+	if (missing(dir))
+		stop('dir must be specified')
+
+	if (!file.exists(dir))
+		dir.create(dir, recursive = TRUE)
+
+	encoder_file <- sprintf('%s/encoder.h5', dir)
+	flog.trace(sprintf('writing %s', encoder_file))
+	save_model_weights_hdf5(x$encoder, encoder_file)
+
+	decoder_file <- sprintf('%s/decoder.h5', dir)
+	flog.trace(sprintf('writing %s', decoder_file))
+	save_model_weights_hdf5(x$decoder, decoder_file)
+
+	latent_prior_model_file <- sprintf('%s/latent_prior_model.h5', dir)
+	flog.trace(sprintf('writing %s', latent_prior_model_file))
+	save_model_weights_hdf5(x$latent_prior_model, latent_prior_model_file)
+
+	x$encoder_file <- encoder_file
+	x$decoder_file <- decoder_file
+	x$latent_prior_model_file <- latent_prior_model_file
+
+	x$encoder <- NULL
+	x$decoder <- NULL
+	x$latent_prior_model <- NULL
+
+	model_file <- sprintf('%s/model.rds', dir)
+	flog.trace(sprintf('writing %s', model_file))
+	saveRDS(x, model_file)
+
+} # saveModel
+
+
+loadModel <- function(dir){
+
+	if (missing(dir))
+		stop('dir must be specified')
+
+	encoder_file <- sprintf('%s/encoder.h5', dir)
+	decoder_file <- sprintf('%s/decoder.h5', dir)
+	latent_prior_model_file <- sprintf('%s/latent_prior_model.h5', dir)
+	model_file <- sprintf('%s/model.rds', dir)
+
+	if (!file.exists(encoder_file))
+		stop(sprintf('%s does not exist', encoder_file))
+
+	if (!file.exists(decoder_file))
+		stop(sprintf('%s does not exist', decoder_file))
+
+	if (!file.exists(latent_prior_model_file))
+		stop(sprintf('%s does not exist', latent_prior_model_file))
+
+	if (!file.exists(model_file))
+		stop(sprintf('%s does not exist', model_file))
+
+	x <- readRDS(model_file)
+	model <- gmm_vae(input_dim = x$input_dim, feature_dim = x$feature_dim, latent_dim = x$latent_dim, n_components = x$n_components)
+
+	model$encoder$set_weights(encoder_file)
+	model$decoder$set_weights(decoder_file)
+	model$latent_prior_model$set_weights(latent_prior_model_file)
+
+	for (y in names(x)[!names(x) %in% c('encoder', 'decoder', 'latent_prior_model')])
+		model[[y]] <- x[[y]]
+
+	class(model) <- 'seatac_model'
+
+	model
+} # loadModel
+
 

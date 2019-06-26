@@ -1,9 +1,9 @@
-fit_vae <- function(model, train_dataset, epochs = 1, steps_per_epoch = 10){
+fit.seatac_model <- function(model, train_dataset, epochs = 1, steps_per_epoch = 10){
 
 	optimizer <- tf$train$AdamOptimizer(0.001)
-	flog.trace('optimizer: Adam(learning_rate=0.001)')
-	flog.trace(sprintf('steps_per_epoch: %d', steps_per_epoch))
-	flog.trace(sprintf('trainable prior: %s', model$trainable_prior))
+	flog.info('optimizer: Adam(learning_rate=0.001)')
+	flog.info(sprintf('steps_per_epoch: %d', steps_per_epoch))
+	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
 
   for (epoch in seq_len(epochs)) {
 

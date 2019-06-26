@@ -2,9 +2,9 @@
 
 export(getFragmentSizeMatrix)
 export(seatac)
+import(Gviz)
 import(Matrix)
 import(SummarizedExperiment)
-import(ggbio)
 importFrom(GenomeInfoDb,seqlengths)
 importFrom(GenomicAlignments,readGAlignmentPairs)
 importFrom(GenomicRanges,intersect)

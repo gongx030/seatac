@@ -5,8 +5,11 @@
 \title{seatac}
 \usage{
 seatac(filenames, which = NULL, genome, latent_dim = 10,
-  window_size = 2000, bin_size = 20, fragment_size_range = c(70,
-  500), fragment_size_interval = 10, epochs = 5, batch_size = 256)
+  n_components = 5, window_size = 320, bin_size = 10,
+  fragment_size_range = c(50, 680), fragment_size_interval = 20,
+  min_reads_per_window_train = 50, min_reads_per_window_predict = 10,
+  epochs = 5, batch_size = 256, steps_per_epoch = 10,
+  block_size = 1e+06)
 }
 \description{
 Integrating multiple sources of temporal scRNA-seq data by neighborhood component analysis
