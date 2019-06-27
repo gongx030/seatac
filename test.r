@@ -59,7 +59,6 @@ library(tfdatasets)
 library(futile.logger); flog.threshold(TRACE)
 
 library(BSgenome.Mmusculus.UCSC.mm10)
-library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 filenames <- c(
   'ATAC_MEF_NoDox.bam', 
   'ATAC_MEF_Dox_D1.bam',
@@ -74,19 +73,63 @@ time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
 # testing on the whole chromosome 7
 which <- GRanges(seqnames = 'chr7', range = IRanges(1, 145441459))	# whole chr7
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames, which, genome = BSgenome.Mmusculus.UCSC.mm10, n_components = 15, epochs = 50, min_reads_per_window_train = 50, min_reads_per_window_predict = 20, num_windows_per_block = 5000)
-source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/results/Etv2_MEF_chr7.rds', PROJECT_DIR)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames[1], which, genome = BSgenome.Mmusculus.UCSC.mm10, n_components = 10, epochs = 50, min_reads_per_window_train = 50, min_reads_per_window_predict = 10, num_windows_per_block = 10000)
+source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/results/MEF_chr7.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)
 
 # Testing Gviz
-which <- GRanges(seqnames = 'chr7', range = IRanges(10000001, 20000000))
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames, which, genome = BSgenome.Mmusculus.UCSC.mm10, n_components = 15, epochs = 2, min_reads_per_window_train = 50, min_reads_per_window_predict = 20, num_windows_per_block = 5000)
+which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 80000000))
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames, which, genome = BSgenome.Mmusculus.UCSC.mm10, n_components = 10, epochs = 50, min_reads_per_window_train = 50, min_reads_per_window_predict = 20, num_windows_per_block = 100000)
 source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/results/test.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)
 
+
+# -----------------------------------------------------------------------------------
+# [2019-06-26] Visualize the V-plot clusters
+# -----------------------------------------------------------------------------------
+library(gplots)
+#par(mfrow = c(10, 1), mar = c(0.25, 2, 0.25, 2))
+par(mfrow = c(1, 10), mar = c(2, 0.25, 2, 0.25))
+#lapply(1:10, function(k) image(metadata(gr)$predicted_pattern[[k]], axes = FALSE, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red')))
+lapply(1:10, function(k) image(metadata(gr)$observed[[k]], axes = FALSE, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red')))
+
+n_components <- 10
+
+df <- data.frame(cluster = factor(1:n_components), n = colSums(mcols(gr)$cluster))
+ggplot(data = df, aes(x = cluster, y = n)) + geom_bar(stat = 'identity') + scale_y_log10()
+
+lapply(1:10, function(k) image(metadata(gr)$observed_pattern[[k]], main = k))
+
+
+# -----------------------------------------------------------------------------------
+# [2019-06-26] Visualize a track that shows the following information:
+# * Gene tracks
+# * ATAC-seq coverage
+# * fitted V-plot as well as observed counts
+# * The cluster distribution
+# -----------------------------------------------------------------------------------
+library(gridExtra)
+library(ggbio)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+library(SummarizedExperiment)
+#devtools::load_all('analysis/seatac/packages/seatac'); vplot(gr, which = 'chr7:30,628,023-30,641,444', txdb = TxDb.Mmusculus.UCSC.mm10.knownGene)
+#tx <- subsetByOverlaps(transcripts(TxDb.Mmusculus.UCSC.mm10.knownGene), gr)
+
+win <- Reduce('c', slidingWindows(GRanges(seqnames = 'chr7', range = IRanges(1, 145441459)), width = 1000, step = 1000))
+A <- as.matrix(findOverlaps(win, gr))
+A <- sparseMatrix(i = A[, 1], j = A[, 2], dims = c(length(win), length(gr)))
+which <- win[order(rowSums(A), decreasing = TRUE)[50]]
+
+devtools::load_all('analysis/seatac/packages/seatac'); vplot(gr, which = resize(which, width = 10000, fix = 'center'), txdb = TxDb.Mmusculus.UCSC.mm10.knownGene)
+
+
+
+
+i <- 1:500 + 1000
+image(as.matrix(mcols(gr)$counts[i, ]), col = colorpanel(100, low = 'blue', mid = 'black', high = 'yellow'))
+image(as.matrix(mcols(gr)$predicted_counts[i, ]), col = colorpanel(100, low = 'blue', mid = 'black', high = 'yellow'))
+
 # look at the clusters
-par(mfrow = c(5, 6))
-lapply(1:15, function(k) image(colSums(mcols(gr)$counts[max.col(mcols(gr)$posterior) == k, , ], dims = 1), main = k))
 lapply(1:15, function(k) image(colSums(mcols(gr)$predicted_counts[max.col(mcols(gr)$posterior) == k, , ], dims = 1), main = k))
 
 

@@ -100,6 +100,8 @@ getFragmentSizeMatrix <- function(filenames, which, genome, window_size = 2000, 
 		metadata(win)$fragment_size_interval <- fragment_size_interval
 		metadata(win)$bin_size <- bin_size
 		metadata(win)$window_size <- window_size 
+		metadata(win)$n_bins_per_window <- n_bins_per_window
+		metadata(win)$n_intervals <- n_intervals
 		mcols(win)$groups <- group_window	# group index for each window
 		mcols(win)$num_reads <- apply(X, 1, sum)
 		mcols(win)$counts <- X

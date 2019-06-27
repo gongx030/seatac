@@ -9,7 +9,7 @@
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam
 #' @importFrom GenomicAlignments readGAlignmentPairs
 #' @importFrom abind abind
-#' @import Gviz
+#' @importFrom gplots colorpanel
 NULL
 
 
@@ -36,7 +36,8 @@ seatac <- function(
 	epochs = 5, 
 	batch_size = 256, 
 	steps_per_epoch = 10,
-	num_windows_per_block = 1000 # size of genomic windows for prediction per chunk
+	num_windows_per_block = 1000, # size of genomic windows for prediction per chunk
+	knn = 50
 ){
 
 	validate_bam(filenames)
@@ -67,6 +68,13 @@ seatac <- function(
 
 	model %>% fit(train_dataset, epochs = epochs, steps_per_epoch = steps_per_epoch)
 
+	Z <- model$encoder(mcols(win)$counts %>% k_expand_dims() %>% tf$cast(tf$float32))$loc
+	P <- model$latent_prior_model(NULL)$components_distribution$log_prob(Z %>% tf$reshape(shape(sample_dim, 1, model$latent_dim))) %>% as.matrix()
+	cls <- max.col(P)
+	Xp <- model$decoder(Z)$distribution$probs %>% tf$reshape(shape(sample_dim, input_dim, feature_dim)) %>% as.array()
+	Vp <- lapply(1:n_components, function(k) colSums(Xp[cls == k, , , drop = FALSE], dims = 1))
+	V <- lapply(1:n_components, function(k) colSums(mcols(win)$counts[cls == k, , , drop = FALSE], dims = 1))
+
 	model$which <- which
 	model$genome <- genome
 	model$window_size <- window_size
@@ -74,8 +82,14 @@ seatac <- function(
 	model$fragment_size_range <- fragment_size_range
 	model$fragment_size_interval <- fragment_size_interval
 	model$min_reads_per_window <- min_reads_per_window_train 
+	model$predicted_pattern <- Vp
+	model$observed_pattern <- V
 
 	gr <- model %>% predict(filenames, which, num_windows_per_block = num_windows_per_block, min_reads_per_window = min_reads_per_window_predict)	
+	mcols(gr)$train <- gr %over% win
+
+	metadata(gr)$predicted_pattern <- model$predicted_pattern
+	metadata(gr)$observed_pattern <- model$observed_pattern
 	gr
 
 } # seatac
