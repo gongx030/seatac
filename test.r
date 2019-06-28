@@ -73,13 +73,13 @@ time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
 # testing on the whole chromosome 7
 which <- GRanges(seqnames = 'chr7', range = IRanges(1, 145441459))	# whole chr7
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames[1], which, genome = BSgenome.Mmusculus.UCSC.mm10, n_components = 10, epochs = 50, min_reads_per_window_train = 50, min_reads_per_window_predict = 10, num_windows_per_block = 10000)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames, which, genome = BSgenome.Mmusculus.UCSC.mm10, n_components = 10, epochs = 50, min_reads_per_window = 50)
 source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/results/MEF_chr7.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)
 
 # Testing Gviz
-which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 80000000))
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames, which, genome = BSgenome.Mmusculus.UCSC.mm10, n_components = 10, epochs = 50, min_reads_per_window_train = 50, min_reads_per_window_predict = 20, num_windows_per_block = 100000)
+which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 30000000))
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames, which, genome = BSgenome.Mmusculus.UCSC.mm10, n_components = 10, epochs = 50, min_reads_per_window = 50)
 source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/results/test.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)
 
@@ -91,7 +91,13 @@ library(gplots)
 #par(mfrow = c(10, 1), mar = c(0.25, 2, 0.25, 2))
 par(mfrow = c(1, 10), mar = c(2, 0.25, 2, 0.25))
 #lapply(1:10, function(k) image(metadata(gr)$predicted_pattern[[k]], axes = FALSE, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red')))
-lapply(1:10, function(k) image(metadata(gr)$observed[[k]], axes = FALSE, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red')))
+lapply(1:10, function(k) {
+	image(matrix(colMeans(mcols(gr)$counts[mcols(gr)$cluster == k, ]), 32, 32), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+})
+
+  mcols(win)$model$predicted_pattern <- lapply(1:n_components, function(k) colSums(Xp[cls == k, , , drop = FALSE], dims = 1))
+  mcols(win)$model$observed_pattern <- V
+
 
 n_components <- 10
 

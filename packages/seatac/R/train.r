@@ -1,4 +1,4 @@
-fit.seatac_model <- function(model, train_dataset, epochs = 1, steps_per_epoch = 10){
+fit.seatac_model <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256){
 
 	optimizer <- tf$train$AdamOptimizer(0.001)
 	flog.info('optimizer: Adam(learning_rate=0.001)')
@@ -7,7 +7,8 @@ fit.seatac_model <- function(model, train_dataset, epochs = 1, steps_per_epoch =
 
   for (epoch in seq_len(epochs)) {
 
-    iter <- make_iterator_one_shot(train_dataset)
+		# randomly sampling batches
+		G <- matrix(sample.int(length(gr), steps_per_epoch * batch_size), steps_per_epoch, batch_size)
 
     total_loss <- 0
     total_loss_nll <- 0
@@ -15,13 +16,21 @@ fit.seatac_model <- function(model, train_dataset, epochs = 1, steps_per_epoch =
 
 		for (s in 1:steps_per_epoch){
 
-      x <- iterator_get_next(iter)
+			b <- G[s, ]
+			x <- mcols(gr)$counts[b, ] %>%
+				as.matrix() %>% 
+				tf$cast(tf$float32) %>% 
+				tf$reshape(shape(batch_size, model$input_dim, model$feature_dim)) %>%
+				tf$expand_dims(axis = 3L)
+
+			g <- mcols(gr)$group[b] - 1 %>% 	# group index of current batch
+				tf$cast(tf$int32)
 
       with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
-        approx_posterior <- model$encoder(x)
+        approx_posterior <- x %>% model$encoder()
         approx_posterior_sample <- approx_posterior$sample()
-        decoder_likelihood <- model$decoder(approx_posterior_sample)
+        decoder_likelihood <- list(approx_posterior_sample, g) %>% model$decoder()
 
         nll <- -decoder_likelihood$log_prob(x)
         avg_nll <- tf$reduce_mean(nll)

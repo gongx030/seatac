@@ -42,7 +42,6 @@ getFragmentSizeMatrix <- function(filenames, which, genome, window_size = 2000, 
   )
   param <- ScanBamParam(which = reduce(bins), flag = flag)
 
-  X <- NULL
   group_window <- NULL
 	win <- NULL	
 
@@ -67,29 +66,35 @@ getFragmentSizeMatrix <- function(filenames, which, genome, window_size = 2000, 
       S <- sparseMatrix(1:length(x), x$fragment_size, dims = c(length(x), length(breaks)))  # read center ~ fragment size
       mm <- as.matrix(findOverlaps(bins, x))	# bins ~ read center
       A <- as(sparseMatrix(mm[, 1], mm[, 2], dims = c(length(bins), length(x))), 'dgCMatrix') # bins ~ read center
-      Xi <- A %*% S  # bins ~ fragment size
-      Xi[Xi > 0] <- 1
+      X <- A %*% S  # bins ~ fragment size
+      X[X > 0] <- 1
 
 			mm <- as.matrix(findOverlaps(windows, bins))	# windows ~ bins
       B <- as(sparseMatrix(mm[, 1], mm[, 2], dims = c(length(windows), length(bins))), 'dgCMatrix') # windows ~ bins
-			include_window <- rowSums(B %*% Xi) >= min_reads_per_window # windows that have enough reads
+			include_window <- rowSums(B %*% X) >= min_reads_per_window # windows that have enough reads
 
 			if (any(include_window)){
 
 				mm <- summary(t(B[include_window, , drop = FALSE]))[, 1:2]	# bins, windows, order by windows
-				Xi <- Xi[mm[, 1], ]	# only include the bins overlap with included windows (with enough reads)
-				Xi <- as.matrix(Xi) # convert dgCMatrix to matrix
+				X <- X[mm[, 1], ]	# only include the bins overlap with included windows (with enough reads)
+				X <- as.matrix(X) # convert dgCMatrix to matrix
 
-				# convert Xi into an array with bathc_size ~ n_bins_per_window ~ n_intervals
-				dim(Xi) <- c(n_bins_per_window, sum(include_window), n_intervals)
-				Xi <- aperm(Xi, c(2, 1, 3))
+				# convert X into an array with bathc_size ~ n_bins_per_window ~ n_intervals
+				dim(X) <- c(n_bins_per_window, sum(include_window), n_intervals)
+				X <- aperm(X, c(1, 3, 2)) # n_bins_per_window ~ n_intervals ~ bathc_size 
+				dim(X) <- c(n_bins_per_window * n_intervals, sum(include_window))
+				X <- aperm(X, c(2, 1))
+				X <- as(X, 'dgCMatrix')
 
-				group_window <- c(group_window, rep(i, nrow(Xi)))
-				X <- abind(X, Xi, along = 1)
-				if (i == 1){
-					win <- windows[include_window]
+				win_i <- windows[include_window]
+				mcols(win_i)$group <- i
+				mcols(win_i)$num_reads <- rowSums(X)
+				mcols(win_i)$counts <- X
+
+				if (is.null(win)){
+					win <- win_i
 				}else{
-					win <- c(win, windows[include_window])
+					win <- c(win, win_i)
 				}
 			}
     }
@@ -102,9 +107,6 @@ getFragmentSizeMatrix <- function(filenames, which, genome, window_size = 2000, 
 		metadata(win)$window_size <- window_size 
 		metadata(win)$n_bins_per_window <- n_bins_per_window
 		metadata(win)$n_intervals <- n_intervals
-		mcols(win)$groups <- group_window	# group index for each window
-		mcols(win)$num_reads <- apply(X, 1, sum)
-		mcols(win)$counts <- X
 		win
 	}
 
