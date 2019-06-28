@@ -111,7 +111,7 @@ gmm_vae <- function(input_dim, feature_dim, latent_dim, n_components, num_sample
 		latent_dim = latent_dim,
 		n_components = n_components,
 		num_samples = num_samples
-	), class = 'seatac_model')
+	), class = c('seatac_model', 'gmm_vae'))
 
 } # gmm_vae
 

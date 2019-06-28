@@ -79,7 +79,9 @@ saveRDS(gr, file = gr_file)
 
 # Testing Gviz
 which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 30000000))
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames, which, genome = BSgenome.Mmusculus.UCSC.mm10, n_components = 10, epochs = 50, min_reads_per_window = 50)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- readFragmentSize(filenames, which, genome = BSgenome.Mmusculus.UCSC.mm10, min_reads_per_window = 20)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = 10, n_components = 10, prior = 'gmm', epochs = 50)
+
 source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/results/test.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)
 
@@ -347,7 +349,8 @@ initial_state_logits <- rep(0, num_states)
 hmm <- tfd_hidden_markov_model(
   initial_distribution = tfd_categorical(logits = initial_state_logits),
   transition_distribution = transition_distribution,
-  observation_distribution = tfd_independent(tfd_bernoulli(logits = Theta, dtype = tf$float32)),
+#  observation_distribution = tfd_independent(tfd_bernoulli(logits = Theta, dtype = tf$float32)),
+  observation_distribution = tfd_independent(tfd_normal(loc = Theta, scale = Theta)),
   num_steps = num_steps
 )
 
@@ -614,3 +617,30 @@ hmm$posterior_mode(Y)
 	    cvg_i <- sum(coverage(x)[bins])  # total reads coverage at each bin
 	    names(cvg_i) <- NULL
 			    cvg <- c(cvg, cvg_i)
+
+
+
+H <- 4L
+num_states <- 2   
+num_steps <- 7
+initial_state_logits <- rep(0, num_states)
+transition_distribution <- tfd_categorical(
+  probs = matrix(c(0.7, 0.3, 0.2, 0.8), nrow = 2, byrow = TRUE) %>%
+    tf$cast(tf$float32)
+)
+#observation_distribution <- tfd_multivariate_normal_diag(loc = matrix(0, 2, 4), scale_diag = rep(1, 4)) 
+# We can combine these distributions into a single week long
+# hidden Markov model with:
+Theta <- tf$exp(tf$Variable(matrix(0, num_states, H), dtype = tf$float32))
+d <- tfd_hidden_markov_model(
+  initial_distribution = tfd_categorical(logits = initial_state_logits),
+  transition_distribution = transition_distribution,
+#  observation_distribution = tfd_independent(tfd_normal(loc = Theta, scale = Theta)),
+  observation_distribution =  tfd_multivariate_normal_diag(loc = Theta, scale_diag = rep(1, H)),
+  num_steps = num_steps
+)
+d$log_prob(d$sample(3L) %>% tf$reshape(shape(7, 3, 1, 4)))
+
+
+
+

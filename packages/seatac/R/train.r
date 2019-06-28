@@ -1,13 +1,14 @@
-fit.seatac_model <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256){
+fit.gmm_vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256){
 
 	optimizer <- tf$train$AdamOptimizer(0.001)
 	flog.info('optimizer: Adam(learning_rate=0.001)')
 	flog.info(sprintf('steps_per_epoch: %d', steps_per_epoch))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
+  num_samples <- metadata(gr)$num_samples
 
   for (epoch in seq_len(epochs)) {
 
-		# randomly sampling batches
+		# randomly sampling windows
 		G <- matrix(sample.int(length(gr), steps_per_epoch * batch_size), steps_per_epoch, batch_size)
 
     total_loss <- 0
@@ -20,10 +21,11 @@ fit.seatac_model <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_
 			x <- mcols(gr)$counts[b, ] %>%
 				as.matrix() %>% 
 				tf$cast(tf$float32) %>% 
-				tf$reshape(shape(batch_size, model$input_dim, model$feature_dim)) %>%
+				tf$reshape(shape(batch_size, num_samples, model$input_dim, model$feature_dim)) %>%
+				tf$reshape(shape(batch_size * num_samples, model$input_dim, model$feature_dim)) %>%
 				tf$expand_dims(axis = 3L)
 
-			g <- mcols(gr)$group[b] - 1 %>% 	# group index of current batch
+			g <- rep(seq_len(num_samples) - 1, batch_size) %>% 	# group index of current batch
 				tf$cast(tf$int32)
 
       with(tf$GradientTape(persistent = TRUE) %as% tape, {

@@ -45,7 +45,7 @@ getFragmentSizeMatrix <- function(filenames, which, genome, window_size = 2000, 
   group_window <- NULL
 	win <- NULL	
 
-  for (i in 1:num_samples){
+  x <- lapply(1:num_samples, function(i){
 
     if (!file.exists(filenames[i]))
       stop(sprintf('%s do not exist', filenames[i]))
@@ -53,62 +53,91 @@ getFragmentSizeMatrix <- function(filenames, which, genome, window_size = 2000, 
     if(!testPairedEndBam(filenames[i]))
       stop(sprintf('%s is not paired-end file.', filenames[i]))
 
-    x <- readGAlignmentPairs(filenames[i], param = param)
+    ga <- readGAlignmentPairs(filenames[i], param = param)
+    flog.info(sprintf('reading %s', filenames[i]))
 
-    if (length(x) > 0){
+    if (length(ga) > 0)
+      ga <- as(ga, 'GRanges') # convert GAlignmentPairs into GRanges where two paired end reads are merged
+      mcols(ga)$group <- i
+      ga
+  })
 
-      x <- as(x, 'GRanges') # convert GAlignmentPairs into GRanges where two paired end reads are merged
-      x$fragment_size <- width(x)
-      x$fragment_size <- as.numeric(cut(x$fragment_size, breaks))
-      x <- x[!is.na(x$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
-      x <- resize(x, width = 1, fix = 'center')
+  # !!! need to check whetehr there is any NULL
+  x <- Reduce('c', x)
+  x$fragment_size <- width(x)
+  x$fragment_size <- as.numeric(cut(x$fragment_size, breaks))
+  x <- x[!is.na(x$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
+  x <- resize(x, width = 1, fix = 'center') # the center genomic coordinate between two PE reads
 
-      S <- sparseMatrix(1:length(x), x$fragment_size, dims = c(length(x), length(breaks)))  # read center ~ fragment size
-      mm <- as.matrix(findOverlaps(bins, x))	# bins ~ read center
-      A <- as(sparseMatrix(mm[, 1], mm[, 2], dims = c(length(bins), length(x))), 'dgCMatrix') # bins ~ read center
-      X <- A %*% S  # bins ~ fragment size
-      X[X > 0] <- 1
+  # find the # PE reads per window per sample
+  num_reads <- do.call('cbind', lapply(1:num_samples, function(i) countOverlaps(windows, x[mcols(x)$group == i])))
 
-			mm <- as.matrix(findOverlaps(windows, bins))	# windows ~ bins
-      B <- as(sparseMatrix(mm[, 1], mm[, 2], dims = c(length(windows), length(bins))), 'dgCMatrix') # windows ~ bins
-			include_window <- rowSums(B %*% X) >= min_reads_per_window # windows that have enough reads
+  # each window must have at least min_reads_per_window reads in all samples
+  include_window <- rowSums(num_reads >= min_reads_per_window) == num_samples
 
-			if (any(include_window)){
+  if (any(include_window))
+    flog.info(sprintf('selecting %d windows that have at least %d PE reads in all samples', sum(include_window), min_reads_per_window))
+  else
+    stop(sprintf('there is no window that have %d PE reads in all samples. Try smaller min_reads_per_window', sum(include_window), min_reads_per_window))
 
-				mm <- summary(t(B[include_window, , drop = FALSE]))[, 1:2]	# bins, windows, order by windows
-				X <- X[mm[, 1], ]	# only include the bins overlap with included windows (with enough reads)
-				X <- as.matrix(X) # convert dgCMatrix to matrix
+  num_reads <- num_reads[include_window, ] 
+  windows <- windows[include_window]
+  x <- subsetByOverlaps(x, windows)
+  bins <- subsetByOverlaps(bins, windows)
+  wb <- as.matrix(findOverlaps(windows, bins))	# windows ~ bins, sorted by window
 
-				# convert X into an array with bathc_size ~ n_bins_per_window ~ n_intervals
-				dim(X) <- c(n_bins_per_window, sum(include_window), n_intervals)
-				X <- aperm(X, c(1, 3, 2)) # n_bins_per_window ~ n_intervals ~ bathc_size 
-				dim(X) <- c(n_bins_per_window * n_intervals, sum(include_window))
-				X <- aperm(X, c(2, 1))
-				X <- as(X, 'dgCMatrix')
+  X <- Reduce('cbind', lapply(1:num_samples, function(i){
+    xi <- x[mcols(x)$group == i]  # reads from group i
+    CF <- sparseMatrix(i = 1:length(xi), j = xi$fragment_size, dims = c(length(xi), length(breaks)))  # read center ~ fragment size
+    BC <- as.matrix(findOverlaps(bins, xi))	# bins ~ read center
+    BC <- as(sparseMatrix(BC[, 1], BC[, 2], dims = c(length(bins), length(xi))), 'dgCMatrix') # bins ~ read center
+    BF <- BC %*% CF  # bins ~ fragment size
+    BF[BF > 0] <- 1
+    BF <- as.matrix(BF[wb[, 2], ])
 
-				win_i <- windows[include_window]
-				mcols(win_i)$group <- i
-				mcols(win_i)$num_reads <- rowSums(X)
-				mcols(win_i)$counts <- X
+    # convert BF into an array with bathc_size ~ n_bins_per_window ~ n_intervals
+    dim(BF) <- c(n_bins_per_window, sum(include_window), n_intervals)
+    BF <- aperm(BF, c(1, 3, 2)) # n_bins_per_window ~ n_intervals ~ bathc_size 
+    dim(BF) <- c(n_bins_per_window * n_intervals, sum(include_window))
+    BF <- aperm(BF, c(2, 1))  # bathc_size ~ n_bins_per_window * n_intervals
+    BF <- as(BF, 'dgCMatrix')
+    BF
+  }))
 
-				if (is.null(win)){
-					win <- win_i
-				}else{
-					win <- c(win, win_i)
-				}
-			}
-    }
-  }
-
-	if (!is.null(win)){
-	  metadata(win)$fragment_size_range  <- fragment_size_range
-		metadata(win)$fragment_size_interval <- fragment_size_interval
-		metadata(win)$bin_size <- bin_size
-		metadata(win)$window_size <- window_size 
-		metadata(win)$n_bins_per_window <- n_bins_per_window
-		metadata(win)$n_intervals <- n_intervals
-		win
-	}
+  mcols(windows)$counts <- X
+  mcols(windows)$num_reads <- num_reads
+  metadata(windows)$fragment_size_range  <- fragment_size_range
+  metadata(windows)$fragment_size_interval <- fragment_size_interval
+  metadata(windows)$bin_size <- bin_size
+  metadata(windows)$window_size <- window_size 
+  metadata(windows)$n_bins_per_window <- n_bins_per_window
+  metadata(windows)$n_intervals <- n_intervals
+  windows
 
 } # getFragmentSizeMatrix
 
+
+readFragmentSize <- function(
+	filenames, 
+	which = NULL, 
+	genome, 
+	window_size = 320, 
+	bin_size = 10, 
+	fragment_size_range = c(50, 670), 
+	fragment_size_interval = 20, 
+	min_reads_per_window = 50
+){
+
+	validate_bam(filenames)
+
+  num_samples <- length(filenames)
+
+  input_dim <- window_size / bin_size
+	flog.info(sprintf('window size(window_size): %d', window_size))
+	flog.info(sprintf('bin size(bin_size): %d', bin_size))
+	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
+
+  gr <- getFragmentSizeMatrix(filenames, which, genome, window_size, bin_size, bin_size, fragment_size_range, fragment_size_interval, min_reads_per_window)
+  metadata(gr)$num_samples <- num_samples
+  gr
+} # readFragmentSize
