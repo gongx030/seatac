@@ -1,10 +1,12 @@
-fit.gmm_vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256){
+fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256){
 
 	optimizer <- tf$train$AdamOptimizer(0.001)
 	flog.info('optimizer: Adam(learning_rate=0.001)')
 	flog.info(sprintf('steps_per_epoch: %d', steps_per_epoch))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
   num_samples <- metadata(gr)$num_samples
+
+	batch_size <- ceiling(batch_size / num_samples)
 
   for (epoch in seq_len(epochs)) {
 
@@ -17,7 +19,7 @@ fit.gmm_vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size 
 
 		for (s in 1:steps_per_epoch){
 
-			b <- G[s, ]
+			b <- G[s, ]	# window index for current batch
 			x <- mcols(gr)$counts[b, ] %>%
 				as.matrix() %>% 
 				tf$cast(tf$float32) %>% 
@@ -25,22 +27,49 @@ fit.gmm_vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size 
 				tf$reshape(shape(batch_size * num_samples, model$input_dim, model$feature_dim)) %>%
 				tf$expand_dims(axis = 3L)
 
-			g <- rep(seq_len(num_samples) - 1, batch_size) %>% 	# group index of current batch
-				tf$cast(tf$int32)
+			if (model$batch_effect){
+				g <- rep(seq_len(num_samples) - 1, batch_size) %>% 	# group index of current batch
+					tf$cast(tf$int32)
+			}
+
+			# determining the weight for each window
+			w <- mcols(gr)$num_reads[b, , drop = FALSE]
+			w <- (w / 100)^(3/4)
+			w[w > 1] <- 1
+			w <- c(t(w))
 
       with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
         approx_posterior <- x %>% model$encoder()
         approx_posterior_sample <- approx_posterior$sample()
-        decoder_likelihood <- list(approx_posterior_sample, g) %>% model$decoder()
 
-        nll <- -decoder_likelihood$log_prob(x)
+				if (model$batch_effect){
+        	decoder_likelihood <- list(approx_posterior_sample, g) %>% model$decoder()
+				}else{
+        	decoder_likelihood <- approx_posterior_sample %>% model$decoder()
+				}
+
+        nll <- -w * decoder_likelihood$log_prob(x)	
         avg_nll <- tf$reduce_mean(nll)
 
 				if (model$trainable_prior)
 					model$latent_prior <- model$latent_prior_model(NULL)
 
-				kl_div <- approx_posterior$log_prob(approx_posterior_sample) - model$latent_prior$log_prob(approx_posterior_sample)
+				if (model$prior == 'gmm'){
+					kl_div <- w * (approx_posterior$log_prob(approx_posterior_sample) - model$latent_prior$log_prob(approx_posterior_sample))
+				}else if (model$prior == 'hmm'){
+
+					h <- approx_posterior_sample %>% 
+						tf$reshape(shape(batch_size, num_samples, 1, latent_dim, 1)) %>% 
+						tf$transpose(c(1L, 0L, 2L, 3L, 4L))
+
+					pr <- model$latent_prior$log_prob(h) %>%
+						tf$transpose(c(1L, 0L, 2L)) %>%
+						tf$reshape(shape(batch_size * num_samples))
+						
+					kl_div <- w * (approx_posterior$log_prob(approx_posterior_sample) - pr)
+				}
+
 				kl_div <- tf$reduce_mean(kl_div)
         loss <- kl_div + avg_nll
       })

@@ -73,14 +73,19 @@ time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
 # testing on the whole chromosome 7
 which <- GRanges(seqnames = 'chr7', range = IRanges(1, 145441459))	# whole chr7
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(filenames, which, genome = BSgenome.Mmusculus.UCSC.mm10, n_components = 10, epochs = 50, min_reads_per_window = 50)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- readFragmentSize(filenames[1:3], which, genome = BSgenome.Mmusculus.UCSC.mm10, min_reads_per_window = 30)
+#devtools::load_all('analysis/seatac/packages/seatac'); gr <- readFragmentSize(filenames[1], which, genome = BSgenome.Mmusculus.UCSC.mm10, min_reads_per_window = 50)
+#latent_dim <- 20; n_components <- 5; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'gmm', epochs = 50, batch_effect = FALSE)
+#latent_dim <- 10; n_components <- 10; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'gmm', epochs = 100, batch_effect = FALSE)
+#latent_dim <- 2; n_components <- 4; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'gmm', epochs = 100, batch_effect = FALSE)
+latent_dim <- 2; n_components <- 4; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'hmm', epochs = 50, batch_effect = FALSE)
 source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/results/MEF_chr7.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)
 
 # Testing Gviz
-which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 30000000))
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- readFragmentSize(filenames, which, genome = BSgenome.Mmusculus.UCSC.mm10, min_reads_per_window = 20)
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = 10, n_components = 10, prior = 'gmm', epochs = 50)
+which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 80000000))
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- readFragmentSize(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, min_reads_per_window = 50)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = 10, n_components = 10, prior = 'gmm', epochs = 50, batch_effect = FALSE)
 
 source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/results/test.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)
@@ -91,11 +96,18 @@ saveRDS(gr, file = gr_file)
 # -----------------------------------------------------------------------------------
 library(gplots)
 #par(mfrow = c(10, 1), mar = c(0.25, 2, 0.25, 2))
-par(mfrow = c(1, 10), mar = c(2, 0.25, 2, 0.25))
-#lapply(1:10, function(k) image(metadata(gr)$predicted_pattern[[k]], axes = FALSE, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red')))
-lapply(1:10, function(k) {
-	image(matrix(colMeans(mcols(gr)$counts[mcols(gr)$cluster == k, ]), 32, 32), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+par(mfrow = c(3, 5), mar = c(2, 0.25, 2, 0.25))
+lapply(1:metadata(gr)$model$n_components, function(k) {
+	X <- Reduce('+', lapply(1:metadata(gr)$num_samples, function(s){
+		start <- 32 * 32 * (s - 1) + 1
+		end <- 32 * 32 * s
+		colSums(mcols(gr)$counts[mcols(gr)$cluster[, s] == k, start:end])
+	}))
+	X <- matrix(X, 32, 32)
+	image(X, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 })
+table(mcols(gr)$cluster)
+
 
   mcols(win)$model$predicted_pattern <- lapply(1:n_components, function(k) colSums(Xp[cls == k, , , drop = FALSE], dims = 1))
   mcols(win)$model$observed_pattern <- V
@@ -639,7 +651,7 @@ d <- tfd_hidden_markov_model(
   observation_distribution =  tfd_multivariate_normal_diag(loc = Theta, scale_diag = rep(1, H)),
   num_steps = num_steps
 )
-d$log_prob(d$sample(3L) %>% tf$reshape(shape(7, 3, 1, 4)))
+d$log_prob(d$sample(3L) %>% tf$reshape(shape(7, 3, 1, 4, 1)))
 
 
 

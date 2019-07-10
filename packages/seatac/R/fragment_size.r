@@ -80,7 +80,7 @@ getFragmentSizeMatrix <- function(filenames, which, genome, window_size = 2000, 
   else
     stop(sprintf('there is no window that have %d PE reads in all samples. Try smaller min_reads_per_window', sum(include_window), min_reads_per_window))
 
-  num_reads <- num_reads[include_window, ] 
+  num_reads <- num_reads[include_window, , drop = FALSE]
   windows <- windows[include_window]
   x <- subsetByOverlaps(x, windows)
   bins <- subsetByOverlaps(bins, windows)

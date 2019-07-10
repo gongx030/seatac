@@ -1,105 +1,18 @@
 #' build_model
 #'
 
-gmm_vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples){
+vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, batch_effect, prior = 'gmm'){
 
-	learnable_prior_model <- function(latent_dim, n_components, name = NULL){
-		keras_model_custom(name = name, function(self) {
 
-			self$loc <- tf$get_variable(
-				name = 'loc',
-				shape = list(n_components, latent_dim),
-				dtype = tf$float32
-			)
+	if (prior == 'gmm'){
+		latent_prior_model <- gmm_prior_model(latent_dim, n_components)
+	}else if (prior == 'hmm'){
+		latent_prior_model <- hmm_prior_model(latent_dim, n_components, num_samples)
+	}else
+		stop(sprintf('unknown prior model: %s', prior))
 
-			self$raw_scale_diag <- tf$get_variable(
-				name = 'raw_scale_diag',
-				shape = list(n_components, latent_dim),
-				dtype = tf$float32
-			)
-
-			self$mixture_logits <- tf$get_variable(
-				name = 'mixture_logits',
-				shape = c(n_components),
-				dtype = tf$float32
-			)
-
-			function (x, mask = NULL) {
-				tfd_mixture_same_family(
-					components_distribution = tfd_multivariate_normal_diag(loc = self$loc, scale_diag = tf$nn$softplus(self$raw_scale_diag)),
-					mixture_distribution = tfd_categorical(logits = self$mixture_logits)
-				)
-			}
-		})
-	}
-	latent_prior_model <- learnable_prior_model(latent_dim, n_components)
-
-	encoder_model <- function(latent_dim, name = NULL){
-
-		keras_model_custom(name = name, function(self){
-			self$conv_1 <- layer_conv_2d(
-				filters = 4L,
-				kernel_size = 3L,
-				strides = 2L,
-				activation = 'relu'
-			)
-			self$flatten_1 <- layer_flatten()
-			self$dense_1 <- layer_dense(units = 2 * latent_dim)
-
-			function(x, mask = NULL){
-
-				y <- x %>% 
-					self$conv_1() %>%
-					self$flatten_1() %>%
-					self$dense_1()
-
-				tfd_multivariate_normal_diag(
-					loc = y[, 1:latent_dim],
-					scale_diag = tf$nn$softplus(y[, (latent_dim + 1):(2 * latent_dim)] + 1e-5)
-				)
-			}
-		})
-  }
   encoder <- encoder_model(latent_dim)
-
-	decoder_model <- function(input_dim, feature_dim, num_samples, name = NULL){
-
-		keras_model_custom(name = name, function(self){
-
-			self$embedding_1 <- layer_embedding(input_dim = num_samples, output_dim = latent_dim, input_length = 1L)
-			self$dense_1 <- layer_dense(units = 8 * 8 * 16, activation = "relu")
-			self$reshape_1 <- layer_reshape(target_shape = c(8L, 8L, 16L))
-			self$deconv_1 <- layer_conv_2d_transpose(
-				filters = 16L,
-				kernel_size = 3L,
-				strides = 4L,
-				padding = 'same',
-				activation = 'relu'
-			)
-			self$deconv_3 <- layer_conv_2d_transpose(
-				filters = 1L,
-				kernel_size = 3L,
-				strides = 1L,
-				padding = 'same'
-			)
-
-			function(x, mask = NULL){
-
-				y <- list(x[[1]], x[[2]] %>% self$embedding_1()) %>%
-					layer_concatenate() %>%	
-					self$dense_1() %>%
-					self$reshape_1() %>%
-					self$deconv_1() %>%
-					self$deconv_3()
-				
-				tfd_independent(
-					tfd_bernoulli(logits = y), 
-					reinterpreted_batch_ndims = 3L
-				)
-			}
-		})
-	}
-	decoder <- decoder_model(input_dim, feature_dim, num_samples)
+	decoder <- decoder_model(input_dim, feature_dim, num_samples, batch_effect)
 
 	structure(list(
 		encoder = encoder, 
@@ -110,18 +23,29 @@ gmm_vae <- function(input_dim, feature_dim, latent_dim, n_components, num_sample
 		feature_dim = feature_dim,
 		latent_dim = latent_dim,
 		n_components = n_components,
-		num_samples = num_samples
-	), class = c('seatac_model', 'gmm_vae'))
+		num_samples = num_samples,
+		batch_effect = batch_effect,
+		prior = prior
+	), class = c('seatac_model', 'vae'))
 
-} # gmm_vae
+} # vae
 
 
-hmm_vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples){
+hmm_prior_model <- function(latent_dim, n_components, num_steps){
 
-	learnable_prior_model <- function(latent_dim, n_components, name = NULL){
+	initial_state_logits <- rep(0, n_components)
+	transition_prob <- matrix(0.1, n_components, n_components)
+	diag(transition_prob) <- 0
+	diag(transition_prob) <- 1 - rowSums(transition_prob)
+	browser()
+	transition_distribution <- tfd_categorical(
+		probs = transition_prob %>%
+		tf$cast(tf$float32)
+	)
+
+	learnable_prior_model <- function(latent_dim, n_components, num_steps, name = NULL){
+
 		keras_model_custom(name = name, function(self) {
-
-#			self$transition_distribution <- tf$get_variable(
 
 			self$loc <- tf$get_variable(
 				name = 'loc',
@@ -135,23 +59,20 @@ hmm_vae <- function(input_dim, feature_dim, latent_dim, n_components, num_sample
 				dtype = tf$float32
 			)
 
-			self$mixture_logits <- tf$get_variable(
-				name = 'mixture_logits',
-				shape = c(n_components),
-				dtype = tf$float32
-			)
-
 			function (x, mask = NULL) {
-				tfd_mixture_same_family(
-					components_distribution = tfd_multivariate_normal_diag(loc = self$loc, scale_diag = tf$nn$softplus(self$raw_scale_diag)),
-					mixture_distribution = tfd_categorical(logits = self$mixture_logits)
+				tfd_hidden_markov_model(
+					initial_distribution = tfd_categorical(logits = initial_state_logits),
+					transition_distribution = transition_distribution,
+					observation_distribution =  tfd_multivariate_normal_diag(loc = self$loc, scale_diag = tf$nn$softplus(self$raw_scale_diag)),
+					num_steps = num_steps
 				)
 			}
 		})
 	}
-	latent_prior_model <- learnable_prior_model(latent_dim, n_components)
+	latent_prior_model <- learnable_prior_model(latent_dim, n_components, num_steps)
 
-} # hmm_vae
+} # hmm_prior_model
+
 
 saveModel <- function(x, dir){
 
@@ -226,3 +147,110 @@ loadModel <- function(dir){
 } # loadModel
 
 
+
+encoder_model <- function(latent_dim, name = NULL){
+
+	keras_model_custom(name = name, function(self){
+
+		self$conv_1 <- layer_conv_2d(
+			filters = 4L,
+			kernel_size = 3L,
+			strides = 2L,
+			activation = 'relu'
+		)
+
+		self$flatten_1 <- layer_flatten()
+		self$dense_1 <- layer_dense(units = 2 * latent_dim)
+
+		function(x, mask = NULL){
+
+			y <- x %>% 
+				self$conv_1() %>%
+				self$flatten_1() %>%
+				self$dense_1()
+
+			tfd_multivariate_normal_diag(
+				loc = y[, 1:latent_dim],
+				scale_diag = tf$nn$softplus(y[, (latent_dim + 1):(2 * latent_dim)] + 1e-5)
+			)
+		}
+	})
+}
+
+decoder_model <- function(input_dim, feature_dim, num_samples, batch_effect, name = NULL){
+
+	keras_model_custom(name = name, function(self){
+
+		if (batch_effect)
+			self$embedding_1 <- layer_embedding(input_dim = num_samples, output_dim = latent_dim, input_length = 1L)
+
+		self$dense_1 <- layer_dense(units = 8 * 8 * 16, activation = "relu")
+		self$reshape_1 <- layer_reshape(target_shape = c(8L, 8L, 16L))
+
+		self$deconv_1 <- layer_conv_2d_transpose(
+			filters = 8L,
+			kernel_size = 3L,
+			strides = 4L,
+			padding = 'same',
+			activation = 'relu'
+		)
+
+		self$deconv_3 <- layer_conv_2d_transpose(
+			filters = 1L,
+			kernel_size = 3L,
+			strides = 1L,
+			padding = 'same'
+		)
+
+		function(x, mask = NULL){
+
+			if (batch_effect){
+				x2 <- list(x[[1]], x[[2]] %>% self$embedding_1()) %>%
+					layer_concatenate()
+			}else{
+				x2 <- x
+			}
+
+			y <- x2 %>%
+				self$dense_1() %>%
+				self$reshape_1() %>%
+				self$deconv_1() %>%
+				self$deconv_3()
+			
+			tfd_independent(
+				tfd_bernoulli(logits = y), 
+				reinterpreted_batch_ndims = 3L
+			)
+		}
+	})
+}
+
+gmm_prior_model <- function(latent_dim, n_components, name = NULL){
+	keras_model_custom(name = name, function(self) {
+
+		self$loc <- tf$get_variable(
+			name = 'loc',
+			shape = list(n_components, latent_dim),
+			dtype = tf$float32
+		)
+
+		self$raw_scale_diag <- tf$get_variable(
+			name = 'raw_scale_diag',
+			shape = list(n_components, latent_dim),
+			dtype = tf$float32
+		)
+
+		self$mixture_logits <- tf$get_variable(
+			name = 'mixture_logits',
+			shape = c(n_components),
+			dtype = tf$float32
+		)
+
+		function (x, mask = NULL) {
+			tfd_mixture_same_family(
+				components_distribution = tfd_multivariate_normal_diag(loc = self$loc, scale_diag = tf$nn$softplus(self$raw_scale_diag)),
+				mixture_distribution = tfd_categorical(logits = self$mixture_logits)
+			)
+		}
+	})
+}
