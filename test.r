@@ -78,7 +78,7 @@ devtools::load_all('analysis/seatac/packages/seatac'); gr <- readFragmentSize(fi
 #latent_dim <- 20; n_components <- 5; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'gmm', epochs = 50, batch_effect = FALSE)
 #latent_dim <- 10; n_components <- 10; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'gmm', epochs = 100, batch_effect = FALSE)
 #latent_dim <- 2; n_components <- 4; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'gmm', epochs = 100, batch_effect = FALSE)
-latent_dim <- 2; n_components <- 4; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'hmm', epochs = 50, batch_effect = FALSE)
+latent_dim <- 2; n_components <- 4; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'hmm', epochs = 2, batch_effect = FALSE)
 source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/results/MEF_chr7.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)
 

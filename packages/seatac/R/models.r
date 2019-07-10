@@ -37,7 +37,6 @@ hmm_prior_model <- function(latent_dim, n_components, num_steps){
 	transition_prob <- matrix(0.1, n_components, n_components)
 	diag(transition_prob) <- 0
 	diag(transition_prob) <- 1 - rowSums(transition_prob)
-	browser()
 	transition_distribution <- tfd_categorical(
 		probs = transition_prob %>%
 		tf$cast(tf$float32)

@@ -52,7 +52,6 @@ seatac <- function(
 		batch_effect = batch_effect,
 		prior = prior
   )
-	browser()
 
 	model %>% fit(x, epochs = epochs, steps_per_epoch = steps_per_epoch, batch_size = batch_size)
 	mcols(x)$cluster <- model %>% predict(x, batch_size = batch_size)

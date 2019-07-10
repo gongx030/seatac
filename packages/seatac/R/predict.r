@@ -17,18 +17,13 @@ predict.vae <- function(model, x, batch_size = 256){
 		P <- model$latent_prior_model(NULL)$components_distribution$log_prob(
 			Z %>% tf$reshape(shape(sample_dim, 1, model$latent_dim))
 		) %>% as.matrix()
+	  t(matrix(max.col(P), num_samples, window_dim))
 	}else if (model$prior == 'hmm'){
-
 		# See how to get the posterior of HMM
-		browser()
-
-		model$latent_prior_model(NULL)$posterior_marginals(
-			Z %>% tf$reshape(shape(window_dim, num_samples, 1, model$latent_dim, 1))
+		model$latent_prior_model(NULL)$posterior_mode(
+			Z %>% tf$reshape(shape(window_dim, num_samples, model$latent_dim))
 		)
-
-		browser()
 	}
 
-	t(matrix(max.col(P), num_samples, window_dim))
 
 } # predict.vae
