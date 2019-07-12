@@ -57,38 +57,49 @@ library(keras)
 library(tfprobability)
 library(tfdatasets)
 library(futile.logger); flog.threshold(TRACE)
-
 library(BSgenome.Mmusculus.UCSC.mm10)
-filenames <- c(
-  'ATAC_MEF_NoDox.bam', 
-  'ATAC_MEF_Dox_D1.bam',
-  'ATAC_MEF_Dox_D2.bam',
-  'ATAC_MEF_Dox_D7.bam'
-)
-filenames <- sprintf('analysis/seatac/data/%s', filenames)
-time_points <- factor(c('D0', 'D1', 'D2', 'D7'), c('D0', 'D1', 'D2', 'D7'))
 
-# Etv2: chr7:30,604,535-30,664,933
-#which <- GRanges(seqnames = 'chr7', range = IRanges(10000001, 80000000))
 
-# testing on the whole chromosome 7
-which <- GRanges(seqnames = 'chr7', range = IRanges(1, 145441459))	# whole chr7
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- readFragmentSize(filenames[1:3], which, genome = BSgenome.Mmusculus.UCSC.mm10, min_reads_per_window = 30)
-#devtools::load_all('analysis/seatac/packages/seatac'); gr <- readFragmentSize(filenames[1], which, genome = BSgenome.Mmusculus.UCSC.mm10, min_reads_per_window = 50)
-#latent_dim <- 20; n_components <- 5; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'gmm', epochs = 50, batch_effect = FALSE)
-#latent_dim <- 10; n_components <- 10; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'gmm', epochs = 100, batch_effect = FALSE)
-#latent_dim <- 2; n_components <- 4; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'gmm', epochs = 100, batch_effect = FALSE)
-latent_dim <- 2; n_components <- 4; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'hmm', epochs = 2, batch_effect = FALSE)
-source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/results/MEF_chr7.rds', PROJECT_DIR)
-saveRDS(gr, file = gr_file)
+# -----------------------------------------------------------------------------------
+# [2019-07-11] segment the WT MEF
+# -----------------------------------------------------------------------------------
+#gs <- c('MEF_NoDox')
+#gs <- c('MEF_Dox_D1')
+#gs <- c('MEF_Dox_D2')
+gs <- c('MEF_NoDox', 'MEF_Dox_D1')
+window_size <- 320; bin_size <- 10
+source('analysis/seatac/helper.r'); gr <- get_fragment_size(gs, window_size = window_size, bin_size = bin_size, min_reads_per_window = 10)
 
-# Testing Gviz
-which <- GRanges(seqnames = 'chr7', range = IRanges(20000001, 80000000))
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- readFragmentSize(filenames[1:2], which, genome = BSgenome.Mmusculus.UCSC.mm10, min_reads_per_window = 50)
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = 10, n_components = 10, prior = 'gmm', epochs = 50, batch_effect = FALSE)
+latent_dim <- 2; n_components <- 2; devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = 'gmm', epochs = 50, batch_effect = FALSE, beta = 10)
 
 source('analysis/seatac/helper.r'); gr_file <- sprintf('%s/results/test.rds', PROJECT_DIR)
 saveRDS(gr, file = gr_file)
+
+
+# -----------------------------------------------------------------------------------
+# [2019-06-26] Visualize the V-plot clusters for HMM prior
+# -----------------------------------------------------------------------------------
+library(gplots)
+#par(mfrow = c(10, 1), mar = c(0.25, 2, 0.25, 2))
+par(mfrow = c(5, 8), mar = c(2, 0.25, 2, 0.25))
+X <- mcols(gr)$counts %>% as.matrix()
+dim(X) <- c(length(gr), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals, metadata(gr)$num_samples)
+X <- aperm(X, c(1, 4, 2, 3))
+dim(X) <- c(length(gr) * metadata(gr)$num_samples, metadata(gr)$n_bins_per_window * metadata(gr)$n_intervals)
+w <- 1 / rowSums(X); w[is.infinite(w)] <- 0
+X <- as.matrix(Diagonal(x = w) %*% X)
+dim(X) <- c(length(gr) * metadata(gr)$num_samples, metadata(gr)$n_bins_per_window,  metadata(gr)$n_intervals)
+cls <- c(mcols(gr)$cluster)
+
+lapply(1:metadata(gr)$model$n_components, function(k){
+	X <- colSums(X[cls == k, , ], dims = 1)
+	image(X, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE, main = k)
+})
+
+table(mcols(gr)$cluster[, 1], mcols(gr)$cluster[, 2])
+table(mcols(gr)$cluster[, 2], mcols(gr)$cluster[, 3])
+table(mcols(gr)$cluster[, 3], mcols(gr)$cluster[, 4])
+
 
 
 # -----------------------------------------------------------------------------------
@@ -107,6 +118,53 @@ lapply(1:metadata(gr)$model$n_components, function(k) {
 	image(X, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 })
 table(mcols(gr)$cluster)
+
+
+# -----------------------------------------------------------------------------------
+# [2019-07-11] Compare the identified nucleosome and MNase-seq
+# Need to run on the lab queue
+# -----------------------------------------------------------------------------------
+gs <- c('MEF_NoDox');  window_size <- 320; bin_size <- 10
+
+peak_set <- sprintf('seatac_%s', paste(gs, collapse = '+'))
+source('analysis/seatac/helper.r'); gr <- get_fragment_size(gs, window_size = window_size, bin_size = bin_size, min_reads_per_window = 10)
+source('analysis/etv2_pioneer/helper.r'); peaks <- reCenterPeaks(gr, width = 1)
+source('analysis/etv2_pioneer/helper.r'); bw_files <- get_bigwig_files()
+gs <- c('MEF_NoDox_ATAC', 'MEF_nucleosome', 'MEF_MNase', 'MEF_H3', 'MEF_MNase2')
+extend <- 320; w <- 10
+source('analysis/etv2_pioneer/helper.r'); n2m_files <- normalizeToMatrix_batch(peaks, peak_set = peak_set, bw_files[gs], extend = extend, w = w, mc.cores = 4)
+
+mat <- lapply(n2m_files, readRDS); names(mat) <- names(n2m_files)
+cols <- c(
+	'MEF_NoDox_ATAC' = 'red',
+	'MEF_nucleosome' = 'blue',
+	'MEF_MNase' = 'blue',
+	'MEF_MNase2' = 'blue',
+	'MEF_H3' = 'blue'
+)
+col_fun <- lapply(names(mat), function(g) colorRamp2(quantile(mat[[g]], c(0, 0.98)), c('white', cols[g])))
+names(col_fun) <- names(n2m_files)
+
+i <- sample.int(nrow(mat[[1]]), 5000)
+#i <- 1:nrow(mat[[1]])
+split_by <- mcols(peaks)$cluster[i]
+
+axis_name <- c('-1k', 'summit', '+1k')
+h <- EnrichedHeatmap(mat[['MEF_NoDox_ATAC']][i, ], split = split_by, col = col_fun[['MEF_NoDox_ATAC']], name = 'MEF_NoDox_ATAC', axis_name = axis_name, pos_line = FALSE) +
+#EnrichedHeatmap(mat[['MEF_D7_ATAC']][i, ], col = col_fun[['MEF_D7_ATAC']], name = 'MEF_D7_ATAC', axis_name = axis_name, pos_line = FALSE)  +
+#EnrichedHeatmap(mat[['EB_Dox_D25']][i, ], col = col_fun[['EB_Dox_D25']], name = 'EB_Dox_D25', axis_name = axis_name, pos_line = FALSE)  +
+EnrichedHeatmap(mat[['MEF_nucleosome']][i, ], col = col_fun[['MEF_nucleosome']], name = 'MEF_nucleosome', axis_name = axis_name, pos_line = FALSE)  +
+EnrichedHeatmap(mat[['MEF_MNase']][i, ], col = col_fun[['MEF_MNase']], name = 'MEF_MNase', axis_name = axis_name, pos_line = FALSE)  + 
+EnrichedHeatmap(mat[['MEF_MNase2']][i, ], col = col_fun[['MEF_MNase2']], name = 'MEF_MNase2', axis_name = axis_name, pos_line = FALSE)  + 
+EnrichedHeatmap(mat[['MEF_H3']][i, ], col = col_fun[['MEF_H3']], name = 'MEF_H3', axis_name = axis_name, pos_line = FALSE) 
+
+draw(h, heatmap_legend_side = 'right')
+
+
+
+M <- as.matrix(mat[['MEF_NoDox_ATAC']])
+plot(colMeans(M[mcols(peaks)$cluster == 1, ]), type = 'l', lwd = 2)
+abline(v = 20.5, lwd = 2, lty = 2)
 
 
   mcols(win)$model$predicted_pattern <- lapply(1:n_components, function(k) colSums(Xp[cls == k, , , drop = FALSE], dims = 1))

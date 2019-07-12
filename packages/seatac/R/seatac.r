@@ -23,22 +23,24 @@ NULL
 #'
 seatac <- function(
   x,
-	latent_dim = 10, 
+	latent_dim = 2, 
 	n_components = 5, 
   prior = 'gmm',
 	batch_effect = FALSE,
-	epochs = 5, 
+	epochs = 50, 
 	batch_size = 256, 
-	steps_per_epoch = 10
+	steps_per_epoch = 10,
+	beta = 1
 ){
 
   window_dim <- length(x)
-  feature_dim <- metadata(x)$n_bins_per_window
-  input_dim <- metadata(x)$window_size / metadata(x)$bin_size
+  feature_dim <- metadata(x)$n_intervals
+  input_dim <- metadata(x)$n_bins_per_window
 
 	flog.info(sprintf('latent dimension(latent_dim):%d', latent_dim))
 	flog.info(sprintf('# mixture components(n_components):%d', n_components))
 	flog.info(sprintf('total number of training windows(window_dim): %d', window_dim))
+	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
 	flog.info(sprintf('# features per bin(feature_dim): %d', feature_dim))
 	flog.info(sprintf('modeling batch effect(batch_effect): %s', batch_effect))
 	flog.info(sprintf('latent prior model: %s', prior))
@@ -53,8 +55,8 @@ seatac <- function(
 		prior = prior
   )
 
-	model %>% fit(x, epochs = epochs, steps_per_epoch = steps_per_epoch, batch_size = batch_size)
-	mcols(x)$cluster <- model %>% predict(x, batch_size = batch_size)
+	model %>% fit(x, epochs = epochs, steps_per_epoch = steps_per_epoch, batch_size = batch_size, beta = beta)
+	mcols(x)$cluster <- model %>% predict(x)
 	metadata(x)$model <- model
   x	
 

@@ -3,7 +3,6 @@
 
 vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, batch_effect, prior = 'gmm'){
 
-
 	if (prior == 'gmm'){
 		latent_prior_model <- gmm_prior_model(latent_dim, n_components)
 	}else if (prior == 'hmm'){
@@ -34,6 +33,7 @@ vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, b
 hmm_prior_model <- function(latent_dim, n_components, num_steps){
 
 	initial_state_logits <- rep(0, n_components)
+
 	transition_prob <- matrix(0.1, n_components, n_components)
 	diag(transition_prob) <- 0
 	diag(transition_prob) <- 1 - rowSums(transition_prob)
@@ -45,6 +45,12 @@ hmm_prior_model <- function(latent_dim, n_components, num_steps){
 	learnable_prior_model <- function(latent_dim, n_components, num_steps, name = NULL){
 
 		keras_model_custom(name = name, function(self) {
+											 
+			self$logits <- tf$get_variable(
+				name = 'logits', 
+				shape = list(n_components, n_components),
+				dtype = tf$float32
+			)
 
 			self$loc <- tf$get_variable(
 				name = 'loc',
@@ -62,6 +68,7 @@ hmm_prior_model <- function(latent_dim, n_components, num_steps){
 				tfd_hidden_markov_model(
 					initial_distribution = tfd_categorical(logits = initial_state_logits),
 					transition_distribution = transition_distribution,
+#					transition_distribution = tfd_categorical(logits = self$logits),
 					observation_distribution =  tfd_multivariate_normal_diag(loc = self$loc, scale_diag = tf$nn$softplus(self$raw_scale_diag)),
 					num_steps = num_steps
 				)
@@ -147,24 +154,27 @@ loadModel <- function(dir){
 
 
 
-encoder_model <- function(latent_dim, name = NULL){
+encoder_model <- function(latent_dim, filters = c(4L), kernel_size = c(3L), strides = c(2L), name = NULL){
 
 	keras_model_custom(name = name, function(self){
 
 		self$conv_1 <- layer_conv_2d(
-			filters = 4L,
-			kernel_size = 3L,
-			strides = 2L,
+			filters = filters[1],
+			kernel_size = kernel_size[1],
+			strides = strides[1],
 			activation = 'relu'
 		)
+		self$bn_1 <- layer_batch_normalization()
 
 		self$flatten_1 <- layer_flatten()
 		self$dense_1 <- layer_dense(units = 2 * latent_dim)
+		self$dropout_1 <- layer_dropout(rate = 0.2)
 
 		function(x, mask = NULL){
 
 			y <- x %>% 
 				self$conv_1() %>%
+				self$bn_1() %>%
 				self$flatten_1() %>%
 				self$dense_1()
 
@@ -176,28 +186,34 @@ encoder_model <- function(latent_dim, name = NULL){
 	})
 }
 
-decoder_model <- function(input_dim, feature_dim, num_samples, batch_effect, name = NULL){
+decoder_model <- function(input_dim, feature_dim, num_samples, batch_effect, filters0 = 8L, filters = c(8L, 1L), kernel_size = c(3L, 3L), strides = c(4L, 1L), name = NULL){
+
+	input_dim0 <- input_dim / prod(strides)
+	feature_dim0 <- feature_dim / prod(strides)
+	output_dim0 <- input_dim0 * feature_dim0 * filters0
 
 	keras_model_custom(name = name, function(self){
 
 		if (batch_effect)
 			self$embedding_1 <- layer_embedding(input_dim = num_samples, output_dim = latent_dim, input_length = 1L)
 
-		self$dense_1 <- layer_dense(units = 8 * 8 * 16, activation = "relu")
-		self$reshape_1 <- layer_reshape(target_shape = c(8L, 8L, 16L))
+		self$dense_1 <- layer_dense(units = output_dim0, activation = 'relu')
+		self$dropout_1 <- layer_dropout(rate = 0.2)
+		self$reshape_1 <- layer_reshape(target_shape = c(input_dim0, feature_dim0, filters0))
 
 		self$deconv_1 <- layer_conv_2d_transpose(
-			filters = 8L,
-			kernel_size = 3L,
-			strides = 4L,
+			filters = filters[1],
+			kernel_size = kernel_size[1],
+			strides = strides[1],
 			padding = 'same',
 			activation = 'relu'
 		)
+		self$bn_1 <- layer_batch_normalization()
 
-		self$deconv_3 <- layer_conv_2d_transpose(
-			filters = 1L,
-			kernel_size = 3L,
-			strides = 1L,
+		self$deconv_2 <- layer_conv_2d_transpose(
+			filters = filters[2],
+			kernel_size = kernel_size[2],
+			strides = strides[2],
 			padding = 'same'
 		)
 
@@ -211,10 +227,12 @@ decoder_model <- function(input_dim, feature_dim, num_samples, batch_effect, nam
 			}
 
 			y <- x2 %>%
+				self$dropout_1() %>%
 				self$dense_1() %>%
 				self$reshape_1() %>%
 				self$deconv_1() %>%
-				self$deconv_3()
+				self$bn_1() %>%
+				self$deconv_2()
 			
 			tfd_independent(
 				tfd_bernoulli(logits = y), 

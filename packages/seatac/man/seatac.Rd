@@ -4,10 +4,8 @@
 \alias{seatac}
 \title{seatac}
 \usage{
-seatac(filenames, which = NULL, genome, latent_dim = 10,
-  n_components = 5, window_size = 320, bin_size = 10,
-  fragment_size_range = c(50, 670), fragment_size_interval = 20,
-  min_reads_per_window = 50, epochs = 5, batch_size = 256,
+seatac(x, latent_dim = 2, n_components = 5, prior = "gmm",
+  batch_effect = FALSE, epochs = 50, batch_size = 256,
   steps_per_epoch = 10)
 }
 \description{

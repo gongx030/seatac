@@ -1,4 +1,4 @@
-fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256){
+fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256, epochs_warmup = 20, beta = 1){
 
 	optimizer <- tf$train$AdamOptimizer(0.001)
 	flog.info('optimizer: Adam(learning_rate=0.001)')
@@ -7,6 +7,10 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
   num_samples <- metadata(gr)$num_samples
 
 	batch_size <- ceiling(batch_size / num_samples)
+
+	# determining the weight for each window
+	W <- (mcols(gr)$num_reads / 100)^(3/4)
+	W[W > 1] <- 1
 
   for (epoch in seq_len(epochs)) {
 
@@ -32,11 +36,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 					tf$cast(tf$int32)
 			}
 
-			# determining the weight for each window
-			w <- mcols(gr)$num_reads[b, , drop = FALSE]
-			w <- (w / 100)^(3/4)
-			w[w > 1] <- 1
-			w <- c(t(w))
+			w <- c(t(W[b, , drop = FALSE]))
 
       with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
@@ -56,7 +56,9 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 					model$latent_prior <- model$latent_prior_model(NULL)
 
 				if (model$prior == 'gmm'){
+
 					kl_div <- w * (approx_posterior$log_prob(approx_posterior_sample) - model$latent_prior$log_prob(approx_posterior_sample))
+
 				}else if (model$prior == 'hmm'){
 
 					h <- approx_posterior_sample %>% 
@@ -70,7 +72,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 					kl_div <- w * (approx_posterior$log_prob(approx_posterior_sample) - pr)
 				}
 
-				kl_div <- tf$reduce_mean(kl_div)
+				kl_div <- beta * tf$reduce_mean(kl_div)
         loss <- kl_div + avg_nll
       })
 
@@ -100,7 +102,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 			}
     }
 
-    flog.info(sprintf('epoch=%d/%d | negative likelihood=%.3f | kl=%.3f | total=%.3f', epoch, epochs, total_loss_nll, total_loss_kl, total_loss))
+    flog.info(sprintf('epoch=%4.d/%4.d | negative likelihood=%7.1f | kl=%7.1f | beta=%5.3f | total=%7.1f', epoch, epochs, total_loss_nll, total_loss_kl, beta, total_loss))
   }
 
 } # fit_vae
