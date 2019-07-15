@@ -1,4 +1,4 @@
-fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256, epochs_warmup = 20, beta = 1){
+fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256, epochs_warmup = 50, beta = 1){
 
 	optimizer <- tf$train$AdamOptimizer(0.001)
 	flog.info('optimizer: Adam(learning_rate=0.001)')
@@ -9,7 +9,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 	batch_size <- ceiling(batch_size / num_samples)
 
 	# determining the weight for each window
-	W <- (mcols(gr)$num_reads / 100)^(3/4)
+	W <- (mcols(gr)$num_reads / 50)^(3/4)
 	W[W > 1] <- 1
 
   for (epoch in seq_len(epochs)) {
@@ -20,6 +20,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
     total_loss <- 0
     total_loss_nll <- 0
     total_loss_kl <- 0
+		beta_epoch <- min(epoch / epochs_warmup, 1) * beta
 
 		for (s in 1:steps_per_epoch){
 
@@ -72,7 +73,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 					kl_div <- w * (approx_posterior$log_prob(approx_posterior_sample) - pr)
 				}
 
-				kl_div <- beta * tf$reduce_mean(kl_div)
+				kl_div <- beta_epoch * tf$reduce_mean(kl_div)
         loss <- kl_div + avg_nll
       })
 
@@ -102,7 +103,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 			}
     }
 
-    flog.info(sprintf('epoch=%4.d/%4.d | negative likelihood=%7.1f | kl=%7.1f | beta=%5.3f | total=%7.1f', epoch, epochs, total_loss_nll, total_loss_kl, beta, total_loss))
+    flog.info(sprintf('epoch=%4.d/%4.d | negative likelihood=%7.1f | kl=%7.1f | beta=%5.3f | total=%7.1f', epoch, epochs, total_loss_nll, total_loss_kl, beta_epoch, total_loss))
   }
 
 } # fit_vae

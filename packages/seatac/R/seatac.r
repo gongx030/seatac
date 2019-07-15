@@ -8,8 +8,10 @@
 #' @importFrom GenomeInfoDb seqlengths
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam
 #' @importFrom GenomicAlignments readGAlignmentPairs
-#' @importFrom abind abind
 #' @importFrom gplots colorpanel
+#' @import tensorflow
+#' @import keras
+#' @import tfprobability
 NULL
 
 

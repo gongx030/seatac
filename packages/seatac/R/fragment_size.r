@@ -27,6 +27,7 @@ readFragmentSize <- function(
 	flog.info(sprintf('window size(window_size): %d', window_size))
 	flog.info(sprintf('bin size(bin_size): %d', bin_size))
 	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
+	flog.info(sprintf('minimum # reads per window(min_reads_per_window): %d', min_reads_per_window))
 
 	if (is.na(min_samples))
 		min_samples <- num_samples
@@ -73,14 +74,14 @@ readFragmentSize <- function(
 
     if (length(ga) > 0)
       ga <- as(ga, 'GRanges') # convert GAlignmentPairs into GRanges where two paired end reads are merged
-      mcols(ga)$group <- i
+      mcols(ga)$group <- i	# setting the group ID
       ga
   })
 
   # !!! need to check whetehr there is any NULL
   x <- Reduce('c', x)
   x$fragment_size <- width(x)	# fragment size, that is, the distance between the center of PE reads
-  x$fragment_size <- as.numeric(cut(x$fragment_size, breaks))
+  x$fragment_size <- as.numeric(cut(x$fragment_size, breaks))	# discretize the fragment size
   x <- x[!is.na(x$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
   x <- resize(x, width = 1, fix = 'center') # the center genomic coordinate between two PE reads
 
@@ -128,5 +129,6 @@ readFragmentSize <- function(
   metadata(windows)$n_intervals <- n_intervals
   metadata(windows)$num_samples <- num_samples
   metadata(windows)$min_samples <- min_samples 
+	metadata(windows)$min_reads_per_window <- min_reads_per_window
   windows
 } # readFragmentSize
