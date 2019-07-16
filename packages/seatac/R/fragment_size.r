@@ -3,34 +3,22 @@
 
 readFragmentSize <- function(
 	filenames, 
-	windows = NULL, 
+	peaks,
 	genome, 
+	window_size = 320,
 	bin_size = 10, 
 	fragment_size_range = c(50, 670), 
 	fragment_size_interval = 20, 
-	min_reads_per_window = 50,
-	min_samples = NA
+	expand = 2000
 ){
 
 	validate_bam(filenames)
-
-	if (is.null(windows) || missing(windows))
-		stop('windows must be specified')
-
-	window_size <- width(windows)[1]
-
-	if (!all(width(windows) == window_size))
-		stop('width(windows) must be equal to window_size')
 
   num_samples <- length(filenames)
   input_dim <- window_size / bin_size
 	flog.info(sprintf('window size(window_size): %d', window_size))
 	flog.info(sprintf('bin size(bin_size): %d', bin_size))
 	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
-	flog.info(sprintf('minimum # reads per window(min_reads_per_window): %d', min_reads_per_window))
-
-	if (is.na(min_samples))
-		min_samples <- num_samples
 
   n_bins_per_window <- window_size / bin_size
   n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval + 1
@@ -44,14 +32,15 @@ readFragmentSize <- function(
   genome(seqinfo(gr)) <- providerVersion(genome)
 
 	# set the seqlevels and seqlengths from BAM files to "which"
-  seqlevels(windows, pruning.mode = 'coarse') <- seqlevels(gr)
-  seqlevels(gr, pruning.mode = 'coarse') <- seqlevels(windows)
-  seqlengths(seqinfo(windows)) <-  seqlengths(seqinfo(gr))
-  genome(seqinfo(windows)) <-  genome(seqinfo(gr))
-
-  bins <- slidingWindows(windows, width = bin_size, step = bin_size)
+  seqlevels(peaks, pruning.mode = 'coarse') <- seqlevels(gr)
+  seqlevels(gr, pruning.mode = 'coarse') <- seqlevels(peaks)
+  seqlengths(seqinfo(peaks)) <-  seqlengths(seqinfo(gr))
+  genome(seqinfo(peaks)) <-  genome(seqinfo(gr))
 
   breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
+
+	flog.info(sprintf('expanding each peak to [-%d, +%d] region', expand / 2, expand / 2))
+	windows <- resize(peaks, fix = 'center', width = expand)	# expand the input peaks
 
   flag <- scanBamFlag(
     isSecondaryAlignment = FALSE,
@@ -59,49 +48,48 @@ readFragmentSize <- function(
     isNotPassingQualityControls = FALSE,
     isProperPair = TRUE
   )
-  param <- ScanBamParam(which = reduce(resize(unlist(bins), fix = 'center', width = 10000)), flag = flag)
+  param <- ScanBamParam(which = reduce(windows), flag = flag, what = 'isize')
 
 	# Read the PE reads overlapping with specified windows
   x <- lapply(1:num_samples, function(i){
-    if (!file.exists(filenames[i]))
-      stop(sprintf('%s do not exist', filenames[i]))
-
-    if(!testPairedEndBam(filenames[i]))
-      stop(sprintf('%s is not paired-end file.', filenames[i]))
-
     flog.info(sprintf('reading %s', filenames[i]))
-    ga <- readGAlignmentPairs(filenames[i], param = param)
+    readGAlignments(filenames[i], param = param)
+	})
 
-    if (length(ga) > 0)
-      ga <- as(ga, 'GRanges') # convert GAlignmentPairs into GRanges where two paired end reads are merged
-      mcols(ga)$group <- i	# setting the group ID
-      ga
-  })
+	cvg <- lapply(x, coverage)	# reads coverage
+
+	x <- lapply(1:num_samples, function(i){
+		ga <- x[[i]]
+		ga <- ga[strand(ga) == '+']
+		# compute the center point between PE reads
+		# this is faster than using GAlignmentPairs
+		GRanges(
+			seqnames = seqnames(ga), 
+			range = IRanges(start(ga) + round(mcols(ga)$isize / 2), width = 1), 
+			isize = mcols(ga)$isize, 
+			group = i
+		)
+	})
 
   # !!! need to check whetehr there is any NULL
   x <- Reduce('c', x)
-  x$fragment_size <- width(x)	# fragment size, that is, the distance between the center of PE reads
-  x$fragment_size <- as.numeric(cut(x$fragment_size, breaks))	# discretize the fragment size
+  x$fragment_size <- as.numeric(cut(x$isize, breaks))	# discretize the fragment size
   x <- x[!is.na(x$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
-  x <- resize(x, width = 1, fix = 'center') # the center genomic coordinate between two PE reads
+
+	flog.info(sprintf('resizing each peak to [-%d, +%d] region', window_size, window_size))
+	windows <- resize(windows, fix = 'center', width = window_size)	# resize to window_size
+
+	Y <- lapply(cvg, function(c) c[windows] %>% as.matrix())
+	Y <- unlist(Y)
+	dim(Y) <- c(length(windows), window_size, num_samples)
+
+	bins <- unlist(slidingWindows(windows, width = bin_size, step = bin_size))
 
   # find the # PE reads per window per sample
   num_reads <- do.call('cbind', lapply(1:num_samples, function(i) countOverlaps(windows, x[mcols(x)$group == i])))
 
-  # each window must have at least min_reads_per_window reads in at least "min_samples" samples
-  include_window <- rowSums(num_reads >= min_reads_per_window) >= min_samples
-	n_window <- sum(include_window)
-
-  if (any(include_window))
-    flog.info(sprintf('selecting %d windows that have at least %d PE reads at least %d samples', sum(include_window), min_reads_per_window, min_samples))
-  else
-    stop(sprintf('there is no window that have %d PE reads in all samples. Try smaller min_reads_per_window', sum(include_window), min_reads_per_window))
-
-  num_reads <- num_reads[include_window, , drop = FALSE]
-  windows <- windows[include_window]
   x <- subsetByOverlaps(x, windows)
-	wb <- cbind(rep(1:n_window, n_bins_per_window), 1:(n_window * n_bins_per_window))	# windows ~ bins, sorted by window
-	bins <- unlist(bins)
+	wb <- cbind(rep(1:length(windows), n_bins_per_window), 1:(length(windows)* n_bins_per_window))	# windows ~ bins, sorted by window
 
   X <- Reduce('cbind', lapply(1:num_samples, function(i){
     xi <- x[mcols(x)$group == i]  # reads from group i
@@ -111,15 +99,16 @@ readFragmentSize <- function(
     BF <- BC %*% CF  # bins ~ fragment size
     BF[BF > 0] <- 1
     BF <- as.matrix(BF[wb[, 2], ])
-    dim(BF) <- c(n_bins_per_window, sum(include_window), n_intervals)	# convert BF into an array with bathc_size ~ n_bins_per_window ~ n_intervals
+    dim(BF) <- c(n_bins_per_window, length(windows), n_intervals)	# convert BF into an array with bathc_size ~ n_bins_per_window ~ n_intervals
     BF <- aperm(BF, c(1, 3, 2)) # n_bins_per_window ~ n_intervals ~ bathc_size 
-    dim(BF) <- c(n_bins_per_window * n_intervals, sum(include_window))
+    dim(BF) <- c(n_bins_per_window * n_intervals, length(windows))
     BF <- aperm(BF, c(2, 1))  # bathc_size ~ n_bins_per_window * n_intervals
     BF <- as(BF, 'dgCMatrix')
     BF
   }))
 
   mcols(windows)$counts <- X
+  mcols(windows)$coverage <- Y
   mcols(windows)$num_reads <- num_reads
   metadata(windows)$fragment_size_range  <- fragment_size_range
   metadata(windows)$fragment_size_interval <- fragment_size_interval
@@ -128,7 +117,7 @@ readFragmentSize <- function(
   metadata(windows)$n_bins_per_window <- n_bins_per_window
   metadata(windows)$n_intervals <- n_intervals
   metadata(windows)$num_samples <- num_samples
-  metadata(windows)$min_samples <- min_samples 
-	metadata(windows)$min_reads_per_window <- min_reads_per_window
+	metadata(windows)$expand <- expand
   windows
+
 } # readFragmentSize

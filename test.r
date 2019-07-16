@@ -1,5 +1,6 @@
 library(roxygen2); library(devtools); devtools::create('analysis/seatac/packages/seatac')
 library(roxygen2); library(devtools); devtools::document('analysis/seatac/packages/seatac')
+library(roxygen2); library(devtools); devtools::document('packages/compbio')
     
 
 # -----------------------------------------------------------------------------------
@@ -18,14 +19,18 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 # -----------------------------------------------------------------------------------
 # [2019-07-11] segment the WT MEF
 # -----------------------------------------------------------------------------------
-#gs <- c('MEF_NoDox')
-gs <- c('Maza_MEF')
-window_size <- 320; bin_size <- 10; min_reads_per_window <- 20; adjacent <- 0
-source('analysis/seatac/helper.r'); gr <- get_fragment_size(gs, window_size = window_size, bin_size = bin_size, min_reads_per_window = min_reads_per_window, adjacent = adjacent, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, genome = BSgenome.Mmusculus.UCSC.mm10)
+gs <- c('MEF_NoDox')
+#gs <- c('Maza_MEF')
+window_size <- 320; bin_size <- 10
+source('analysis/seatac/helper.r'); gr <- get_fragment_size(gs, window_size = window_size, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, genome = BSgenome.Mmusculus.UCSC.mm10)
 
-latent_dim <- 2; n_components <- 4; prior <- 'gmm'; beta <- 1; epochs <- 100; batch_effect <- FALSE
+i <- 1000
+plot(mcols(gr)$coverage[i, , 1], type = 'b'); image(matrix(mcols(gr)$counts[i, , ], 32, 32))
+
+latent_dim <- 2; n_components <- 2; prior <- 'gmm'; beta <- 1; epochs <- 100; batch_effect <- FALSE
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = prior, epochs = epochs, batch_effect = batch_effect, beta = beta)
 source('analysis/seatac/helper.r'); save_seatac_res(gr, gs, window_size, bin_size, min_reads_per_window, adjacent, latent_dim, n_components, prior, beta, epochs, batch_effect)
+
 
 
 # -----------------------------------------------------------------------------------
@@ -80,10 +85,10 @@ table(mcols(gr)$cluster)
 # [2019-07-12] Compare the identified nucleosome and NFR regions with MNase-seq
 # Need to run on the lab queue
 # -----------------------------------------------------------------------------------
-gs <- c('MEF_NoDox')
-#gs <- c('MEF_NoDox', 'MEF_Dox_D1')
-window_size <- 320; bin_size <- 10; min_reads_per_window <- 20; adjacent <- 2
-latent_dim <- 2; n_components <- 4; prior <- 'gmm'; beta <- 1; epochs <- 100; batch_effect <- FALSE
+#gs <- c('MEF_NoDox')
+gs <- c('Maza_MEF')
+window_size <- 320; bin_size <- 10; min_reads_per_window <- 20; adjacent <- 0
+latent_dim <- 2; n_components <- 2; prior <- 'gmm'; beta <- 1; epochs <- 100; batch_effect <- FALSE
 source('analysis/seatac/helper.r'); gr <- get_seatac_res(gs, window_size, bin_size, min_reads_per_window, adjacent, latent_dim, n_components, prior, beta, epochs, batch_effect)
 
 

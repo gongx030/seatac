@@ -31,6 +31,13 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 				tf$reshape(shape(batch_size, num_samples, model$input_dim, model$feature_dim)) %>%
 				tf$reshape(shape(batch_size * num_samples, model$input_dim, model$feature_dim)) %>%
 				tf$expand_dims(axis = 3L)
+			
+			y <- mcols(gr)$coverage[b, , , drop = FALSE] %>%
+				tf$cast(tf$float32) %>% 
+				tf$transpose(c(0L, 2L, 1L)) %>% 
+				tf$reshape(shape(batch_size, num_samples, model$window_size))
+
+			browser()
 
 			if (model$batch_effect){
 				g <- rep(seq_len(num_samples) - 1, batch_size) %>% 	# group index of current batch

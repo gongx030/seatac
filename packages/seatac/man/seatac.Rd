@@ -6,7 +6,7 @@
 \usage{
 seatac(x, latent_dim = 2, n_components = 5, prior = "gmm",
   batch_effect = FALSE, epochs = 50, batch_size = 256,
-  steps_per_epoch = 10)
+  steps_per_epoch = 10, beta = 1)
 }
 \description{
 Integrating multiple sources of temporal scRNA-seq data by neighborhood component analysis

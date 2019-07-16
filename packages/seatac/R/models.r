@@ -172,6 +172,8 @@ encoder_model <- function(latent_dim, filters = c(4L), kernel_size = c(3L), stri
 
 		function(x, mask = NULL){
 
+			browser()
+
 			y <- x %>% 
 				self$conv_1() %>%
 				self$bn_1() %>%
@@ -185,6 +187,7 @@ encoder_model <- function(latent_dim, filters = c(4L), kernel_size = c(3L), stri
 		}
 	})
 }
+
 
 decoder_model <- function(input_dim, feature_dim, num_samples, batch_effect, filters0 = 8L, filters = c(8L, 1L), kernel_size = c(3L, 3L), strides = c(4L, 1L), name = NULL){
 

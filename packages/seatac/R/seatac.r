@@ -7,7 +7,7 @@
 #' @importFrom GenomicRanges tileGenome resize intersect reduce
 #' @importFrom GenomeInfoDb seqlengths
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam
-#' @importFrom GenomicAlignments readGAlignmentPairs
+#' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments
 #' @importFrom gplots colorpanel
 #' @import tensorflow
 #' @import keras
