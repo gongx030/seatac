@@ -11,6 +11,12 @@ predict.vae <- function(model, x, batch_size = 2^14){
 		tf$reshape(shape(window_dim * num_samples, model$input_dim, model$feature_dim)) %>%
 		tf$expand_dims(axis = 3L)
 
+	Y <- mcols(gr)$coverage %>%
+		tf$cast(tf$float32) %>%
+		tf$transpose(c(0L, 2L, 1L)) %>%
+		tf$reshape(shape(window_dim * num_samples, model$feature_dim)) %>%
+		tf$expand_dims(axis = 2L)
+
 	starts <- seq(1, dim(X)[1], by = batch_size)
 	ends <- starts + batch_size - 1
 	ends[ends > dim(X)[1]] <- dim(X)[1]
@@ -22,9 +28,9 @@ predict.vae <- function(model, x, batch_size = 2^14){
 			flog.info(sprintf('prediction | batch=%4.d/%4.d', b, n_batch))
 			i <- starts[b]:ends[b]
 			window_dim_b <- length(i)
-			Z <- model$encoder(X[i, , , , drop = FALSE])$loc %>%
+			Z <- model$encoder$vplot(X[i, , , , drop = FALSE])$loc %>%
 				tf$reshape(shape(window_dim_b, 1, model$latent_dim))
-			Pb <- model$latent_prior_model(NULL)$components_distribution$log_prob(Z) %>% as.matrix()
+			Pb <- model$latent_prior_model$vplot(NULL)$components_distribution$log_prob(Z) %>% as.matrix()
 			P <- rbind(P, Pb)
 		}
 		C <- t(matrix(max.col(P), num_samples, window_dim))

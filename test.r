@@ -27,7 +27,7 @@ source('analysis/seatac/helper.r'); gr <- get_fragment_size(gs, window_size = wi
 i <- 1000
 plot(mcols(gr)$coverage[i, , 1], type = 'b'); image(matrix(mcols(gr)$counts[i, , ], 32, 32))
 
-latent_dim <- 2; n_components <- 2; prior <- 'gmm'; beta <- 1; epochs <- 100; batch_effect <- FALSE
+latent_dim <- 2; n_components <- 10; prior <- 'gmm'; beta <- 1; epochs <- 50; batch_effect <- FALSE
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr, latent_dim = latent_dim, n_components = n_components, prior = prior, epochs = epochs, batch_effect = batch_effect, beta = beta)
 source('analysis/seatac/helper.r'); save_seatac_res(gr, gs, window_size, bin_size, min_reads_per_window, adjacent, latent_dim, n_components, prior, beta, epochs, batch_effect)
 
@@ -39,7 +39,7 @@ source('analysis/seatac/helper.r'); save_seatac_res(gr, gs, window_size, bin_siz
 library(gplots)
 library(purrr)
 #par(mfrow = c(10, 1), mar = c(0.25, 2, 0.25, 2))
-par(mfrow = c(2, 2), mar = c(2, 4, 2, 4))
+par(mfrow = c(4, 6), mar = c(2, 4, 2, 4))
 X <- mcols(gr)$counts %>% as.matrix()
 dim(X) <- c(length(gr), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals, metadata(gr)$num_samples)
 X <- aperm(X, c(1, 4, 2, 3))

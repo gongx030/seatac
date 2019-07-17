@@ -1,7 +1,7 @@
 #' build_model
 #'
 
-vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, batch_effect, prior = 'gmm'){
+vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, prior = 'gmm'){
 
 	if (prior == 'gmm'){
 		latent_prior_model <- gmm_prior_model(latent_dim, n_components)
@@ -10,20 +10,25 @@ vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, b
 	}else
 		stop(sprintf('unknown prior model: %s', prior))
 
-  encoder <- encoder_model(latent_dim)
-	decoder <- decoder_model(input_dim, feature_dim, num_samples, batch_effect)
-
 	structure(list(
-		encoder = encoder, 
-		decoder = decoder, 
-		latent_prior_model = latent_prior_model, 
+		encoder = list(
+			vplot = vplot_encoder_model(latent_dim),
+			coverage = coverage_encoder_model(latent_dim)
+		),
+		decoder = list(
+			vplot = vplot_decoder_model(input_dim, feature_dim), 
+			coverage = coverage_decoder_model(feature_dim)
+		),
+		latent_prior_model = list(
+			vplot = latent_prior_model, 
+			coverage = vanilla_prior_model(latent_dim)
+		),
 		trainable_prior = TRUE,
 		input_dim = input_dim,
 		feature_dim = feature_dim,
 		latent_dim = latent_dim,
 		n_components = n_components,
 		num_samples = num_samples,
-		batch_effect = batch_effect,
 		prior = prior
 	), class = c('seatac_model', 'vae'))
 
@@ -153,8 +158,7 @@ loadModel <- function(dir){
 } # loadModel
 
 
-
-encoder_model <- function(latent_dim, filters = c(4L), kernel_size = c(3L), strides = c(2L), name = NULL){
+vplot_encoder_model <- function(latent_dim, filters = c(4L), kernel_size = c(3L), strides = c(2L), name = NULL){
 
 	keras_model_custom(name = name, function(self){
 
@@ -172,7 +176,39 @@ encoder_model <- function(latent_dim, filters = c(4L), kernel_size = c(3L), stri
 
 		function(x, mask = NULL){
 
-			browser()
+			y <- x %>% 
+				self$conv_1() %>%
+				self$bn_1() %>%
+				self$flatten_1() %>%
+				self$dense_1()
+
+			tfd_multivariate_normal_diag(
+				loc = y[, 1:latent_dim],
+				scale_diag = tf$nn$softplus(y[, (latent_dim + 1):(2 * latent_dim)] + 1e-5)
+			)
+		}
+	})
+}
+
+#' encoding model for the coverage data
+#
+coverage_encoder_model <- function(latent_dim, filters = c(8L), kernel_size = c(3L), strides = c(2L), name = NULL){
+
+	keras_model_custom(name = name, function(self){
+
+		self$conv_1 <- layer_conv_1d(
+			filters = filters[1],
+			kernel_size = kernel_size[1],
+			strides = strides[1],
+			activation = 'relu'
+		)
+		self$bn_1 <- layer_batch_normalization()
+
+		self$flatten_1 <- layer_flatten()
+		self$dense_1 <- layer_dense(units = 2 * latent_dim)
+		self$dropout_1 <- layer_dropout(rate = 0.2)
+
+		function(x, mask = NULL){
 
 			y <- x %>% 
 				self$conv_1() %>%
@@ -189,16 +225,13 @@ encoder_model <- function(latent_dim, filters = c(4L), kernel_size = c(3L), stri
 }
 
 
-decoder_model <- function(input_dim, feature_dim, num_samples, batch_effect, filters0 = 8L, filters = c(8L, 1L), kernel_size = c(3L, 3L), strides = c(4L, 1L), name = NULL){
+vplot_decoder_model <- function(input_dim, feature_dim, filters0 = 8L, filters = c(8L, 1L), kernel_size = c(3L, 3L), strides = c(4L, 1L), name = NULL){
 
 	input_dim0 <- input_dim / prod(strides)
 	feature_dim0 <- feature_dim / prod(strides)
 	output_dim0 <- input_dim0 * feature_dim0 * filters0
 
 	keras_model_custom(name = name, function(self){
-
-		if (batch_effect)
-			self$embedding_1 <- layer_embedding(input_dim = num_samples, output_dim = latent_dim, input_length = 1L)
 
 		self$dense_1 <- layer_dense(units = output_dim0, activation = 'relu')
 		self$dropout_1 <- layer_dropout(rate = 0.2)
@@ -222,16 +255,9 @@ decoder_model <- function(input_dim, feature_dim, num_samples, batch_effect, fil
 
 		function(x, mask = NULL){
 
-			if (batch_effect){
-				x2 <- list(x[[1]], x[[2]] %>% self$embedding_1()) %>%
-					layer_concatenate()
-			}else{
-				x2 <- x
-			}
-
-			y <- x2 %>%
-				self$dropout_1() %>%
+			y <- x %>%
 				self$dense_1() %>%
+				self$dropout_1() %>%
 				self$reshape_1() %>%
 				self$deconv_1() %>%
 				self$bn_1() %>%
@@ -240,6 +266,53 @@ decoder_model <- function(input_dim, feature_dim, num_samples, batch_effect, fil
 			tfd_independent(
 				tfd_bernoulli(logits = y), 
 				reinterpreted_batch_ndims = 3L
+			)
+		}
+	})
+}
+
+coverage_decoder_model <- function(feature_dim, filters0 = 8L, filters = c(8L, 1L), kernel_size = c(3L, 3L), strides = c(4L, 1L), name = NULL){
+
+	input_dim0 <- feature_dim/ prod(strides)
+	output_dim0 <- input_dim0 * 1 * filters0
+
+	keras_model_custom(name = name, function(self){
+
+		self$dense_1 <- layer_dense(units = output_dim0, activation = 'relu')
+		self$dropout_1 <- layer_dropout(rate = 0.2)
+		self$reshape_1 <- layer_reshape(target_shape = c(input_dim0, 1L, filters0))
+		self$reshape_2 <- layer_reshape(target_shape = c(feature_dim, 1L))
+
+		self$deconv_1 <- layer_conv_2d_transpose(
+			filters = filters[1],
+			kernel_size = shape(kernel_size[1], 1L),
+			strides = shape(strides[1], 1L),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$bn_1 <- layer_batch_normalization()
+
+		self$deconv_2 <- layer_conv_2d_transpose(
+			filters = filters[2],
+			kernel_size = shape(kernel_size[2], 1L),
+			strides = shape(strides[2], 1L),
+			padding = 'same'
+		)
+
+		function(x, mask = NULL){
+
+			y <- x %>%
+				self$dense_1() %>%
+				self$dropout_1() %>%
+				self$reshape_1() %>%
+				self$deconv_1() %>%
+				self$bn_1() %>%
+				self$deconv_2() %>%
+				self$reshape_2() 
+			
+			tfd_independent(
+				tfd_bernoulli(logits = y),
+				reinterpreted_batch_ndims = 2L
 			)
 		}
 	})
@@ -274,3 +347,16 @@ gmm_prior_model <- function(latent_dim, n_components, name = NULL){
 		}
 	})
 }
+
+vanilla_prior_model <- function(latent_dim, name = NULL){
+	keras_model_custom(name = name, function(self){
+		function(x, mask = NULL){
+			tfd_multivariate_normal_diag(
+				loc = tf$zeros(shape(latent_dim)),
+				scale_identity_multiplier = 1
+			)
+		}
+	})	
+}
+
+

@@ -53,11 +53,9 @@ seatac <- function(
     latent_dim = latent_dim, 
     n_components = n_components, 
     num_samples = metadata(x)$num_samples,
-		batch_effect = batch_effect,
 		prior = prior
   )
-
-	model %>% fit(x, epochs = epochs, steps_per_epoch = steps_per_epoch, batch_size = batch_size, beta = beta)
+	model %>% fit(x, epochs = epochs, steps_per_epoch = steps_per_epoch, beta = beta)
 	mcols(x)$cluster <- model %>% predict(x)
 	metadata(x)$model <- model
   x	

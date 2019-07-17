@@ -78,16 +78,16 @@ readFragmentSize <- function(
 
 	flog.info(sprintf('resizing each peak to [-%d, +%d] region', window_size, window_size))
 	windows <- resize(windows, fix = 'center', width = window_size)	# resize to window_size
-
-	Y <- lapply(cvg, function(c) c[windows] %>% as.matrix())
-	Y <- unlist(Y)
-	dim(Y) <- c(length(windows), window_size, num_samples)
-
 	bins <- unlist(slidingWindows(windows, width = bin_size, step = bin_size))
+	Y <- lapply(cvg, function(c) matrix(mean(c[bins]), nrow = length(windows), ncol = n_bins_per_window, byrow = TRUE))
+	max_coverage <- do.call('cbind', lapply(Y, rowMax))
+	min_coverage <- do.call('cbind', lapply(Y, rowMin))
+	Y <- lapply(1:num_samples, function(i) (Y[[i]] - min_coverage[, i]) / (max_coverage[, i] - min_coverage[, i]))
+	Y <- unlist(Y)
+	dim(Y) <- c(length(windows), n_bins_per_window, num_samples)
 
   # find the # PE reads per window per sample
   num_reads <- do.call('cbind', lapply(1:num_samples, function(i) countOverlaps(windows, x[mcols(x)$group == i])))
-
   x <- subsetByOverlaps(x, windows)
 	wb <- cbind(rep(1:length(windows), n_bins_per_window), 1:(length(windows)* n_bins_per_window))	# windows ~ bins, sorted by window
 
@@ -110,6 +110,8 @@ readFragmentSize <- function(
   mcols(windows)$counts <- X
   mcols(windows)$coverage <- Y
   mcols(windows)$num_reads <- num_reads
+  mcols(windows)$max_coverage <- max_coverage 
+  mcols(windows)$min_coverage <- min_coverage 
   metadata(windows)$fragment_size_range  <- fragment_size_range
   metadata(windows)$fragment_size_interval <- fragment_size_interval
   metadata(windows)$bin_size <- bin_size
