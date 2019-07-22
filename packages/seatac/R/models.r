@@ -4,9 +4,9 @@
 vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, prior = 'gmm'){
 
 	if (prior == 'gmm'){
-		latent_prior_model <- gmm_prior_model(latent_dim, n_components)
+		latent_prior_model <- gmm_prior_model(2 * latent_dim, n_components)
 	}else if (prior == 'hmm'){
-		latent_prior_model <- hmm_prior_model(latent_dim, n_components, num_samples)
+#		latent_prior_model <- hmm_prior_model(latent_dim, n_components, num_samples)
 	}else
 		stop(sprintf('unknown prior model: %s', prior))
 
@@ -19,10 +19,7 @@ vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, p
 			vplot = vplot_decoder_model(input_dim, feature_dim), 
 			coverage = coverage_decoder_model(feature_dim)
 		),
-		latent_prior_model = list(
-			vplot = latent_prior_model, 
-			coverage = vanilla_prior_model(latent_dim)
-		),
+		latent_prior_model = latent_prior_model,
 		trainable_prior = TRUE,
 		input_dim = input_dim,
 		feature_dim = feature_dim,

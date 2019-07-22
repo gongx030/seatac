@@ -9,6 +9,7 @@
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments
 #' @importFrom gplots colorpanel
+#' @importFrom abind abind
 #' @import tensorflow
 #' @import keras
 #' @import tfprobability
@@ -31,7 +32,6 @@ seatac <- function(
 	batch_effect = FALSE,
 	epochs = 50, 
 	batch_size = 256, 
-	steps_per_epoch = 10,
 	beta = 1
 ){
 
@@ -55,8 +55,8 @@ seatac <- function(
     num_samples = metadata(x)$num_samples,
 		prior = prior
   )
-	model %>% fit(x, epochs = epochs, steps_per_epoch = steps_per_epoch, beta = beta)
-	mcols(x)$cluster <- model %>% predict(x)
+	model %>% fit(x, epochs = epochs, beta = beta)
+	mcols(x)$latent <- model %>% predict(x)
 	metadata(x)$model <- model
   x	
 

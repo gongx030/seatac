@@ -1,15 +1,15 @@
-fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256, epochs_warmup = 50, beta = 1){
+fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256, beta = 1){
 
-	optimizer <- tf$train$AdamOptimizer(0.001)
-	flog.info('optimizer: Adam(learning_rate=0.001)')
-	flog.info(sprintf('steps_per_epoch: %d', steps_per_epoch))
+	learning_rate <- 0.001
+	optimizer <- tf$train$AdamOptimizer(learning_rate)
+	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
   num_samples <- metadata(gr)$num_samples
 
 	batch_size <- ceiling(batch_size / num_samples)
 
 	# determining the weight for each window
-	W <- (mcols(gr)$num_reads / 50)^(3/4)
+	W <- (mcols(gr)$num_reads / 25)^(3/4)
 	W[W > 1] <- 1
 
   for (epoch in seq_len(epochs)) {
@@ -20,8 +20,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
     total_loss <- 0
     total_loss_nll_x <- 0
     total_loss_nll_y <- 0
-    total_loss_kl_x <- 0
-    total_loss_kl_y <- 0
+    total_loss_kl <- 0
 
 		for (s in 1:steps_per_epoch){
 
@@ -60,11 +59,11 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
         avg_nll_x <- tf$reduce_mean(nll_x)
         avg_nll_y <- tf$reduce_mean(nll_y)
 
-				vplot_prior <- model$latent_prior_model$vplot(NULL)
+				prior_model <- model$latent_prior_model(NULL)
 
 				if (model$prior == 'gmm'){
 
-					kl_div_x <- w * (posterior_x$log_prob(posterior_sample_x) - vplot_prior$log_prob(posterior_sample_x))
+					kl_div <- w * (posterior_x$log_prob(posterior_sample_x) + posterior_y$log_prob(posterior_sample_y)  - prior_model$log_prob(posterior_sample))
 
 				}else if (model$prior == 'hmm'){
 
@@ -79,20 +78,15 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 #					kl_div <- w * (approx_posterior$log_prob(approx_posterior_sample) - pr)
 				}
 
-				kl_div_x <- beta * tf$reduce_mean(kl_div_x)
+				kl_div <- beta * tf$reduce_mean(kl_div)
 
-				coverage_prior <- model$latent_prior_model$coverage(NULL)
-				kl_div_y <- w * (posterior_y$log_prob(posterior_sample_y) - coverage_prior$log_prob(posterior_sample_y))
-				kl_div_y <- beta * tf$reduce_mean(kl_div_y)
-
-        loss <- kl_div_x + kl_div_y + avg_nll_x + avg_nll_y
+        loss <- kl_div + avg_nll_x + avg_nll_y
       })
 
       total_loss <- total_loss + loss
 			total_loss_nll_x <- total_loss_nll_x + avg_nll_x
       total_loss_nll_y <- total_loss_nll_y + avg_nll_y
-			total_loss_kl_x <- total_loss_kl_x + kl_div_x
-      total_loss_kl_y <- total_loss_kl_y + kl_div_y
+      total_loss_kl <- total_loss_kl + kl_div
 
       encoder_gradients_x <- tape$gradient(loss, model$encoder$vplot$variables)
       encoder_gradients_y <- tape$gradient(loss, model$encoder$coverage$variables)
@@ -119,14 +113,14 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
         global_step = tf$train$get_or_create_global_step()
       )
 
-     	prior_gradients <- tape$gradient(loss, model$latent_prior_model$vplot$variables)
+     	prior_gradients <- tape$gradient(loss, model$latent_prior_model$variables)
 			optimizer$apply_gradients(
-				purrr::transpose(list(prior_gradients, model$latent_prior_model$vplot$variables)),
+				purrr::transpose(list(prior_gradients, model$latent_prior_model$variables)),
 				global_step = tf$train$get_or_create_global_step()
 			)
     }
 
-    flog.info(sprintf('epoch=%4.d/%4.d | nll(vplot)=%7.1f | nll(coverage)=%7.1f | kl(vplot)=%7.1f | kl(coverage)=%7.1f | beta=%5.3f | total=%7.1f', epoch, epochs, total_loss_nll_x, total_loss_nll_y, total_loss_kl_x, total_loss_kl_y, beta, total_loss))
+    flog.info(sprintf('epoch=%4.d/%4.d | nll(vplot)=%7.1f | nll(coverage)=%7.1f | kl=%7.1f | beta=%5.3f | total=%7.1f', epoch, epochs, total_loss_nll_x, total_loss_nll_y, total_loss_kl, beta, total_loss))
   }
 
 } # fit_vae

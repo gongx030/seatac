@@ -9,7 +9,8 @@ readFragmentSize <- function(
 	bin_size = 10, 
 	fragment_size_range = c(50, 670), 
 	fragment_size_interval = 20, 
-	expand = 2000
+	expand = 2000,
+	min_reads_per_window = 5
 ){
 
 	validate_bam(filenames)
@@ -76,20 +77,73 @@ readFragmentSize <- function(
   x$fragment_size <- as.numeric(cut(x$isize, breaks))	# discretize the fragment size
   x <- x[!is.na(x$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
 
-	flog.info(sprintf('resizing each peak to [-%d, +%d] region', window_size, window_size))
-	windows <- resize(windows, fix = 'center', width = window_size)	# resize to window_size
-	bins <- unlist(slidingWindows(windows, width = bin_size, step = bin_size))
-	Y <- lapply(cvg, function(c) matrix(mean(c[bins]), nrow = length(windows), ncol = n_bins_per_window, byrow = TRUE))
+	# find the peaks and valleys within each [-160, +160] window
+	# For each window, we find a peak and a valley
+	flog.info(sprintf('finding the peaks and valleys in each [-%d, +%d] region centered at the input summits', window_size / 2, window_size / 2))
+
+	bins <- windows %>%
+		resize(fix = 'center', width = window_size * 2 ) %>%
+		slidingWindows(width = bin_size, step = bin_size) %>%
+		unlist()
+
+	mcols(bins)$peak_id <- rep(1:length(windows), each = n_bins_per_window * 2)
+	mcols(bins)$bin_id <- rep(1:(n_bins_per_window * 2), length(windows))
+
+	# coverage of each 10-bp bin in [-320, +320] window
+	Y <- lapply(cvg, function(c) matrix(mean(c[bins]), nrow = length(windows), ncol = n_bins_per_window * 2, byrow = TRUE))
+
+	# the index of the bins in [-160, +160] window
+	js <- (n_bins_per_window / 2): (2 * n_bins_per_window - n_bins_per_window / 2)
+
+	# bin index in Y
+	B <- matrix(1:length(bins), length(windows), ncol = n_bins_per_window * 2, byrow = TRUE)
+
+	# reads coverage of moving 320-bp window for each bin in [-160, +160] window (aka, core bins)
+	Y <- lapply(1:num_samples, function(i) 
+		do.call('rbind', lapply(js, function(j){
+			m <- (j - n_bins_per_window / 2 + 1):(j + n_bins_per_window / 2)
+			Y[[i]][, m]
+		}))
+	)
 	max_coverage <- do.call('cbind', lapply(Y, rowMax))
 	min_coverage <- do.call('cbind', lapply(Y, rowMin))
-	Y <- lapply(1:num_samples, function(i) (Y[[i]] - min_coverage[, i]) / (max_coverage[, i] - min_coverage[, i]))
-	Y <- unlist(Y)
-	dim(Y) <- c(length(windows), n_bins_per_window, num_samples)
 
-  # find the # PE reads per window per sample
-  num_reads <- do.call('cbind', lapply(1:num_samples, function(i) countOverlaps(windows, x[mcols(x)$group == i])))
+	bins <- bins[Reduce('c', lapply(js, function(j) B[, j]))]
+
+	# find the windows that have reads coverage
+	window_with_high_coverage <- rowSums(max_coverage > min_coverage) == num_samples
+	max_coverage <- max_coverage[window_with_high_coverage, , drop = FALSE]
+	min_coverage <- min_coverage[window_with_high_coverage, , drop = FALSE]
+	Y <- lapply(1:num_samples, function(i) Y[[i]][window_with_high_coverage, , drop = FALSE])
+	bins <- bins[window_with_high_coverage]
+
+	# for each row, scale to [0, 1]
+	Y <- lapply(1:num_samples, function(i) (Y[[i]] - min_coverage[, i]) / (max_coverage[, i] - min_coverage[, i]))
+
+	# determine the peak/valley based on the scaled coverage density
+	is_peak <- do.call('cbind', lapply(1:num_samples, function(i) Y[[i]][, n_bins_per_window / 2] == 0))
+	is_valley <- do.call('cbind', lapply(1:num_samples, function(i) Y[[i]][, n_bins_per_window / 2] == 1))
+
+	# include the windows that is a peak or a valley in at least one sample
+	is_peak_or_valley <- rowSums(is_peak) > 0 | rowSums(is_valley) > 0
+
+	# include only the peak/valley windows
+	bins <- bins[is_peak_or_valley]
+	is_peak <- is_peak[is_peak_or_valley, , drop = FALSE]
+	is_valley <- is_valley[is_peak_or_valley, , drop = FALSE]
+	max_coverage <- max_coverage[is_peak_or_valley, , drop = FALSE]
+	min_coverage <- min_coverage[is_peak_or_valley, , drop = FALSE]
+	Y <- lapply(1:num_samples, function(i) Y[[i]][is_peak_or_valley, , drop = FALSE])
+	Y <- unlist(Y)
+	dim(Y) <- c(length(bins), n_bins_per_window, num_samples)
+
+	windows <- resize(bins, fix = 'center', width = window_size)	# resize to window_size
+	bins <- unlist(slidingWindows(windows, width = bin_size, step = bin_size))  # all bins within each 320 bp window
+
+  # find the # PE read centers per window per sample
   x <- subsetByOverlaps(x, windows)
 	wb <- cbind(rep(1:length(windows), n_bins_per_window), 1:(length(windows)* n_bins_per_window))	# windows ~ bins, sorted by window
+	num_reads <- do.call('cbind', lapply(1:num_samples, function(i) countOverlaps(windows, x[mcols(x)$group == i])))
 
   X <- Reduce('cbind', lapply(1:num_samples, function(i){
     xi <- x[mcols(x)$group == i]  # reads from group i
@@ -109,9 +163,14 @@ readFragmentSize <- function(
 
   mcols(windows)$counts <- X
   mcols(windows)$coverage <- Y
-  mcols(windows)$num_reads <- num_reads
   mcols(windows)$max_coverage <- max_coverage 
   mcols(windows)$min_coverage <- min_coverage 
+  mcols(windows)$is_peak <- is_peak
+  mcols(windows)$is_valley <- is_valley 
+  mcols(windows)$num_reads <- num_reads
+
+	windows <- windows[rowSums(mcols(windows)$num_reads > min_reads_per_window) == num_samples]
+
   metadata(windows)$fragment_size_range  <- fragment_size_range
   metadata(windows)$fragment_size_interval <- fragment_size_interval
   metadata(windows)$bin_size <- bin_size

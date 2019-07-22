@@ -17,6 +17,7 @@ Imports:
   Rsamtools,
   GenomicAlignments,
  	gplots,
+	abind,
 	tensorflow,
 	keras,
 	tfprobability
