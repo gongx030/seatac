@@ -5,8 +5,6 @@ vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, p
 
 	if (prior == 'gmm'){
 		latent_prior_model <- gmm_prior_model(2 * latent_dim, n_components)
-	}else if (prior == 'hmm'){
-#		latent_prior_model <- hmm_prior_model(latent_dim, n_components, num_samples)
 	}else
 		stop(sprintf('unknown prior model: %s', prior))
 
@@ -30,56 +28,6 @@ vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, p
 	), class = c('seatac_model', 'vae'))
 
 } # vae
-
-
-hmm_prior_model <- function(latent_dim, n_components, num_steps){
-
-	initial_state_logits <- rep(0, n_components)
-
-	transition_prob <- matrix(0.1, n_components, n_components)
-	diag(transition_prob) <- 0
-	diag(transition_prob) <- 1 - rowSums(transition_prob)
-	transition_distribution <- tfd_categorical(
-		probs = transition_prob %>%
-		tf$cast(tf$float32)
-	)
-
-	learnable_prior_model <- function(latent_dim, n_components, num_steps, name = NULL){
-
-		keras_model_custom(name = name, function(self) {
-											 
-			self$logits <- tf$get_variable(
-				name = 'logits', 
-				shape = list(n_components, n_components),
-				dtype = tf$float32
-			)
-
-			self$loc <- tf$get_variable(
-				name = 'loc',
-				shape = list(n_components, latent_dim),
-				dtype = tf$float32
-			)
-
-			self$raw_scale_diag <- tf$get_variable(
-				name = 'raw_scale_diag',
-				shape = list(n_components, latent_dim),
-				dtype = tf$float32
-			)
-
-			function (x, mask = NULL) {
-				tfd_hidden_markov_model(
-					initial_distribution = tfd_categorical(logits = initial_state_logits),
-					transition_distribution = transition_distribution,
-#					transition_distribution = tfd_categorical(logits = self$logits),
-					observation_distribution =  tfd_multivariate_normal_diag(loc = self$loc, scale_diag = tf$nn$softplus(self$raw_scale_diag)),
-					num_steps = num_steps
-				)
-			}
-		})
-	}
-	latent_prior_model <- learnable_prior_model(latent_dim, n_components, num_steps)
-
-} # hmm_prior_model
 
 
 saveModel <- function(x, dir){

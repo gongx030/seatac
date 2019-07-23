@@ -25,19 +25,23 @@ NULL
 #' @author Wuming Gong
 #'
 seatac <- function(
-  x,
+	x,			# GenomicRanges object
 	latent_dim = 2, 
-	n_components = 5, 
-  prior = 'gmm',
+	n_components = 10, 
+	window_size = 320,
+	prior = 'gmm',
 	batch_effect = FALSE,
 	epochs = 50, 
 	batch_size = 256, 
 	beta = 1
 ){
 
-  window_dim <- length(x)
-  feature_dim <- metadata(x)$n_intervals
-  input_dim <- metadata(x)$n_bins_per_window
+	flog.info('preparing training data')
+	train <- makeData(x, window_size = window_size, train = TRUE)
+
+  window_dim <- length(train)
+  feature_dim <- metadata(train)$n_intervals
+  input_dim <- metadata(train)$n_bins_per_window
 
 	flog.info(sprintf('latent dimension(latent_dim):%d', latent_dim))
 	flog.info(sprintf('# mixture components(n_components):%d', n_components))
@@ -55,8 +59,11 @@ seatac <- function(
     num_samples = metadata(x)$num_samples,
 		prior = prior
   )
-	model %>% fit(x, epochs = epochs, beta = beta)
-	mcols(x)$latent <- model %>% predict(x)
+
+	model %>% fit(train, epochs = epochs, beta = beta)
+
+	mcols(x)$latent <- model %>% predict(x, window_size = window_size)
+
 	metadata(x)$model <- model
   x	
 

@@ -1,16 +1,10 @@
-fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256, beta = 1){
+fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256, beta = 1, learning_rate = 0.001){
 
-	learning_rate <- 0.001
 	optimizer <- tf$train$AdamOptimizer(learning_rate)
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
-  num_samples <- metadata(gr)$num_samples
+  num_samples <- model$num_samples
 
-	batch_size <- ceiling(batch_size / num_samples)
-
-	# determining the weight for each window
-	W <- (mcols(gr)$num_reads / 25)^(3/4)
-	W[W > 1] <- 1
 
   for (epoch in seq_len(epochs)) {
 
@@ -28,17 +22,17 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 			x <- mcols(gr)$counts[b, ] %>%
 				as.matrix() %>% 
 				tf$cast(tf$float32) %>% 
-				tf$reshape(shape(batch_size, num_samples, model$input_dim, model$feature_dim)) %>%
-				tf$reshape(shape(batch_size * num_samples, model$input_dim, model$feature_dim)) %>%
+				tf$reshape(shape(batch_size, model$input_dim, model$feature_dim)) %>%
 				tf$expand_dims(axis = 3L)
 			
-			y <- mcols(gr)$coverage[b, , , drop = FALSE] %>%
+			y <- mcols(gr)$coverage[b, , drop = FALSE] %>%
 				tf$cast(tf$float32) %>% 
-				tf$transpose(c(0L, 2L, 1L)) %>% 
-				tf$reshape(shape(batch_size * num_samples, model$feature_dim)) %>%
+				tf$reshape(shape(batch_size, model$feature_dim)) %>%
 				tf$expand_dims(axis = 2L)
 
-			w <- c(t(W[b, , drop = FALSE]))
+			# determining the weight for each window
+			w <- (mcols(gr)$num_reads[b] / 25)^(3/4)
+			w[w > 1] <- 1
 
       with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
@@ -62,20 +56,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 				prior_model <- model$latent_prior_model(NULL)
 
 				if (model$prior == 'gmm'){
-
 					kl_div <- w * (posterior_x$log_prob(posterior_sample_x) + posterior_y$log_prob(posterior_sample_y)  - prior_model$log_prob(posterior_sample))
-
-				}else if (model$prior == 'hmm'){
-
-#					h <- approx_posterior_sample %>% 
-#						tf$reshape(shape(batch_size, num_samples, 1, latent_dim, 1)) %>% 
-#						tf$transpose(c(1L, 0L, 2L, 3L, 4L))
-
-#					pr <- model$latent_prior$log_prob(h) %>%
-#						tf$transpose(c(1L, 0L, 2L)) %>%
-#						tf$reshape(shape(batch_size * num_samples))
-						
-#					kl_div <- w * (approx_posterior$log_prob(approx_posterior_sample) - pr)
 				}
 
 				kl_div <- beta * tf$reduce_mean(kl_div)

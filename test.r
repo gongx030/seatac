@@ -158,11 +158,13 @@ source('chipseq.r');  macs2.callpeak(merged_treatment_file, base.name, format = 
 # [2019-07-22] Use Seatac to two batch samples
 # -----------------------------------------------------------------------------------
 gs <- c('MEF_NoDox', 'MEF_Dox_D1')
-window_size <- 320; bin_size <- 10
-source('analysis/seatac/helper.r'); gr <- get_fragment_size(gs, window_size = window_size, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, genome = BSgenome.Mmusculus.UCSC.mm10, exclude_exons = TRUE)
+bin_size <- 10; expand <- 500
+source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, genome = BSgenome.Mmusculus.UCSC.mm10)
+source('analysis/seatac/helper.r'); windows <- read_windows(gs, ga, expand = expand, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, exclude_exons = TRUE)
 
-latent_dim <- 2; n_components <- 10; prior <- 'gmm'; beta <- 1; epochs <- 100; batch_effect <- FALSE
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(gr[1:10000], latent_dim = latent_dim, n_components = n_components, prior = prior, epochs = epochs, batch_effect = batch_effect, beta = beta)
+latent_dim <- 2; n_components <- 10; epochs <- 50; batch_effect <- FALSE; window_size <- 320
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(windows, latent_dim = latent_dim, n_components = n_components, window_size = window_size, epochs = epochs, batch_effect = batch_effect)
+
 source('analysis/seatac/helper.r'); save_seatac_res(gr, gs, window_size, bin_size, latent_dim, n_components, prior, beta, epochs, batch_effect)
 
 
