@@ -27,7 +27,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 			
 			y <- mcols(gr)$coverage[b, , drop = FALSE] %>%
 				tf$cast(tf$float32) %>% 
-				tf$reshape(shape(batch_size, model$feature_dim)) %>%
+				tf$reshape(shape(batch_size, model$input_dim)) %>%
 				tf$expand_dims(axis = 2L)
 
 			# determining the weight for each window
@@ -101,7 +101,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 			)
     }
 
-    flog.info(sprintf('epoch=%4.d/%4.d | nll(vplot)=%7.1f | nll(coverage)=%7.1f | kl=%7.1f | beta=%5.3f | total=%7.1f', epoch, epochs, total_loss_nll_x, total_loss_nll_y, total_loss_kl, beta, total_loss))
+    flog.info(sprintf('training | epoch=%4.d/%4.d | nll(vplot)=%7.1f | nll(coverage)=%7.1f | kl=%7.1f | beta=%5.3f | total=%7.1f', epoch, epochs, total_loss_nll_x, total_loss_nll_y, total_loss_kl, beta, total_loss))
   }
 
 } # fit_vae

@@ -1,4 +1,4 @@
-#' build_model
+#' vae
 #'
 
 vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, prior = 'gmm'){
@@ -15,7 +15,7 @@ vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, p
 		),
 		decoder = list(
 			vplot = vplot_decoder_model(input_dim, feature_dim), 
-			coverage = coverage_decoder_model(feature_dim)
+			coverage = coverage_decoder_model(input_dim)
 		),
 		latent_prior_model = latent_prior_model,
 		trainable_prior = TRUE,
@@ -103,27 +103,58 @@ loadModel <- function(dir){
 } # loadModel
 
 
-vplot_encoder_model <- function(latent_dim, filters = c(4L), kernel_size = c(3L), strides = c(2L), name = NULL){
+#' encoding model for the vplot
+#'
+vplot_encoder_model <- function(
+	latent_dim, 
+	filters = c(16L, 16L, 16L), 
+	kernel_size = c(3L, 3L, 3L), 
+	input_strides = c(2L, 2L, 2L), 
+	feature_strides = c(2L, 2L, 1L), 
+	name = NULL
+){
 
 	keras_model_custom(name = name, function(self){
 
 		self$conv_1 <- layer_conv_2d(
 			filters = filters[1],
 			kernel_size = kernel_size[1],
-			strides = strides[1],
+			strides = shape(input_strides[1], feature_strides[1]),
 			activation = 'relu'
 		)
+
 		self$bn_1 <- layer_batch_normalization()
+
+		self$conv_2 <- layer_conv_2d(
+			filters = filters[2],
+			kernel_size = kernel_size[2],
+			strides = shape(input_strides[2], feature_strides[2]),
+			activation = 'relu'
+		)
+
+		self$bn_2 <- layer_batch_normalization()
+
+		self$conv_3 <- layer_conv_2d(
+			filters = filters[3],
+			kernel_size = kernel_size[3],
+			strides = shape(input_strides[3], feature_strides[3]),
+			activation = 'relu'
+		)
+
+		self$bn_3 <- layer_batch_normalization()
 
 		self$flatten_1 <- layer_flatten()
 		self$dense_1 <- layer_dense(units = 2 * latent_dim)
-		self$dropout_1 <- layer_dropout(rate = 0.2)
 
 		function(x, mask = NULL){
 
 			y <- x %>% 
 				self$conv_1() %>%
 				self$bn_1() %>%
+				self$conv_2() %>%
+				self$bn_2() %>%
+				self$conv_3() %>%
+				self$bn_3() %>%
 				self$flatten_1() %>%
 				self$dense_1()
 
@@ -170,10 +201,27 @@ coverage_encoder_model <- function(latent_dim, filters = c(8L), kernel_size = c(
 }
 
 
-vplot_decoder_model <- function(input_dim, feature_dim, filters0 = 8L, filters = c(8L, 1L), kernel_size = c(3L, 3L), strides = c(4L, 1L), name = NULL){
+#' vplot_decoder_model
+#'
+#' @param input_dim input dimension of the v-plot (i.e. the width of the genomic region)
+#' @param feature_dim feature dimension of the v-plot	(i.e. the fragment size dimension)
+#' @param filters0 the beginning filter dimension coming out of the latent layer
+#' @param filters the filter sizes of each deconv layer
+#' @param kernel_size the kernel size of each deconv layer.  The feature and input spaces shared the same kernel size. 
+#'
+vplot_decoder_model <- function(
+	input_dim, 
+	feature_dim, 
+	filters0 = 16L, 
+	filters = c(16L, 16L, 1L), 
+	kernel_size = c(3L, 3L, 3L), 
+	input_strides = c(2L, 2L, 2L), 
+	feature_strides = c(2L, 2L, 1L), 
+	name = NULL
+){
 
-	input_dim0 <- input_dim / prod(strides)
-	feature_dim0 <- feature_dim / prod(strides)
+	input_dim0 <- input_dim / prod(input_strides)
+	feature_dim0 <- feature_dim / prod(feature_strides)
 	output_dim0 <- input_dim0 * feature_dim0 * filters0
 
 	keras_model_custom(name = name, function(self){
@@ -185,7 +233,7 @@ vplot_decoder_model <- function(input_dim, feature_dim, filters0 = 8L, filters =
 		self$deconv_1 <- layer_conv_2d_transpose(
 			filters = filters[1],
 			kernel_size = kernel_size[1],
-			strides = strides[1],
+			strides = shape(input_strides[1], feature_strides[1]),
 			padding = 'same',
 			activation = 'relu'
 		)
@@ -194,7 +242,16 @@ vplot_decoder_model <- function(input_dim, feature_dim, filters0 = 8L, filters =
 		self$deconv_2 <- layer_conv_2d_transpose(
 			filters = filters[2],
 			kernel_size = kernel_size[2],
-			strides = strides[2],
+			strides = shape(input_strides[2], feature_strides[2]),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$bn_2 <- layer_batch_normalization()
+
+		self$deconv_3 <- layer_conv_2d_transpose(
+			filters = filters[3],
+			kernel_size = kernel_size[3],
+			strides = shape(input_strides[3], feature_strides[3]),
 			padding = 'same'
 		)
 
@@ -206,7 +263,9 @@ vplot_decoder_model <- function(input_dim, feature_dim, filters0 = 8L, filters =
 				self$reshape_1() %>%
 				self$deconv_1() %>%
 				self$bn_1() %>%
-				self$deconv_2()
+				self$deconv_2() %>%
+				self$bn_2() %>%
+				self$deconv_3()
 			
 			tfd_independent(
 				tfd_bernoulli(logits = y), 
@@ -216,9 +275,9 @@ vplot_decoder_model <- function(input_dim, feature_dim, filters0 = 8L, filters =
 	})
 }
 
-coverage_decoder_model <- function(feature_dim, filters0 = 8L, filters = c(8L, 1L), kernel_size = c(3L, 3L), strides = c(4L, 1L), name = NULL){
+coverage_decoder_model <- function(input_dim, filters0 = 8L, filters = c(8L, 1L), kernel_size = c(3L, 3L), strides = c(4L, 1L), name = NULL){
 
-	input_dim0 <- feature_dim/ prod(strides)
+	input_dim0 <- input_dim / prod(strides)
 	output_dim0 <- input_dim0 * 1 * filters0
 
 	keras_model_custom(name = name, function(self){
@@ -226,7 +285,7 @@ coverage_decoder_model <- function(feature_dim, filters0 = 8L, filters = c(8L, 1
 		self$dense_1 <- layer_dense(units = output_dim0, activation = 'relu')
 		self$dropout_1 <- layer_dropout(rate = 0.2)
 		self$reshape_1 <- layer_reshape(target_shape = c(input_dim0, 1L, filters0))
-		self$reshape_2 <- layer_reshape(target_shape = c(feature_dim, 1L))
+		self$reshape_2 <- layer_reshape(target_shape = c(input_dim, 1L))
 
 		self$deconv_1 <- layer_conv_2d_transpose(
 			filters = filters[1],
@@ -292,6 +351,7 @@ gmm_prior_model <- function(latent_dim, n_components, name = NULL){
 		}
 	})
 }
+
 
 vanilla_prior_model <- function(latent_dim, name = NULL){
 	keras_model_custom(name = name, function(self){

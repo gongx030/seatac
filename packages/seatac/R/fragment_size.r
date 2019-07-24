@@ -4,19 +4,19 @@
 readFragmentSizeMatrix <- function(
 	x, 
 	windows, 
-	expand = 500,
+	window_size = 500,
 	bin_size = 10,
 	fragment_size_range = c(50, 670), 
 	fragment_size_interval = 20
 ){
 
   num_samples <- metadata(x)$num_samples
-  n_bins_per_window <- expand / bin_size
+  n_bins_per_window <- window_size / bin_size
 	breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
 
 	n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval + 1
 
-	windows <- windows %>% resize(fix = 'center', width = expand)
+	windows <- windows %>% resize(fix = 'center', width = window_size)
 
 	wb <- cbind(rep(1:length(windows), n_bins_per_window), 1:(length(windows)* n_bins_per_window))	# windows ~ bins, sorted by window
 
@@ -67,59 +67,20 @@ readFragmentSizeMatrix <- function(
 
   mcols(gr)$counts <- X
 
+	mcols(gr)$min_coverage <- rowMin(mcols(gr)$coverage)
+	mcols(gr)$max_coverage <- rowMax(mcols(gr)$coverage)
+	mcols(gr)$coverage <- (mcols(gr)$coverage - mcols(gr)$min_coverage) / (mcols(gr)$max_coverage - mcols(gr)$min_coverage)
+	mcols(gr)$num_reads <- rowSums(X)
+
   metadata(gr)$fragment_size_range  <- fragment_size_range
   metadata(gr)$fragment_size_interval <- fragment_size_interval
   metadata(gr)$bin_size <- bin_size
-  metadata(gr)$expand <- expand
+  metadata(gr)$window_size <- window_size 
   metadata(gr)$n_intervals <- n_intervals
   metadata(gr)$num_samples <- num_samples
+  metadata(gr)$n_bins_per_window <- n_bins_per_window 
+
 
 	gr
 
 } # readFragmentSizeMatrix
-
-
-makeData <- function(x, window_size = 320, min_reads_per_window = 5){
-
-	expand <- metadata(x)$expand
-	bin_size <- metadata(x)$bin_size
-	n_bins_per_window <- window_size / bin_size
-
-	# the index of the 10-bp bins in [-160, +160] window
-	js <- (n_bins_per_window / 2):(expand / bin_size - n_bins_per_window / 2)
-
-	# reads coverage of moving 320-bp window for each bin in [-160, +160] window (aka, core bins)
-	gr <- Reduce('c', lapply(js, function(j){
-		# the index of the bins covering the [-160, +160] window
-		m <- (j - n_bins_per_window / 2 + 1):(j + n_bins_per_window / 2)
-		xj <- x
-		ranges(xj) <- IRanges(start = start(xj) + bin_size * (j - 1), width = window_size)
-		mcols(xj)$coverage <- mcols(xj)$coverage[, m]
-		mcols(xj)$min_coverage <- rowMin(mcols(xj)$coverage)
-		mcols(xj)$max_coverage <- rowMax(mcols(xj)$coverage)
-		mcols(xj)$coverage <- (mcols(xj)$coverage - mcols(xj)$min_coverage) / (mcols(xj)$max_coverage - mcols(xj)$min_coverage)
-		mcols(xj)$is_peak <- mcols(xj)$coverage[, n_bins_per_window / 2] == 1
-		mcols(xj)$is_valley <- mcols(xj)$coverage[, n_bins_per_window / 2] == 0
-
-		if (train){
-			is_peak_or_valley <- mcols(xj)$is_peak | mcols(xj)$is_valley
-			xj <- xj[!is.na(is_peak_or_valley) & is_peak_or_valley]
-		}
-
-		X <- mcols(xj)$counts %>% as.matrix()
-		dim(X) <- c(length(xj), expand / bin_size, metadata(x)$n_intervals)
-		X <- X[, m, ]
-		dim(X) <- c(length(xj), n_bins_per_window * metadata(x)$n_intervals)
-		X <- as(X, 'dgCMatrix')
-		mcols(xj)$counts <- X
-		mcols(xj)$num_reads <- rowSums(X)
-		xj <- xj[mcols(xj)$num_reads > min_reads_per_window]
-		xj
-	}))
-
-	metadata(gr)$window_size <- window_size
-	metadata(gr)$min_reads_per_window <- min_reads_per_window
-	metadata(gr)$n_bins_per_window <- n_bins_per_window
-	gr
-
-} # makeTrainData

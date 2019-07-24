@@ -158,12 +158,12 @@ source('chipseq.r');  macs2.callpeak(merged_treatment_file, base.name, format = 
 # [2019-07-22] Use Seatac to two batch samples
 # -----------------------------------------------------------------------------------
 gs <- c('MEF_NoDox', 'MEF_Dox_D1')
-bin_size <- 10; expand <- 500
+bin_size <- 10; window_size <- 2000
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, genome = BSgenome.Mmusculus.UCSC.mm10)
-source('analysis/seatac/helper.r'); windows <- read_windows(gs, ga, expand = expand, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, exclude_exons = TRUE)
+source('analysis/seatac/helper.r'); windows <- read_windows(gs, ga, window_size = window_size, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, exclude_exons = TRUE)
 
-latent_dim <- 2; n_components <- 10; epochs <- 50; batch_effect <- FALSE; window_size <- 320
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(windows, latent_dim = latent_dim, n_components = n_components, window_size = window_size, epochs = epochs, batch_effect = batch_effect)
+latent_dim <- 2; n_components <- 10; epochs <- 100; batch_effect <- FALSE
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- seatac(windows[1:10000], latent_dim = latent_dim, n_components = n_components, window_size = window_size, epochs = epochs, batch_effect = batch_effect)
 
 source('analysis/seatac/helper.r'); save_seatac_res(gr, gs, window_size, bin_size, latent_dim, n_components, prior, beta, epochs, batch_effect)
 
@@ -171,6 +171,18 @@ source('analysis/seatac/helper.r'); save_seatac_res(gr, gs, window_size, bin_siz
 window_size <- 320; bin_size <- 10
 latent_dim <- 2; n_components <- 10; prior <- 'gmm'; beta <- 1; epochs <- 100; batch_effect <- FALSE
 source('analysis/seatac/helper.r'); gr <- get_seatac_res(gs, window_size, bin_size, latent_dim, n_components, prior, beta, epochs, batch_effect)
+
+par(mfcol = c(4, 5))
+i <- 1
+yy <- c(50, 200, 400, 600, 670)
+image(matrix(as.matrix(mcols(gr)$counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+axis(2, at = (yy - 50) / (670 - 50), label = yy)
+axis(1, at = c(0, 0.5, 1))
+image(matrix(as.matrix(mcols(gr)$fitted_counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+axis(2, at = (yy - 50) / (670 - 50), label = yy)
+axis(1, at = c(0, 0.5, 1))
+plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2)
+plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2)
 
 
 # -----------------------------------------------------------------------------------
@@ -189,3 +201,6 @@ window_size <- 320; bin_size <- 10
 latent_dim <- 2; n_components <- 10; prior <- 'gmm'; beta <- 1; epochs <- 100; batch_effect <- FALSE
 source('analysis/seatac/helper.r'); gr <- get_seatac_res(gs, window_size, bin_size, latent_dim, n_components, prior, beta, epochs, batch_effect)
 
+
+															#     y <- model$decoder$coverage(Zb[i, , drop = FALSE])$sample(1000L) %>% as.array()
+															#     plot(drop(colSums(y, dim = 1)), type = 'b', lwd = 2)

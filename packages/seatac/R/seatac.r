@@ -33,23 +33,25 @@ seatac <- function(
 	batch_effect = FALSE,
 	epochs = 50, 
 	batch_size = 256, 
-	beta = 1
+	beta = 1,
+	min_reads_per_window = 5
 ){
-
-	flog.info('preparing training data')
-	train <- makeData(x, window_size = window_size, train = TRUE)
-
-  window_dim <- length(train)
-  feature_dim <- metadata(train)$n_intervals
-  input_dim <- metadata(train)$n_bins_per_window
 
 	flog.info(sprintf('latent dimension(latent_dim):%d', latent_dim))
 	flog.info(sprintf('# mixture components(n_components):%d', n_components))
+	flog.info(sprintf('modeling batch effect(batch_effect): %s', batch_effect))
+	flog.info(sprintf('latent prior model: %s', prior))
+
+	flog.info(sprintf('minimum PE read pairs in each window(min_reads_per_window): %d', min_reads_per_window))
+	train <- mcols(x)$num_reads > min_reads_per_window
+
+  window_dim <- sum(train)
+  feature_dim <- metadata(x)$n_intervals
+  input_dim <- metadata(x)$n_bins_per_window
+
 	flog.info(sprintf('total number of training windows(window_dim): %d', window_dim))
 	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
 	flog.info(sprintf('# features per bin(feature_dim): %d', feature_dim))
-	flog.info(sprintf('modeling batch effect(batch_effect): %s', batch_effect))
-	flog.info(sprintf('latent prior model: %s', prior))
 
   model <- vae(
     input_dim = input_dim, 
@@ -60,10 +62,8 @@ seatac <- function(
 		prior = prior
   )
 
-	model %>% fit(train, epochs = epochs, beta = beta)
-
-	mcols(x)$latent <- model %>% predict(x, window_size = window_size)
-
+	model %>% fit(x[train], epochs = epochs, beta = beta)
+	x <- model %>% predict(x)
 	metadata(x)$model <- model
   x	
 
