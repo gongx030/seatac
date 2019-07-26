@@ -4,8 +4,10 @@
 \alias{seatac}
 \title{seatac}
 \usage{
-seatac(ga, gr, latent_dim = 2, n_components = 5, prior = "gmm",
-  batch_effect = FALSE, epochs = 50, batch_size = 256, beta = 1)
+seatac(x, latent_dim = 2, n_components = 10, window_size = 400,
+  step_size = 200, prior = "gmm", batch_effect = FALSE,
+  epochs = 50, batch_size = 256, beta = 1,
+  min_reads_per_window = 10, min_reads_coverage = 20)
 }
 \description{
 Integrating multiple sources of temporal scRNA-seq data by neighborhood component analysis

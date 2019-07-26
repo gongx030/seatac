@@ -66,10 +66,6 @@ readFragmentSizeMatrix <- function(
   }))
 
   mcols(gr)$counts <- X
-
-	mcols(gr)$min_coverage <- rowMin(mcols(gr)$coverage)
-	mcols(gr)$max_coverage <- rowMax(mcols(gr)$coverage)
-	mcols(gr)$coverage <- (mcols(gr)$coverage - mcols(gr)$min_coverage) / (mcols(gr)$max_coverage - mcols(gr)$min_coverage)
 	mcols(gr)$num_reads <- rowSums(X)
 
   metadata(gr)$fragment_size_range  <- fragment_size_range
@@ -80,7 +76,50 @@ readFragmentSizeMatrix <- function(
   metadata(gr)$num_samples <- num_samples
   metadata(gr)$n_bins_per_window <- n_bins_per_window 
 
-
 	gr
 
 } # readFragmentSizeMatrix
+
+
+makeData <- function(x, window_size = 400, step_size = 200, min_reads_per_window = 10, min_reads_coverage = 20){
+
+	expand <- metadata(x)$window_size
+	bin_size <- metadata(x)$bin_size
+	n_bins_per_window <- window_size / bin_size
+
+	# the index of the 10-bp bins in [-200, +200] window
+	starts <- seq(1, expand / bin_size - n_bins_per_window + 1, by = step_size / bin_size)
+	ends <- starts + n_bins_per_window - 1
+	n_block <- length(starts)
+
+	# reads coverage of moving 400-bp window for each bin in [-200, +200] window (aka, core bins)
+	# with step size 200 bp
+	gr <- Reduce('c', lapply(1:n_block, function(j){
+
+		# the index of the bins covering the [-200, +200] window
+		m <- starts[j]:ends[j]
+		xj <- x
+		ranges(xj) <- shift(resize(ranges(xj), fix = 'start', width = window_size), step_size * (j - 1))
+		mcols(xj)$coverage <- mcols(xj)$coverage[, m, drop = FALSE]
+		mcols(xj)$min_coverage <- rowMins(mcols(xj)$coverage)
+		mcols(xj)$max_coverage <- rowMaxs(mcols(xj)$coverage)
+		mcols(xj)$mean_coverage <- rowMeans(mcols(xj)$coverage)
+
+		xj <- xj[mcols(xj)$mean_coverage >= min_reads_coverage]
+
+		mcols(xj)$coverage <- (mcols(xj)$coverage - mcols(xj)$min_coverage) / (mcols(xj)$max_coverage - mcols(xj)$min_coverage)
+		mcols(xj)$coverage[is.na(mcols(xj)$coverage)] <- 0
+
+		m2 <- rep(m, metadata(x)$n_interval) + (rep(1:metadata(x)$n_interval, each = n_bins_per_window) - 1) * expand / bin_size 
+		mcols(xj)$counts <- mcols(xj)$counts[, m2, drop = FALSE]
+		mcols(xj)$num_reads <- rowSums(mcols(xj)$counts)
+		xj <- xj[mcols(xj)$num_reads >= min_reads_per_window]
+		mcols(xj)$block <- j
+		xj
+	}))
+	metadata(gr)$window_size <- window_size
+	metadata(gr)$min_reads_per_window <- min_reads_per_window
+	metadata(gr)$n_bins_per_window <- n_bins_per_window
+	gr
+
+} # makeTrainData

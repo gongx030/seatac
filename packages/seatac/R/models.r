@@ -38,28 +38,39 @@ saveModel <- function(x, dir){
 	if (!file.exists(dir))
 		dir.create(dir, recursive = TRUE)
 
-	encoder_file <- sprintf('%s/encoder.h5', dir)
-	flog.trace(sprintf('writing %s', encoder_file))
-	save_model_weights_hdf5(x$encoder, encoder_file)
+	encoder_vplot_file <- sprintf('%s/encoder_vplot.h5', dir)
+	flog.info(sprintf('writing %s', encoder_vplot_file))
+	x$encoder$vplot$save_weights(encoder_vplot_file)
+	x$encoder$vplot_weight_file <- encoder_vplot_file
 
-	decoder_file <- sprintf('%s/decoder.h5', dir)
-	flog.trace(sprintf('writing %s', decoder_file))
-	save_model_weights_hdf5(x$decoder, decoder_file)
+	encoder_coverage_file <- sprintf('%s/encoder_coverage.h5', dir)
+	flog.info(sprintf('writing %s', encoder_coverage_file))
+	x$encoder$coverage$save_weights(encoder_coverage_file)
+	x$encoder$coverage_weight_file <- encoder_coverage_file
 
-	latent_prior_model_file <- sprintf('%s/latent_prior_model.h5', dir)
-	flog.trace(sprintf('writing %s', latent_prior_model_file))
-	save_model_weights_hdf5(x$latent_prior_model, latent_prior_model_file)
+	decoder_vplot_file <- sprintf('%s/decoder_vplot.h5', dir)
+	flog.info(sprintf('writing %s', decoder_vplot_file))
+	x$decoder$vplot$save_weights(decoder_vplot_file)
+	x$decoder$vplot_weight_file <- decoder_vplot_file
 
-	x$encoder_file <- encoder_file
-	x$decoder_file <- decoder_file
-	x$latent_prior_model_file <- latent_prior_model_file
+	decoder_coverage_file <- sprintf('%s/decoder_coverage.h5', dir)
+	flog.info(sprintf('writing %s', decoder_coverage_file))
+	x$decoder$coverage$save_weights(decoder_coverage_file)
+	x$decoder$coverage_weight_file <- decoder_coverage_file
 
-	x$encoder <- NULL
-	x$decoder <- NULL
+	latent_prior_file <- sprintf('%s/latent_prior_model.h5', dir)
+	flog.info(sprintf('writing %s', latent_prior_file))
+	x$latent_prior_model$save_weights(latent_prior_file)
+	x$latent_prior_file_weight_file <- latent_prior_file
+
+	x$encoder$vplot <- NULL
+	x$encoder$coverage <- NULL
+	x$decoder$vplot <- NULL
+	x$decoder$coverage <- NULL
 	x$latent_prior_model <- NULL
 
 	model_file <- sprintf('%s/model.rds', dir)
-	flog.trace(sprintf('writing %s', model_file))
+	flog.info(sprintf('writing %s', model_file))
 	saveRDS(x, model_file)
 
 } # saveModel
@@ -70,34 +81,44 @@ loadModel <- function(dir){
 	if (missing(dir))
 		stop('dir must be specified')
 
-	encoder_file <- sprintf('%s/encoder.h5', dir)
-	decoder_file <- sprintf('%s/decoder.h5', dir)
-	latent_prior_model_file <- sprintf('%s/latent_prior_model.h5', dir)
 	model_file <- sprintf('%s/model.rds', dir)
-
-	if (!file.exists(encoder_file))
-		stop(sprintf('%s does not exist', encoder_file))
-
-	if (!file.exists(decoder_file))
-		stop(sprintf('%s does not exist', decoder_file))
-
-	if (!file.exists(latent_prior_model_file))
-		stop(sprintf('%s does not exist', latent_prior_model_file))
 
 	if (!file.exists(model_file))
 		stop(sprintf('%s does not exist', model_file))
 
 	x <- readRDS(model_file)
-	model <- gmm_vae(input_dim = x$input_dim, feature_dim = x$feature_dim, latent_dim = x$latent_dim, n_components = x$n_components)
 
-	model$encoder$set_weights(encoder_file)
-	model$decoder$set_weights(decoder_file)
-	model$latent_prior_model$set_weights(latent_prior_model_file)
+	model <- vae(
+		input_dim = x$input_dim,
+		feature_dim = x$feature_dim,
+		latent_dim = x$latent_dim,
+		n_components = x$n_components,
+		num_samples = x$num_samples,
+		prior = x$prior
+	)
 
-	for (y in names(x)[!names(x) %in% c('encoder', 'decoder', 'latent_prior_model')])
-		model[[y]] <- x[[y]]
+  # reactivate the layers
+  array(0, dim = c(1, model$input_dim, model$feature_dim, 1)) %>%
+	  tf$cast(tf$float32) %>%
+	  model$encoder$vplot()
+	model$encoder$vplot$load_weights(x$encoder$vplot_weight_file)
 
-	class(model) <- 'seatac_model'
+  array(0, dim = c(1, model$input_dim, 1)) %>%
+	  tf$cast(tf$float32) %>%
+	  model$encoder$coverage()
+	model$encoder$coverage$load_weights(x$encoder$coverage_weight_file)
+
+  array(0, dim = c(1, model$latent_dim * 2)) %>%
+	  tf$cast(tf$float32) %>%
+	  model$decoder$vplot()
+	model$decoder$vplot$load_weights(x$decoder$vplot_weight_file)
+
+  array(0, dim = c(1, model$latent_dim * 2)) %>%
+	  tf$cast(tf$float32) %>%
+	  model$decoder$coverage()
+	model$decoder$coverage$load_weights(x$decoder$coverage_weight_file)
+
+	model$latent_prior_model$load_weights(x$latent_prior_file_weight_file)
 
 	model
 } # loadModel
@@ -107,7 +128,7 @@ loadModel <- function(dir){
 #'
 vplot_encoder_model <- function(
 	latent_dim, 
-	filters = c(16L, 16L, 16L), 
+	filters = c(32L, 32L, 32L), 
 	kernel_size = c(3L, 3L, 3L), 
 	input_strides = c(2L, 2L, 2L), 
 	feature_strides = c(2L, 2L, 1L), 
@@ -212,8 +233,8 @@ coverage_encoder_model <- function(latent_dim, filters = c(8L), kernel_size = c(
 vplot_decoder_model <- function(
 	input_dim, 
 	feature_dim, 
-	filters0 = 16L, 
-	filters = c(16L, 16L, 1L), 
+	filters0 = 32L, 
+	filters = c(32L, 32L, 1L), 
 	kernel_size = c(3L, 3L, 3L), 
 	input_strides = c(2L, 2L, 2L), 
 	feature_strides = c(2L, 2L, 1L), 
