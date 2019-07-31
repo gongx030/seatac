@@ -22,8 +22,6 @@ predict.vae <- function(model, x, window_size = 400, step_size = 200, batch_size
 	
 	mcols(x)$fitted_counts <- matrix(0, length(x), expand / bin_size * metadata(x)$n_intervals)
 	mcols(x)$fitted_coverage <- matrix(0, length(x), expand / bin_size)
-	mcols(x)$latent <- NULL
-	latent <- array(NA, dim = c(length(x), n_block, model$latent_dim * 2))
 
 	w <- as.numeric(table(c(sapply(1:n_block, function(j) starts[j]:ends[j]))))
 	w2 <- rep(w, metadata(x)$n_intervals)
@@ -61,17 +59,12 @@ predict.vae <- function(model, x, window_size = 400, step_size = 200, batch_size
 				tf$squeeze() %>%
 				as.matrix() 
 			
-			Z <- Z %>% as.matrix()
-			
 			for (j in 1:n_block){
 				h <- mcols(xi)$block == j
 				m <- starts[j]:ends[j]
 				m2 <- rep(m, metadata(x)$n_interval) + (rep(1:metadata(x)$n_interval, each = n_bins_per_window) - 1) * expand / bin_size
 				mcols(x)$fitted_counts[i, m2] <- mcols(x)$fitted_counts[i, m2] + X[h, ]
 				mcols(x)$fitted_coverage[i, m] <- mcols(x)$fitted_coverage[i, m] + Y[h, ]
-
-				# bindROWS() does not support arrays with more than 2 dimensions yet
-				latent[i, j, ] <- Z[h, ]
 			}
 		}
 	}else
@@ -79,9 +72,9 @@ predict.vae <- function(model, x, window_size = 400, step_size = 200, batch_size
 
 	mcols(x)$fitted_counts <- as.matrix(mcols(x)$fitted_counts %*% Diagonal(x = 1 / w2))
 	mcols(x)$fitted_coverage <- as.matrix(mcols(x)$fitted_coverage%*% Diagonal(x = 1 / w))
-	mcols(x)$latent <- latent
 
 	x
+
 } # predict.vae
 
 
@@ -191,11 +184,5 @@ decode <- function(model, x, batch_size = 2^13){
 	x
 
 } # decode
-
-
-
-clusterWindows <- function(x, k = 100){
-
-}
 
 

@@ -27,22 +27,13 @@ source('analysis/seatac/helper.r'); peaks <- read_peaks(gs)
 expand <- 2000; latent_dim <- 2; n_components <- 20; epochs <- 100; batch_effect <- FALSE; window_size <- 400; step_size <- 50; min_reads_per_window <- 15; min_reads_coverage <- 30 
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10, expand = expand * 2)
 source('analysis/seatac/helper.r'); windows <- read_windows(gs, ga, peaks, expand = expand, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene)
-
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, n_components = n_components, window_size = window_size, step_size = step_size, epochs = epochs, batch_effect = batch_effect, min_reads_per_window = min_reads_per_window, min_reads_coverage = min_reads_coverage)
-
-
 source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage)
 
+# run the model 
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, n_components = n_components, window_size = window_size, step_size = step_size, epochs = epochs, batch_effect = batch_effect, min_reads_per_window = min_reads_per_window, min_reads_coverage = min_reads_coverage)
 devtools::load_all('analysis/seatac/packages/seatac'); saveModel(model, model_dir)
 
-
-# -----------------------------------------------------------------------------------
-# [2019-07-25] Load the MEF ATAC-seq VAE model
-# -----------------------------------------------------------------------------------
-gs <- 'MEF_NoDox'
-ps <- 'MEF_NoDox'
-expand <- 2000; latent_dim <- 2; n_components <- 20; epochs <- 200; batch_effect <- FALSE; window_size <- 400; step_size <- 50; min_reads_per_window <- 15; min_reads_coverage <- 30 
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage)
+# load the model
 devtools::load_all('analysis/seatac/packages/seatac'); model <- loadModel(model_dir)
 
 
@@ -52,8 +43,7 @@ devtools::load_all('analysis/seatac/packages/seatac'); model <- loadModel(model_
 step_size <- 50
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows[1:100], window_size = window_size, step_size = step_size)
 
-devtools::load_all('analysis/seatac/packages/seatac'); sub_windows <- model %>% predict(sub_windows)
-devtools::load_all('analysis/seatac/packages/seatac'); sub_windows <- sub_windows %>% clusterWindows()
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- gr %>% segment(k = 2)
 
 
 
@@ -66,8 +56,7 @@ gr_file <- sprintf('%s/gr_step_size=%d.rds', model_dir, step_size)
 flog.info(sprintf('writing %s', gr_file))
 saveRDS(gr, gr_file)
 
-step_size <- 50
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows[1:100], window_size = window_size, step_size = step_size)
+
 par(mfcol = c(4, 1))
 i <- 1
 yy <- c(50, 200, 400, 600, 670)
@@ -79,7 +68,6 @@ axis(2, at = (yy - 50) / (670 - 50), label = yy)
 axis(1, at = c(0, 0.5, 1))
 plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2)
 plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
-plot(mcols(gr2)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 
 
 
