@@ -1,5 +1,6 @@
 #' seatac
 #'
+#' @importFrom depmixS4 MVNresponse transInit makeDepmix em.control posterior GLMresponse
 #' @import Matrix
 #' @import SummarizedExperiment
 #' @importFrom matrixStats rowSds rowVars rowMedians rowMins rowMaxs
@@ -13,8 +14,6 @@
 #' @import tensorflow
 #' @import keras
 #' @import tfprobability
-#' @importFrom FNN get.knn
-#' @importFrom igraph graph_from_data_frame simplify cluster_louvain
 NULL
 
 #tfe_enable_eager_execution(device_policy = 'silent')
