@@ -1,5 +1,6 @@
-segment <- function(x, k = 2, p0 = 0.9){
+segment <- function(x, p0 = 0.9){
 
+	k <- 2	# two states: nfr or nucleosome
 	num_steps <- metadata(x)$n_bins_per_window
   feature_dim <- ncol(mcols(x)$fitted_counts) / num_steps
 
@@ -21,6 +22,7 @@ segment <- function(x, k = 2, p0 = 0.9){
 		as.matrix()
 
 	ntimes <- rep(num_steps, length(x))
+	browser()
 
 	y <- cbind(
 		nfr = rowSums(X[, is_nfr]),
@@ -48,9 +50,9 @@ segment <- function(x, k = 2, p0 = 0.9){
 
 	state <- posterior(fm)[, 'state']
 
-	h <- order(sapply(1:k, function(i) mean(y[state == i, 'nfr'])))
+	h <- sapply(1:k, function(i) mean(y[state == i, 'nfr']))
+	h <- order(h, decreasing = TRUE)
 	state <- h[state]
-	
 	mcols(x)$state <- matrix(state, length(x), num_steps, byrow = TRUE)
 	x
 
@@ -59,7 +61,7 @@ segment <- function(x, k = 2, p0 = 0.9){
 
 call_nucleosome <- function(x){
 
-	Reduce('c', lapply(1:length(x), function(i){
+	y <- Reduce('c', lapply(1:length(x), function(i){
 		y <- rle(mcols(x)$state[i, ])
 		starts <- cumsum(c(1, y$lengths))
 		starts <- starts[-length(starts)]
@@ -69,10 +71,13 @@ call_nucleosome <- function(x){
 		xi <- narrow(xi, start = starts, end = ends)
 		xii <- granges(xi)
 		mcols(xii)$group <- mcols(xi)$group
-		mcols(xii)$segment_id <- 1:n
-		mcols(xii)$num_segments <- n
+		mcols(xii)$segment_id_per_window <- 1:n
+		mcols(xii)$num_segments_per_window <- n
 		mcols(xii)$state <- y$values
 		mcols(xii)$window_id <- i
 		xii
 	}))
+	mcols(y)$state <- factor(mcols(y)$state, c('nfr', 'nucleosome'))
+	y
+
 } # call_nucleosome

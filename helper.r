@@ -6,7 +6,6 @@ devtools::load_all('packages/compbio')
 PROJECT_DIR <- sprintf('%s/seatac', Sys.getenv('TMPDIR'))
 
 flog.info(sprintf('PROJECT_DIR: %s', PROJECT_DIR))
-flog.info(sprintf('BAM dir: %s', 'analysis/seatac/data'))
 
 # touch everything in the project dir
 # find /panfs/roc/scratch/gongx030/seatac -type f -exec touch {} +
@@ -67,7 +66,7 @@ read_peaks <- function(ps){
 		x <- read.table(peak_files[ps], header = FALSE, sep = '\t')
 		x <- GRanges(seqnames = x[, 1], range = IRanges(x[, 2], x[, 3]))
 
-	}else if (ps %in% c('MEF_active_TSS', 'MEF_active_TSS_0_400')){
+	}else if (ps %in% c('MEF_active_TSS', 'MEF_active_TSS_0_400', 'MEF_active_TSS_0_800')){
 
 		library(org.Mm.eg.db)
 		library(TxDb.Mmusculus.UCSC.mm10.knownGene)
@@ -96,6 +95,10 @@ read_peaks <- function(ps){
 			x <- narrow(x, start = 1001, end = 1000 + 400)
 		}
 
+		if (ps == 'MEF_active_TSS_0_800'){
+			x <- narrow(x, start = 1001, end = 1000 + 800)
+		}
+
 	}else if (ps == 'MEF_active_TSS2'){
 
 		library(TxDb.Mmusculus.UCSC.mm10.knownGene)
@@ -115,7 +118,7 @@ read_bam_files <- function(gs, peaks, genome, expand = 2000){
 
 	ga_file <- sprintf('%s/data/summits/%s_expand=%d_ga.rds', PROJECT_DIR, paste(gs, collapse = '+'), expand)
 	if (!file.exists(ga_file)){
-		x <- readBAM(list_files()[gs, 'bam'], peaks, genome, expand = expand)
+		x <- readBAM(list_bam_files()[gs], peaks, genome, expand = expand)
 		flog.info(sprintf('writing %s', ga_file))
 		saveRDS(x, ga_file)
 	}	

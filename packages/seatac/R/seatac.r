@@ -53,6 +53,7 @@ seatac <- function(
 	flog.info(sprintf('latent prior model: %s', prior))
 	flog.info(sprintf('minimum PE read pairs in each window for training(min_reads_per_window): %d', min_reads_per_window))
 	flog.info(sprintf('minimum average read coverage per window for training(min_reads_coverage): %d', min_reads_coverage))
+	flog.info(sprintf('batch size(batch_size): %d', batch_size))
 
 	x <- makeData(x, window_size = window_size, step_size = step_size, min_reads_per_window = min_reads_per_window, min_reads_coverage = min_reads_coverage)
 

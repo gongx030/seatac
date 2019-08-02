@@ -1,10 +1,13 @@
-predict.vae <- function(model, x, window_size = 400, step_size = 200, batch_size = 2^13){
+predict.vae <- function(model, x, window_size = 400, step_size = 200, batch_size = 2^12){
 
 	expand <- metadata(x)$window_size
 	window_dim <- length(x)
 	num_samples <- metadata(x)$num_samples
 	bin_size <- metadata(x)$bin_size
 	n_bins_per_window <- window_size / bin_size
+
+	if (is.na(step_size))
+		step_size <- window_size
 
 	flog.info(sprintf('# input peaks: %d', window_dim))
 	flog.info(sprintf('input peak width: %d', expand))
@@ -78,7 +81,7 @@ predict.vae <- function(model, x, window_size = 400, step_size = 200, batch_size
 } # predict.vae
 
 
-encode <- function(model, x, window_size = 400, step_size = 200, batch_size = 2^13){
+encode <- function(model, x, window_size = 400, batch_size = 2^13){
 
 	expand <- metadata(x)$window_size
 	window_dim <- length(x)
@@ -89,14 +92,8 @@ encode <- function(model, x, window_size = 400, step_size = 200, batch_size = 2^
 	flog.info(sprintf('# input peaks: %d', window_dim))
 	flog.info(sprintf('input peak width: %d', expand))
 
-	starts <- seq(1, expand / bin_size - n_bins_per_window + 1, by = step_size / bin_size)
-	ends <- starts + n_bins_per_window - 1
-	n_block <- length(starts)
-
-	batch_size2 <- floor(batch_size / n_block)
-
-	bs <- seq(1, window_dim, by = batch_size2)
-	be <- bs + batch_size2 - 1
+	bs <- seq(1, window_dim, by = batch_size)
+	be <- bs + batch_size - 1
 	be[be > window_dim] <- window_dim
 	n_batch <- length(bs)
 
@@ -109,7 +106,7 @@ encode <- function(model, x, window_size = 400, step_size = 200, batch_size = 2^
 			flog.info(sprintf('encoding | batch=%4.d/%4.d', b, n_batch))
 
 			i <- bs[b]:be[b]
-			xi <- makeData(x[i], window_size = window_size, step_size = step_size, min_reads_per_window = 0, min_reads_coverage = 0)
+			xi <- makeData(x[i], window_size = window_size, step_size = window_size, min_reads_per_window = 0, min_reads_coverage = 0)
 			window_dim2 <- length(xi)
 
 			X <- mcols(xi)$counts %>%

@@ -19,22 +19,17 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 # -----------------------------------------------------------------------------------
 # [2019-07-11] Training VAE on MEF ATAC-seq data
 # -----------------------------------------------------------------------------------
-#gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; min_reads_per_window <- 15; min_reads_coverage <- 30; expand <- 2000; window_size <- 400; step_size <- 200
-#gs <- 'MEF_NoDox'; ps <- 'MEF_active_TSS'; min_reads_per_window <- 15; min_reads_coverage <- 30; expand <- 400; window_size <- 400; bin_size <- 10; step_size <- 400; latent_dim <- 2; n_components <- 20; epochs <- 100; batch_effect <- FALSE
-#gs <- 'MEF_NoDox'; ps <- 'MEF_active_TSS'; min_reads_per_window <- 15; min_reads_coverage <- 30; expand <- 400; window_size <- 400; bin_size <- 5; step_size <- 400; latent_dim <- 2; n_components <- 20; epochs <- 100; batch_effect <- FALSE
-gs <- 'MEF_NoDox'; ps <- 'MEF_active_TSS_0_400'; min_reads_per_window <- 15; min_reads_coverage <- 30; expand <- 400; window_size <- 400; bin_size <- 10; step_size <- NA; latent_dim <- 2; n_components <- 20; epochs <- 100; batch_effect <- FALSE
-#gs <- 'MEF_NoDox'; ps <- 'MEF_active_TSS'; min_reads_per_window <- 15; min_reads_coverage <- 30; expand <- 1600; window_size <- 400; step_size <- 400
-#gs <- 'MEF_NoDox'; ps <- 'MEF_active_TSS'; min_reads_per_window <- 15; min_reads_coverage <- 30; expand <- 800; window_size <- 800; step_size <- 400; latent_dim <- 2; n_components <- 20; epochs <- 100; batch_effect <- FALSE
-#gs <- 'MEF_NoDox'; ps <- 'MEF_active_TSS'; min_reads_per_window <- 15; min_reads_coverage <- 30; expand <- 800; window_size <- 800; step_size <- 400; latent_dim <- 2; n_components <- 20; epochs <- 100; batch_effect <- FALSE
-#gs <- 'MEF_NoDox'; ps <- 'MEF_active_TSS2'; min_reads_per_window <- 50; min_reads_coverage <- 30; expand <- 2000
+gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; expand <- 320; window_size <- 320; bin_size <- 2; step_size <- NA; force <- TRUE; mr <- 15; mc <- 0; bs <- 64
+
+latent_dim <- 2; n_components <- 20; epochs <- 100; batch_effect <- FALSE
 
 source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
-source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10, expand = expand * 2)
-source('analysis/seatac/helper.r'); windows <- read_windows(gs, ga, peaks, expand = expand, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = min_reads_per_window)
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage)
+source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
+source('analysis/seatac/helper.r'); windows <- read_windows(gs, ga, peaks, expand = expand, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = mr, force = force)
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, expand, latent_dim, n_components, batch_effect, window_size, step_size, mr, mc)
 
 # run the model 
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, n_components = n_components, window_size = window_size, step_size = step_size, epochs = epochs, batch_effect = batch_effect, min_reads_per_window = min_reads_per_window, min_reads_coverage = min_reads_coverage)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, n_components = n_components, window_size = window_size, step_size = step_size, epochs = epochs, batch_effect = batch_effect, min_reads_per_window = mr, min_reads_coverage = mc, batch_size = bs)
 devtools::load_all('analysis/seatac/packages/seatac'); saveModel(model, model_dir)
 
 # load the model
@@ -61,7 +56,8 @@ flog.info(sprintf('writing %s', gr_file))
 saveRDS(gr, gr_file)
 
 
-par(mfcol = c(4, 2))
+
+par(mfcol = c(5, 2))
 i <- 1
 yy <- c(50, 200, 400, 600, 670)
 image(matrix(as.matrix(mcols(gr)$counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
@@ -70,8 +66,11 @@ axis(1, at = c(0, 0.5, 1))
 image(matrix(as.matrix(mcols(gr)$fitted_counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 axis(2, at = (yy - 50) / (670 - 50), label = yy)
 axis(1, at = c(0, 0.5, 1))
-plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2)
+plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(mcols(gr)$state[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+
+
 
 
 
@@ -284,6 +283,7 @@ source('analysis/seatac/helper.r'); gr <- get_seatac_res(gs, window_size, bin_si
 # -----------------------------------------------------------------------------------
 # [2019-08-01] Look at the V-plot at the TSS region
 # -----------------------------------------------------------------------------------
+step_size <- 100
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows, window_size = window_size, step_size = step_size)
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- gr %>% segment(k = 2)
 
@@ -292,6 +292,13 @@ X <- array(as.matrix(mcols(gr)$counts), dim = c(length(gr), metadata(gr)$n_bins_
 X[minus, , ] <- X[minus, metadata(gr)$n_bins_per_window:1, ]
 Xp <- array(as.matrix(mcols(gr)$fitted_counts), dim = c(length(gr), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals))
 Xp[minus, , ] <- Xp[minus, metadata(gr)$n_bins_per_window:1, ]
+
+j <- mcols(gr)$expression[, 1] > 1
+image(colMeans(Xp[j, , ], 1), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+abline(v = 0.5)
+image(colMeans(X[j, , ], 1), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+abline(v = 0.5)
+
 
 
 image(X[i, , ], col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
@@ -305,21 +312,29 @@ abline(v = 0.5)
 
 
 
-j <- mcols(gr)$expression[, 1] > 1
-image(colMeans(Xp[j, , ], 1), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
-abline(v = 0.5)
-image(colMeans(X[j, , ], 1), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
-abline(v = 0.5)
-
 
 
 # -----------------------------------------------------------------------------------
-# [2019-08-01] Look at the dinucleosome distribution of identified nucleosome
+# [2019-08-01] Look at clusters of v-plot
 # -----------------------------------------------------------------------------------
-step_size <- 50
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows[1:1000], window_size = window_size, step_size = step_size)
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- gr %>% segment(k = 2)
-devtools::load_all('analysis/seatac/packages/seatac'); gr2 <- gr %>% call_nucleosome()
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% encode(windows, window_size = window_size)
 
+
+#gr3 <- gr2[mcols(gr2)$state == 'nfr' & (mcols(gr2)$segment_id_per_window > 1 & mcols(gr2)$segment_id_per_window < mcols(gr2)$num_segments_per_window)]
+w <- 201
+gr3 <- resize(gr3, fix = 'center', width = w)
+s <- getSeq(Mmusculus, gr3)
+dinuc <- expand.grid(c('A', 'C', 'G', 'T'), c('A', 'C', 'G', 'T'))
+dinuc <- sprintf('%s%s', dinuc[, 1], dinuc[, 2])
+
+Y <- do.call('cbind', lapply(1:(w - 1), function(i){
+	table(factor(as.character(subseq(s, start = i, width = 2)), dinuc)) / length(s)
+}))
+
+
+plot(colSums(Y[c('GG', 'GC', 'CG', 'CC'), ]), type = 'b'); abline(v = w / 2)
+plot(colSums(Y[c('AA', 'AT', 'TA', 'TT'), ]), type = 'b'); abline(v = w / 2)
+
+plot(colSums(Y[c('GG', 'GC', 'CG', 'CC'), ]) / colSums(Y[c('AA', 'AT', 'TA', 'TT'), ]), type = 'b'); abline(v = w / 2)
 
 
