@@ -42,7 +42,11 @@ seatac <- function(
 ){
 
 	flog.info(sprintf('window size(window_size): %d', window_size))
-	flog.info(sprintf('step size(step_size): %d', step_size))
+	flog.info(sprintf('step size(step_size): %s', step_size))
+
+	if (is.na(step_size))
+		step_size <- window_size
+
 	flog.info(sprintf('latent dimension(latent_dim):%d', latent_dim))
 	flog.info(sprintf('# mixture components(n_components):%d', n_components))
 	flog.info(sprintf('modeling batch effect(batch_effect): %s', batch_effect))

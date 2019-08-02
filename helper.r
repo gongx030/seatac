@@ -60,13 +60,14 @@ list_peak_files <- function(){
 read_peaks <- function(ps){
 
 	peak_files <- list_peak_files()
+
 	if (ps %in% names(peak_files)){
 
 		flog.info(sprintf('reading peak file %s', peak_files[ps]))
 		x <- read.table(peak_files[ps], header = FALSE, sep = '\t')
 		x <- GRanges(seqnames = x[, 1], range = IRanges(x[, 2], x[, 3]))
 
-	}else if (ps == 'MEF_active_TSS'){
+	}else if (ps %in% c('MEF_active_TSS', 'MEF_active_TSS_0_400')){
 
 		library(org.Mm.eg.db)
 		library(TxDb.Mmusculus.UCSC.mm10.knownGene)
@@ -80,7 +81,7 @@ read_peaks <- function(ps){
 		se <- se[!duplicated(rowData(se)$symbol)]
 		bm <- select(org.Mm.eg.db, rowData(se)$symbol, c('ENTREZID'), 'ALIAS')
 		x <- x[mcols(x)$gene_id %in% bm[, 'ENTREZID']]
-		bm <- bm[bm[, 'ENTREZID'] %in% mcols(peaks)$gene_id, ]
+		bm <- bm[bm[, 'ENTREZID'] %in% mcols(x)$gene_id, ]
 		se <- se[rowData(se)$symbol %in% bm[, 'ALIAS']]
 
 		A <- sparseMatrix(
@@ -90,6 +91,18 @@ read_peaks <- function(ps){
 		)
 
 		mcols(x)$expression <- t(A) %*% assays(se)$counts[, 1, drop = FALSE]
+
+		if (ps == 'MEF_active_TSS_0_400'){
+			x <- narrow(x, start = 1001, end = 1000 + 400)
+		}
+
+	}else if (ps == 'MEF_active_TSS2'){
+
+		library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+		x <- promoters(TxDb.Mmusculus.UCSC.mm10.knownGene, upstream = 1000, downstream = 1000)
+		x <- granges(x)
+		names(x) <- NULL
+		x <- unique(x)
 
 	}else
 		stop(sprintf('unknown ps: %s', ps))
@@ -113,7 +126,7 @@ read_bam_files <- function(gs, peaks, genome, expand = 2000){
 } # read_bam_files
 
 
-read_windows <- function(gs, ga, peaks, expand, bin_size = 10, exclude_exons = FALSE, txdb, min_reads_per_window = 15){
+read_windows <- function(gs, ga, peaks, expand, bin_size = 10, exclude_exons = FALSE, txdb, min_reads_per_window = 15, force = TRUE){
 
 	peaks <- resize(peaks, fix = 'center', width = 1)
 
@@ -125,7 +138,7 @@ read_windows <- function(gs, ga, peaks, expand, bin_size = 10, exclude_exons = F
 	seqlevels(peaks, pruning.mode = 'coarse') <- seqlevels(ga)
 
 	window_file <- sprintf('%s/data/summits/%s_expand=%d_bin=%d.rds', PROJECT_DIR, paste(ps, collapse = '+'), expand, bin_size)
-	if (!file.exists(window_file)){
+	if (!file.exists(window_file) || force){
 		gr <- readFragmentSizeMatrix(ga, peaks, window_size = expand, bin_size = bin_size)
 		flog.info(sprintf('writing %s', window_file))
 		saveRDS(gr, window_file)
@@ -182,7 +195,7 @@ save_seatac_res <- function(gr, gs, window_size, bin_size, latent_dim, n_compone
 }
 
 model_dir_name <- function(dataset, peakset, expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage){
-	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_expand=%d_latent_dim=%d_n_components=%d_batch_effect=%s_window_size=%d_step_size=%d_min_reads_per_window=%d_min_reads_coverage=%d', paste(dataset, collapse = '+'), paste(peakset, collapse = '+'), expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage)
+	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_expand=%d_latent_dim=%d_n_components=%d_batch_effect=%s_window_size=%d_step_size=%s_min_reads_per_window=%d_min_reads_coverage=%d', paste(dataset, collapse = '+'), paste(peakset, collapse = '+'), expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage)
 	flog.info(sprintf('model dir: %s', f))
 	f
 }

@@ -58,9 +58,21 @@ segment <- function(x, k = 2, p0 = 0.9){
 
 
 call_nucleosome <- function(x){
-	length(x)
-	browser()
-	lapply(1:length(x), function(i){
-		rle(mcols(x)$state[i, ])
-	})
+
+	Reduce('c', lapply(1:length(x), function(i){
+		y <- rle(mcols(x)$state[i, ])
+		starts <- cumsum(c(1, y$lengths))
+		starts <- starts[-length(starts)]
+		ends <- starts + y$lengths - 1
+		n <- length(y$values)
+		xi <- rep(x[i], n)
+		xi <- narrow(xi, start = starts, end = ends)
+		xii <- granges(xi)
+		mcols(xii)$group <- mcols(xi)$group
+		mcols(xii)$segment_id <- 1:n
+		mcols(xii)$num_segments <- n
+		mcols(xii)$state <- y$values
+		mcols(xii)$window_id <- i
+		xii
+	}))
 } # call_nucleosome
