@@ -47,11 +47,15 @@ list_peak_files <- function(){
 		'Maza_MEF' = 'Maza_MEF_summits.bed'
 	)
 	filenames <- sprintf('analysis/seatac/data/%s', peaks)
+	names(filenames) <- names(peaks)
+
+	filenames <- c(filenames, c(
+		'MEF_Dox_D1_Etv2' = sprintf('%s/etv2_pioneer/macs2/MEF_Dox_D1_Etv2_summits.bed', Sys.getenv('TMPDIR'))	# Etv2 ChiP-seq
+	))
 
 	if (!all(file.exists(filenames)))
 		stop('Peak files missing')
 
-	names(filenames) <- names(peaks)
 	filenames
 
 }
@@ -129,7 +133,7 @@ read_bam_files <- function(gs, peaks, genome, expand = 2000){
 } # read_bam_files
 
 
-read_windows <- function(gs, ga, peaks, expand, bin_size = 10, exclude_exons = FALSE, txdb, min_reads_per_window = 15, force = TRUE){
+read_windows <- function(ga, peaks, expand, bin_size = 10, exclude_exons = FALSE, txdb, min_reads_per_window = 15){
 
 	peaks <- resize(peaks, fix = 'center', width = 1)
 
@@ -140,20 +144,14 @@ read_windows <- function(gs, ga, peaks, expand, bin_size = 10, exclude_exons = F
 	peaks <- peaks[seqnames(peaks) != 'chrM']
 	seqlevels(peaks, pruning.mode = 'coarse') <- seqlevels(ga)
 
-	window_file <- sprintf('%s/data/summits/%s_expand=%d_bin=%d.rds', PROJECT_DIR, paste(ps, collapse = '+'), expand, bin_size)
-	if (!file.exists(window_file) || force){
-		gr <- readFragmentSizeMatrix(ga, peaks, window_size = expand, bin_size = bin_size)
-		flog.info(sprintf('writing %s', window_file))
-		saveRDS(gr, window_file)
-	}
+	gr <- readFragmentSizeMatrix(ga, peaks, window_size = expand, bin_size = bin_size)
 	
-	flog.info(sprintf('reading %s', window_file))
-	gr <- readRDS(window_file)
-
 	flog.info(sprintf('# total windows: %d', length(gr)))
 
-	gr <- gr[mcols(gr)$num_reads >= min_reads_per_window]
-	flog.info(sprintf('# total windows after removing windows with less than %d PE reads: %d', min_reads_per_window, length(gr)))
+	A <- matrix(mcols(gr)$num_reads >= min_reads_per_window, nrow = length(peaks), ncol = metadata(ga)$num_samples)
+	i <- rowSums(A) == metadata(ga)$num_samples
+	gr <- gr[i]
+	flog.info(sprintf('# total windows more than %d PE reads in all %d samples: %d', min_reads_per_window, metadata(ga)$num_samples, sum(i)))
 
 	if (exclude_exons){
 		flog.info('removing windows overlapping with exons')
@@ -197,8 +195,8 @@ save_seatac_res <- function(gr, gs, window_size, bin_size, latent_dim, n_compone
 	}
 }
 
-model_dir_name <- function(dataset, peakset, expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage){
-	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_expand=%d_latent_dim=%d_n_components=%d_batch_effect=%s_window_size=%d_step_size=%s_min_reads_per_window=%d_min_reads_coverage=%d', paste(dataset, collapse = '+'), paste(peakset, collapse = '+'), expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage)
+model_dir_name <- function(dataset, peakset, expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage, bin_size){
+	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_expand=%d_latent_dim=%d_n_components=%d_batch_effect=%s_window_size=%d_step_size=%s_min_reads_per_window=%d_min_reads_coverage=%d_bin_size=%d', paste(dataset, collapse = '+'), paste(peakset, collapse = '+'), expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage, bin_size)
 	flog.info(sprintf('model dir: %s', f))
 	f
 }

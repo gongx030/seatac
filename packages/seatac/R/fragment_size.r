@@ -6,15 +6,15 @@ readFragmentSizeMatrix <- function(
 	windows, 
 	window_size = 500,
 	bin_size = 10,
-	fragment_size_range = c(50, 670), 
-	fragment_size_interval = 20
+	fragment_size_range = c(50, 690), 
+	fragment_size_interval = 10
 ){
 
   num_samples <- metadata(x)$num_samples
   n_bins_per_window <- window_size / bin_size
 	breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
 
-	n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval + 1
+	n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval
 
 	windows <- windows %>% resize(fix = 'center', width = window_size)
 
@@ -51,7 +51,7 @@ readFragmentSizeMatrix <- function(
 	  # find the # PE read centers per window per sample
 	  xi <- subsetByOverlaps(x[mcols(x)$group == i], windows)
 
-    CF <- sparseMatrix(i = 1:length(xi), j = xi$fragment_size, dims = c(length(xi), length(breaks)))  # read center ~ fragment size
+    CF <- sparseMatrix(i = 1:length(xi), j = xi$fragment_size, dims = c(length(xi), n_intervals))  # read center ~ fragment size
     BC <- as.matrix(findOverlaps(bins, xi))	# bins ~ read center
     BC <- as(sparseMatrix(BC[, 1], BC[, 2], dims = c(length(bins), length(xi))), 'dgCMatrix') # bins ~ read center
     BF <- BC %*% CF  # bins ~ fragment size
@@ -67,6 +67,7 @@ readFragmentSizeMatrix <- function(
 
   mcols(gr)$counts <- X
 	mcols(gr)$num_reads <- rowSums(X)
+	mcols(gr)$window_id <- rep(1:length(windows), num_samples)
 
   metadata(gr)$fragment_size_range  <- fragment_size_range
   metadata(gr)$fragment_size_interval <- fragment_size_interval

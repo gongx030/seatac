@@ -61,7 +61,7 @@ predict.vae <- function(model, x, window_size = 400, step_size = 200, batch_size
 			Y <- model$decoder$coverage(Z)$mean() %>% 
 				tf$squeeze() %>%
 				as.matrix() 
-			
+
 			for (j in 1:n_block){
 				h <- mcols(xi)$block == j
 				m <- starts[j]:ends[j]
@@ -81,7 +81,7 @@ predict.vae <- function(model, x, window_size = 400, step_size = 200, batch_size
 } # predict.vae
 
 
-encode <- function(model, x, window_size = 400, batch_size = 2^13){
+encode <- function(model, x, window_size = 400, step_size = 200, batch_size = 2^12){
 
 	expand <- metadata(x)$window_size
 	window_dim <- length(x)
@@ -92,13 +92,19 @@ encode <- function(model, x, window_size = 400, batch_size = 2^13){
 	flog.info(sprintf('# input peaks: %d', window_dim))
 	flog.info(sprintf('input peak width: %d', expand))
 
-	bs <- seq(1, window_dim, by = batch_size)
-	be <- bs + batch_size - 1
+	starts <- seq(1, expand / bin_size - n_bins_per_window + 1, by = step_size / bin_size)
+	ends <- starts + n_bins_per_window - 1
+	n_block <- length(starts)
+
+	batch_size2 <- floor(batch_size / n_block)
+
+	bs <- seq(1, window_dim, by = batch_size2)
+	be <- bs + batch_size2 - 1
 	be[be > window_dim] <- window_dim
 	n_batch <- length(bs)
 
 	gr <- NULL
-	
+									
 	if (model$prior == 'gmm'){
 
 		for (b in 1:n_batch){
@@ -106,7 +112,7 @@ encode <- function(model, x, window_size = 400, batch_size = 2^13){
 			flog.info(sprintf('encoding | batch=%4.d/%4.d', b, n_batch))
 
 			i <- bs[b]:be[b]
-			xi <- makeData(x[i], window_size = window_size, step_size = window_size, min_reads_per_window = 0, min_reads_coverage = 0)
+			xi <- makeData(x[i], window_size = window_size, step_size = step_size, min_reads_per_window = 0, min_reads_coverage = 0)
 			window_dim2 <- length(xi)
 
 			X <- mcols(xi)$counts %>%
@@ -125,26 +131,26 @@ encode <- function(model, x, window_size = 400, batch_size = 2^13){
 
 			Z <- Z %>% as.matrix()
 
-			gr_b <- granges(xi)
-			mcols(gr_b)$group <- mcols(xi)$group
-			mcols(gr_b)$block <- mcols(xi)$block
-			mcols(gr_b)$window_id <- i
-			mcols(gr_b)$latent <- Z
+			mcols(xi)$window_id <- i
+			mcols(xi)$latent <- Z
 
 			if (is.null(gr))
-				gr <- gr_b
+				gr <- xi
 			else
-				gr <- c(gr, gr_b)
+				gr <- c(gr, xi)
 		}
 	}else
 		stop(sprintf('model$prior %s is not supported', model$prior))
 
+	metadata(gr) <- metadata(x)
+	metadata(gr)$window_size <- window_size
+	metadata(gr)$n_bins_per_window <- n_bins_per_window
 	gr	
 
 } # encode
 
 
-decode <- function(model, x, batch_size = 2^13){
+decode <- function(model, x, batch_size = 2^12){
 
 	window_dim <- length(x)
 
