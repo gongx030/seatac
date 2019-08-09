@@ -19,10 +19,17 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 # -----------------------------------------------------------------------------------
 # [2019-07-11] Training VAE on MEF ATAC-seq data
 # -----------------------------------------------------------------------------------
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr2'; expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr3'; expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; expand <- 640; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 5; mc <- 0; bs <- 128
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; expand <- 640; window_size <- 320; bin_size <- 5; step_size <- 64; mr <- 10; mc <- 0; bs <- 128
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1248; window_size <- 320; bin_size <- 5; step_size <- 32; mr <- 10; mc <- 0; bs <- 128
 #gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
-gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; expand <- 640; window_size <- 320; bin_size <- 5; step_size <- 160; mr <- 10; mc <- 0; bs <- 128
+#gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; expand <- 640; window_size <- 320; bin_size <- 5; step_size <- 160; mr <- 10; mc <- 0; bs <- 128
 #gs <- c('MEF_NoDox', 'MEF_Dox_D1'); ps <- c('MEF_Dox_D1_Etv2'); expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
-gs <- c('MEF_NoDox', 'MEF_Dox_D1', 'MEF_Dox_D2', 'MEF_Dox_D7', 'MEF_Dox_D7_Flk1pos'); ps <- c('MEF_Dox_D1_Etv2'); expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
+#gs <- c('MEF_NoDox', 'MEF_Dox_D1', 'MEF_Dox_D2', 'MEF_Dox_D7', 'MEF_Dox_D7_Flk1pos'); ps <- c('MEF_Dox_D1_Etv2'); expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
 
 latent_dim <- 2; n_components <- 20; epochs <- 100; batch_effect <- FALSE
 
@@ -56,6 +63,29 @@ image(matrix(colMeans(as.matrix(mcols(gr)$counts[is_nfr, ])), metadata(gr)$n_bin
 
 image(matrix(colMeans(as.matrix(mcols(gr)$counts[is_nucleosome, ])), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 image(matrix(colMeans(as.matrix(mcols(gr)$counts[is_nfr, ])), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+
+w <- width(gr)[1]
+s <- getSeq(Mmusculus, gr)
+dinuc <- expand.grid(c('A', 'C', 'G', 'T'), c('A', 'C', 'G', 'T'))
+dinuc <- sprintf('%s%s', dinuc[, 1], dinuc[, 2])
+
+Y <- do.call('cbind', lapply(1:(w - 1), function(i){
+	table(factor(as.character(subseq(s[is_nucleosome, ], start = i, width = 2)), dinuc)) / sum(is_nucleosome)
+}))
+ww <- colSums(Y[c('AA', 'AT', 'TA', 'TT'), ])
+ww <- (ww - min(ww)) / (max(ww) - min(ww))
+rr <- colSums(Y[c('GG', 'GC', 'CG', 'CC'), ])
+rr <- (rr - min(rr)) / (max(rr) - min(rr))
+
+plot(ww, type = 'l', col = 'red')
+lines(rr, type = 'l', col = 'blue')
+abline(v = 160, lwd = 2, lty = 2
+
+plot(colSums(Y[c('AA', 'AT', 'TA', 'TT'), ]), type = 'b', col = 'red')
+
+
+image(matrix(colMeans(as.matrix(mcols(gr)$counts[clust == h, ])), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE, main = h)
+
 
 
 # -----------------------------------------------------------------------------------
@@ -95,31 +125,8 @@ draw(h, split = factor(mcols(peaks)$is_nucleosome), heatmap_legend_side = 'right
 barplot(c(7910, 143))
 
 
-
-
-
-# Look at the dinucleotide distribution of 
-w <- width(gr)[1]
-s <- getSeq(Mmusculus, gr)
-dinuc <- expand.grid(c('A', 'C', 'G', 'T'), c('A', 'C', 'G', 'T'))
-dinuc <- sprintf('%s%s', dinuc[, 1], dinuc[, 2])
-Y <- lapply(1:ncol(G), function(g){
-	do.call('cbind', lapply(1:(w - 1), function(i){
-		table(factor(as.character(subseq(s[G[, g], ], start = i, width = 2)), dinuc)) / sum(G[, g])
-	}))
-})
-
-y1 <- colSums(Y[[1]][c('AA', 'AT', 'TA', 'TT'), ])
-y2 <- colSums(Y[[1]][c('CC', 'CG', 'GC', 'GG'), ])
-
-
-plot(y1 / y2, type = 'b', col = 'blue')
-
-
-
-
 par(mfcol = c(6, 6))
-i <- 1
+i <- 2
 yy <- c(50, 200, 400, 600, 670)
 image(matrix(as.matrix(mcols(gr)$counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 axis(2, at = (yy - 50) / (670 - 50), label = yy)
@@ -131,7 +138,6 @@ plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$state[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i", ylim = c(-1, 1))
 plot(mcols(gr)$z_score[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
-
 
 
 
@@ -166,6 +172,47 @@ axis(1, at = c(0, 0.5, 1))
 plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(x_mnase, type = 'b', lwd = 2, xaxs="i", yaxs="i")
+
+
+# -----------------------------------------------------------------------------------
+# [2019-07-25] Look at the changes between NFR and nucleosome during Etv2 reprogramming
+# -----------------------------------------------------------------------------------
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% encode(windows, window_size = window_size, step_size = step_size, batch_size = 2^11)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% decode(gr, batch_size = 2^11)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- gr %>% segment()
+
+centers <- (32 - 1):(32 + 1)
+is_nucleosome <- rowSums(mcols(gr)$z_score[, centers, drop = FALSE] > 1) == length(centers)
+is_nfr <- rowSums(mcols(gr)$z_score[, centers, drop = FALSE] < -1) == length(centers)
+#is_nucleosome <- rowSums(mcols(gr)$state[, centers, drop = FALSE] == 1) == length(centers)
+#is_nfr <- rowSums(mcols(gr)$state[, centers, drop = FALSE] == -1) == length(centers)
+table(is_nucleosome)
+table(is_nfr)
+
+
+image(matrix(colMeans(as.matrix(mcols(gr)$counts[is_nucleosome, ])), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+image(matrix(colMeans(as.matrix(mcols(gr)$counts[is_nfr, ])), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+
+
+s <- rep('unknown', length(gr))
+s[is_nucleosome] <- 'nucleosome'
+s[is_nfr] <- 'nfr'
+S <- matrix(s, length(gr) / metadata(gr)$num_samples, metadata(gr)$num_samples)
+S <- S[, c(1, 2)]
+S <- S[rowSums(S == 'unknown') == 0, ]
+#y <- sprintf('%s-%s-%s', S[, 1], S[, 2], S[, 3])
+y <- sprintf('%s-%s', S[, 1], S[, 2])
+table(y)
+
+
+
+table(s[mcols(gr)$group == 1], s[mcols(gr)$group == 2])
+table(s[mcols(gr)$group == 2], s[mcols(gr)$group == 3])
+table(s[mcols(gr)$group == 3], s[mcols(gr)$group == 4])
+table(s[mcols(gr)$group == 1], s[mcols(gr)$group == 5])
+
+image(matrix(colMeans(as.matrix(mcols(gr)$counts[is_nfr, ])), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+
 
 
 
@@ -343,44 +390,13 @@ latent_dim <- 2; n_components <- 10; prior <- 'gmm'; beta <- 1; epochs <- 100; b
 source('analysis/seatac/helper.r'); gr <- get_seatac_res(gs, window_size, bin_size, latent_dim, n_components, prior, beta, epochs, batch_effect)
 
 
-# -----------------------------------------------------------------------------------
-# [2019-08-01] Look at the V-plot at the TSS region
-# -----------------------------------------------------------------------------------
-step_size <- 100
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows, window_size = window_size, step_size = step_size)
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- gr %>% segment(k = 2)
-
-minus <- as.logical(strand(gr) == '-')
-X <- array(as.matrix(mcols(gr)$counts), dim = c(length(gr), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals))
-X[minus, , ] <- X[minus, metadata(gr)$n_bins_per_window:1, ]
-Xp <- array(as.matrix(mcols(gr)$fitted_counts), dim = c(length(gr), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals))
-Xp[minus, , ] <- Xp[minus, metadata(gr)$n_bins_per_window:1, ]
-
-j <- mcols(gr)$expression[, 1] > 1
-image(colMeans(Xp[j, , ], 1), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
-abline(v = 0.5)
-image(colMeans(X[j, , ], 1), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
-abline(v = 0.5)
-
-
-
-image(X[i, , ], col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
-abline(v = 0.5)
-image(Xp[i, , ], col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
-abline(v = 0.5)
-gr[i]
-
-plot(S[i, ])
-abline(v = 0.5)
-
-
 
 
 
 # -----------------------------------------------------------------------------------
 # [2019-08-02] Look at clusters of V-plot
 # -----------------------------------------------------------------------------------
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% encode(windows, window_size = window_size) 
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% encode(windows, window_size = window_size, step_size = step_size)
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% decode(gr)
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- gr %>% segment()
 
@@ -421,6 +437,96 @@ plot(colMeans(mcols(gr)$z_score[is_nucleosome, ]))
 plot(colMeans(mcols(gr)$z_score[is_nfr, ]))
 image(matrix(colMeans(as.matrix(mcols(gr)$counts[is_nucleosome, ])), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 image(matrix(colMeans(as.matrix(mcols(gr)$counts[is_nfr, ])), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+
+
+
+# -----------------------------------------------------------------------------------
+# [2019-08-07] Read the chemically mapped nucleosome poisitions for mESC
+# -----------------------------------------------------------------------------------
+devtools::load_all('packages/compbio')
+nc_mm10_gz_file <- sprintf('%s/GSM2183909_unique.map_95pc_mm10.bed.gz', sra.run.dir('GSM2183909'))	# a simple seqnames/start/end format
+gr_nuc <- read.table(gzfile(nc_mm10_gz_file), header = FALSE, sep = '\t')
+gr_nuc <- GRanges(seqnames = gr_nuc[, 1], range = IRanges(gr_nuc[, 2], gr_nuc[, 3]))
+gr_nuc <- add.seqinfo(gr_nuc, 'mm10')
+
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% encode(windows, window_size = window_size, step_size = 40)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% decode(gr)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- gr %>% segment()
+
+win <- gr
+h <- (32 - 4):(32 + 3)
+win <- add.seqinfo(win , 'mm10')
+win <- resize(win, fix = 'center', width = length(h) * metadata(win)$bin_size)
+metadata(win)$n_bins_per_window <- length(h)
+mcols(win)$nucleosome <- mcols(win)$nucleosome[, h, drop = FALSE]
+
+
+
+
+# --- read the nucleosome predicted by NucleoATAC
+dataset <- 'dataset=Maza_version=20170302a'
+base.name <- sprintf('%s/mESC_ATAC', dataset_dir(dataset))
+fs <- sprintf('%s.nucleoatac_%s.occpeaks.bed.gz', base.name, c('chr1', 'chr2', 'chr3'))
+gr1 <- do.call('rbind', lapply(fs, function(f) read.table(gzfile(f), header = FALSE, sep = '\t')))
+#########gr1 <- gr1[gr1[, 4] > 0.95, ]
+gr1 <- GRanges(seqnames = gr1[, 1], range = IRanges(gr1[, 2], gr1[, 3]))
+gr1 <- gr1[gr1 %over% win]
+gr1 <- add.seqinfo(gr1, 'mm10')
+
+
+w <- width(win)[1]
+gr2 <- GRanges(
+	seqnames = rep(seqnames(win), each = metadata(win)$n_bins_per_window), 
+	range = IRanges(start = rep(start(win), each = metadata(win)$n_bins_per_window) + seq(1, w, by = bin_size) - 1, width = metadata(win)$bin_size),
+	id = rep(1:metadata(win)$n_bins_per_window, length(win))
+)
+mcols(gr2)$nucleosome <- c(t(mcols(win)$nucleosome))
+gr2 <- gr2[mcols(gr2)$nucleosome > quantile(mcols(gr2)$nucleosome, 0.1)]
+gr2 <- reduce(gr2)
+
+source('analysis/seatac/helper.r'); evaluate_nucleosome_prediction(win, resize(gr2, fix = 'center', width = 1), gr_nuc[gr_nuc %over% win])
+source('analysis/seatac/helper.r'); evaluate_nucleosome_prediction(win, resize(gr1, fix = 'center', width = 1), gr_nuc[gr_nuc %over% win])
+
+
+
+ncp <- rtracklayer::import(sprintf('%s/GSM2183909_Chemical_NCPscore_mm10.sorted_merged.txt.gz', sra.run.dir('GSM2183909')), format = 'BED', which = reduce(win))
+ncp <- add.seqinfo(ncp, 'mm10')
+ncp <- resize(ncp, width = 1, fix = 'center')
+values(ncp)$name <- as.numeric(values(ncp)$name)
+cvg <- coverage(ncp, weight = 'name')
+
+NCP <- mean(cvg[unlist(slidingWindows(win, width = bin_size, step = bin_size))])
+NCP <- matrix(NCP, nrow = length(win), ncol =  metadata(win)$n_bins_per_window, byrow = TRUE)
+
+X1 <- mean(coverage(gr1)[trim(unlist(slidingWindows(win, width = bin_size, step = bin_size)))])
+X1 <- matrix(X1, nrow = length(win), ncol =  metadata(win)$n_bins_per_window, byrow = TRUE)
+
+bw_file <- '/panfs/roc/scratch/gongx030/seatac/MNase_mESC.bw'
+cvg <- rtracklayer::import(bw_file, which = trim(reduce(windows)), as = 'RleList')
+X3 <- mean(cvg[trim(unlist(slidingWindows(windows, width = bin_size, step = bin_size)))])
+X3 <- matrix(X3, nrow = length(windows), ncol =  metadata(windows)$n_bins_per_window, byrow = TRUE)
+
+par(mfcol = c(9, 6))
+i <- 2
+yy <- c(50, 200, 400, 600, 670)
+image(matrix(as.matrix(mcols(gr)$counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+axis(2, at = (yy - 50) / (670 - 50), label = yy, las = 2)
+axis(1, at = c(0, 0.5, 1))
+image(matrix(as.matrix(mcols(gr)$fitted_counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+axis(2, at = (yy - 50) / (670 - 50), label = yy)
+axis(1, at = c(0, 0.5, 1))
+plot(mcols(gr)$nucleosome[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i", main = 'nucleosome')
+plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(mcols(gr)$z_score[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i"); abline(h = 0)
+plot(NCP[i, ], type = 'b', xaxs="i", yaxs="i", main = 'NCP score', xpd = TRUE)
+plot(X1[i, ], xaxs="i", yaxs="i", main = 'nucleoatac', xpd = TRUE)
+plot(X3[i, ], main = 'MNase', xaxs="i", yaxs="i", xpd = TRUE)
+
+
+
+
+
 
 
 

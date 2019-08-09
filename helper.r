@@ -24,11 +24,15 @@ list_bam_files <- function(){
 		'Maza_MEF' = 'Maza_MEF.bam'
 	)
 	filenames <- sprintf('analysis/seatac/data/%s', bam)
+	names(filenames) <- names(bam)
+
+	filenames <- c(filenames,
+		'Maza_mESC' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC.bam'
+	)
 
 	if (!all(file.exists(filenames)))
 		stop('BAM files missing')
 
-	names(filenames) <- names(bam)
 	filenames
 
 } # list_bam_files
@@ -50,7 +54,12 @@ list_peak_files <- function(){
 	names(filenames) <- names(peaks)
 
 	filenames <- c(filenames, c(
-		'MEF_Dox_D1_Etv2' = sprintf('%s/etv2_pioneer/macs2/MEF_Dox_D1_Etv2_summits.bed', Sys.getenv('TMPDIR'))	# Etv2 ChiP-seq
+		'MEF_Dox_D1_Etv2' = sprintf('%s/etv2_pioneer/macs2/MEF_Dox_D1_Etv2_summits.bed', Sys.getenv('TMPDIR')),	# Etv2 ChiP-seq
+		'Maza_mESC' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed',
+		'Maza_mESC_chr1' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed',
+		'Maza_mESC_chr2' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed',
+		'Maza_mESC_chr3' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed',
+		'Maza_mESC_chr1-3' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed'
 	))
 
 	if (!all(file.exists(filenames)))
@@ -69,6 +78,16 @@ read_peaks <- function(ps){
 		flog.info(sprintf('reading peak file %s', peak_files[ps]))
 		x <- read.table(peak_files[ps], header = FALSE, sep = '\t')
 		x <- GRanges(seqnames = x[, 1], range = IRanges(x[, 2], x[, 3]))
+
+		if (ps == 'Maza_mESC_chr2'){
+			x <- x[seqnames(x) == 'chr2']
+		}else if (ps == 'Maza_mESC_chr1'){
+			x <- x[seqnames(x) == 'chr1']
+		}else if (ps == 'Maza_mESC_chr3'){
+			x <- x[seqnames(x) == 'chr3']
+		}else if (ps == 'Maza_mESC_chr1-3'){
+			x <- x[seqnames(x) %in% c('chr1', 'chr2', 'chr3')]
+		}
 
 	}else if (ps %in% c('MEF_active_TSS', 'MEF_active_TSS_0_400', 'MEF_active_TSS_0_800')){
 
@@ -201,6 +220,39 @@ model_dir_name <- function(dataset, peakset, expand, latent_dim, n_components, b
 	f
 }
 
+evaluate_nucleosome_prediction <- function(windows, y_pred, y_true){
+
+#	y_true <- resize(y_true, fix = 'center', width = 25)
+	y_true <- windows[windows %over% y_true]
+	y_false <- setdiff(windows, y_true)
+
+	y <- c(granges(y_true), granges(y_false))
+	label <- rep(c(FALSE, TRUE), c(length(y_false), length(y_true)))
+
+	mm <- as.matrix(findOverlaps(y_pred, y))
+	label_pred <- rep(FALSE, length(y))
+	label_pred[mm[, 2]] <- TRUE
+
+	print(table(label, label_pred))
+
+	tp <- sum(label & label_pred)
+	fp <- sum(!label & label_pred)
+	fn <- sum(label & !label_pred)
+	tn <- sum(!label & !label_pred)
+	sensitivity <- tp / (tp + fn)
+	specificity <- tn / (tn + fp)
+
+	f1 <- 2 * tp / (2 * tp + fp + fn)
+	acc <-(tp + tn) / (tp + tn + fp + fn)
+	ppv <- tp / (tp + fp)
+	flog.info(sprintf('# TRUE: %d', sum(label)))
+	flog.info(sprintf('# FALSE: %d', sum(!label)))
+	flog.info(sprintf('sensitivity: %.3f', sensitivity))
+	flog.info(sprintf('specificity : %.3f', specificity))
+	flog.info(sprintf('PPV: %.3f', ppv))
+	flog.info(sprintf('F1: %.3f', f1))
+	flog.info(sprintf('Accuracy: %.3f', acc))
+}
 
 
 

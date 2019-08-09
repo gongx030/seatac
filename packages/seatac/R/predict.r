@@ -89,6 +89,9 @@ encode <- function(model, x, window_size = 400, step_size = 200, batch_size = 2^
 	bin_size <- metadata(x)$bin_size
 	n_bins_per_window <- window_size / bin_size
 
+	if (is.na(step_size))
+		step_size <- window_size
+
 	flog.info(sprintf('# input peaks: %d', window_dim))
 	flog.info(sprintf('input peak width: %d', expand))
 

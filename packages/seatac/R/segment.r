@@ -18,14 +18,14 @@ segment <- function(x, method = 'z', cutoff = 0.05, batch_size = 1000){
 
 	is_nfr <- breaks[-1] > 0 & breaks[-1] <= 100
 	is_nucleosome <- breaks[-1] > 180 
-#	is_di_nucleosome <- breaks > 315 & breaks <= 473
-#	is_tri_nucleosome <- breaks > 558 & breaks <= 615
+	is_mono_nucleosome <- breaks[-1] >= 180 & breaks[-1] <= 247
+	is_di_nucleosome <- breaks[-1] >= 315 & breaks[-1] <= 473
+	is_tri_nucleosome <- breaks[-1] >= 558 & breaks[-1] <= 615
 
 	X <- mcols(x)$fitted_counts
 	dim(X) <- c(window_dim, input_dim, feature_dim)
 
-#	R <- log(rowSums(X[, , is_nfr], dims = 2) + 0.1) - log(rowSums(X[, , is_mono_nucleosome | is_di_nucleosome | is_tri_nucleosome ], dims = 2) + 0.1)
-	R <- log(rowMeans(X[, , is_nucleosome], dims = 2) + 0.1) - log(rowMeans(X[, , is_nfr], dims = 2) + 0.1)
+	R <- log(rowMeans(X[, , is_mono_nucleosome | is_di_nucleosome | is_tri_nucleosome], dims = 2) + 0.1) - log(rowMeans(X[, , is_nfr], dims = 2) + 0.1)
 
 	if (method == 'hmm'){
 
@@ -52,6 +52,8 @@ segment <- function(x, method = 'z', cutoff = 0.05, batch_size = 1000){
 		mcols(x)$state <- S
 
 	}else if (method == 'z'){
+
+		mcols(x)$nucleosome <- rowMeans(X[, , is_mono_nucleosome | is_di_nucleosome | is_tri_nucleosome], dims = 2)
 
 		mcols(x)$z_score <- t((t(R) - colMeans(R)) / colSds(R))
 		P <- pnorm(mcols(x)$z_score)
