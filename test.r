@@ -19,27 +19,18 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 # -----------------------------------------------------------------------------------
 # [2019-07-11] Training VAE on MEF ATAC-seq data
 # -----------------------------------------------------------------------------------
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr2'; expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr3'; expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
-gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; expand <- 640; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 5; mc <- 0; bs <- 128
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; expand <- 640; window_size <- 320; bin_size <- 5; step_size <- 64; mr <- 10; mc <- 0; bs <- 128
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1248; window_size <- 320; bin_size <- 5; step_size <- 32; mr <- 10; mc <- 0; bs <- 128
-#gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
-#gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; expand <- 640; window_size <- 320; bin_size <- 5; step_size <- 160; mr <- 10; mc <- 0; bs <- 128
-#gs <- c('MEF_NoDox', 'MEF_Dox_D1'); ps <- c('MEF_Dox_D1_Etv2'); expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
-#gs <- c('MEF_NoDox', 'MEF_Dox_D1', 'MEF_Dox_D2', 'MEF_Dox_D7', 'MEF_Dox_D7_Flk1pos'); ps <- c('MEF_Dox_D1_Etv2'); expand <- 320; window_size <- 320; bin_size <- 5; step_size <- NA; mr <- 10; mc <- 0; bs <- 128
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; window_size <- 320; bin_size <- 10; step_size <- 20; mr <- 5; mc <- 0; bs <- 128
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; window_size <- 320; bin_size <- 5; step_size <- 40; mr <- 5; mc <- 0; bs <- 128
 
 latent_dim <- 2; n_components <- 20; epochs <- 100; batch_effect <- FALSE
 
 source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
-source('analysis/seatac/helper.r'); windows <- read_windows(ga, peaks, expand = expand, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = mr)
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, expand, latent_dim, n_components, batch_effect, window_size, step_size, mr, mc, bin_size)
+source('analysis/seatac/helper.r'); windows <- read_windows(ga, peaks, window_size = window_size, step_size = step_size, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = mr, exclude_exons = TRUE
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, n_components, batch_effect, window_size, step_size, mr, mc, bin_size)
 
 # run the model 
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, n_components = n_components, window_size = window_size, step_size = step_size, epochs = epochs, batch_effect = batch_effect, min_reads_per_window = mr, min_reads_coverage = mc, batch_size = bs)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, n_components = n_components, epochs = epochs, batch_effect = batch_effect, min_reads_per_window = mr, min_reads_coverage = mc, batch_size = bs)
 devtools::load_all('analysis/seatac/packages/seatac'); saveModel(model, model_dir)
 
 # load the model
@@ -443,25 +434,22 @@ image(matrix(colMeans(as.matrix(mcols(gr)$counts[is_nfr, ])), metadata(gr)$n_bin
 # -----------------------------------------------------------------------------------
 # [2019-08-07] Read the chemically mapped nucleosome poisitions for mESC
 # -----------------------------------------------------------------------------------
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows)
+
 devtools::load_all('packages/compbio')
 nc_mm10_gz_file <- sprintf('%s/GSM2183909_unique.map_95pc_mm10.bed.gz', sra.run.dir('GSM2183909'))	# a simple seqnames/start/end format
 gr_nuc <- read.table(gzfile(nc_mm10_gz_file), header = FALSE, sep = '\t')
 gr_nuc <- GRanges(seqnames = gr_nuc[, 1], range = IRanges(gr_nuc[, 2], gr_nuc[, 3]))
 gr_nuc <- add.seqinfo(gr_nuc, 'mm10')
 
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% encode(windows, window_size = window_size, step_size = 40)
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% decode(gr)
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- gr %>% segment()
 
-win <- gr
-h <- (32 - 4):(32 + 3)
-win <- add.seqinfo(win , 'mm10')
-win <- resize(win, fix = 'center', width = length(h) * metadata(win)$bin_size)
-metadata(win)$n_bins_per_window <- length(h)
-mcols(win)$nucleosome <- mcols(win)$nucleosome[, h, drop = FALSE]
+#ncp <- rtracklayer::import(sprintf('%s/GSM2183909_Chemical_NCPscore_mm10.sorted_merged.txt.gz', sra.run.dir('GSM2183909')), format = 'BED', which = reduce(windows))
+#ncp <- resize(ncp, width = 1, fix = 'center')
+#values(ncp)$name <- as.numeric(values(ncp)$name)
+#gr_nuc <- ncp[values(ncp)$name > quantile(values(ncp)$name, 0.90)]
 
-
-
+#win <- resize(gr, fix = 'center', width = 100); win <- add.seqinfo(win , 'mm10')
+win <- gr; win <- add.seqinfo(win , 'mm10')
 
 # --- read the nucleosome predicted by NucleoATAC
 dataset <- 'dataset=Maza_version=20170302a'
@@ -473,16 +461,17 @@ gr1 <- GRanges(seqnames = gr1[, 1], range = IRanges(gr1[, 2], gr1[, 3]))
 gr1 <- gr1[gr1 %over% win]
 gr1 <- add.seqinfo(gr1, 'mm10')
 
+X <- mcols(gr)$fitted_counts; dim(X) <- c(nrow(X), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals)
+breaks <- seq(metadata(gr)$fragment_size_range[1], metadata(gr)$fragment_size_range[2], by = metadata(gr)$fragment_size_interval)
+is_nfr <- breaks[-1] > 0 & breaks[-1] <= 100
+is_mono_nucleosome <- breaks[-1] >= 180 & breaks[-1] <= 247
+is_di_nucleosome <- breaks[-1] >= 315 & breaks[-1] <= 473
+is_tri_nucleosome <- breaks[-1] >= 558 & breaks[-1] <= 615
+mcols(gr)$nucleosome <- rowMax(rowMeans(X[, , is_mono_nucleosome | is_di_nucleosome | is_tri_nucleosome], dims = 2))
+R <- log(rowMeans(rowMeans(X[, , is_mono_nucleosome | is_di_nucleosome | is_tri_nucleosome], dims = 2)) + 0.1) - log(rowMeans(rowMeans(X[, , is_nfr], dims = 2)) + 0.1)
+gr2 <- gr[mcols(gr)$nucleosome > quantile(mcols(gr)$nucleosome, 0.5)]
+#gr2 <- gr[R > quantile(R, 0.8)]
 
-w <- width(win)[1]
-gr2 <- GRanges(
-	seqnames = rep(seqnames(win), each = metadata(win)$n_bins_per_window), 
-	range = IRanges(start = rep(start(win), each = metadata(win)$n_bins_per_window) + seq(1, w, by = bin_size) - 1, width = metadata(win)$bin_size),
-	id = rep(1:metadata(win)$n_bins_per_window, length(win))
-)
-mcols(gr2)$nucleosome <- c(t(mcols(win)$nucleosome))
-gr2 <- gr2[mcols(gr2)$nucleosome > quantile(mcols(gr2)$nucleosome, 0.1)]
-gr2 <- reduce(gr2)
 
 source('analysis/seatac/helper.r'); evaluate_nucleosome_prediction(win, resize(gr2, fix = 'center', width = 1), gr_nuc[gr_nuc %over% win])
 source('analysis/seatac/helper.r'); evaluate_nucleosome_prediction(win, resize(gr1, fix = 'center', width = 1), gr_nuc[gr_nuc %over% win])

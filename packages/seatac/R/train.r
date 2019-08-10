@@ -22,12 +22,11 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 			x <- mcols(gr)$counts[b, ] %>%
 				as.matrix() %>% 
 				tf$cast(tf$float32) %>% 
-				tf$reshape(shape(batch_size, model$input_dim, model$feature_dim)) %>%
+				tf$reshape(shape(batch_size, model$feature_dim, model$input_dim)) %>%
 				tf$expand_dims(axis = 3L)
-			
+
 			y <- mcols(gr)$coverage[b, , drop = FALSE] %>%
 				tf$cast(tf$float32) %>% 
-				tf$reshape(shape(batch_size, model$input_dim)) %>%
 				tf$expand_dims(axis = 2L)
 
 			# determining the weight for each window

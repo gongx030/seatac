@@ -14,6 +14,7 @@
 #' @import tensorflow
 #' @import keras
 #' @import tfprobability
+#' @importFrom reticulate array_reshape
 NULL
 
 #tfe_enable_eager_execution(device_policy = 'silent')
@@ -30,8 +31,6 @@ seatac <- function(
 	x,			# GenomicRanges object
 	latent_dim = 2, 
 	n_components = 10, 
-	window_size = 400,
-	step_size = 200,
 	prior = 'gmm',
 	batch_effect = FALSE,
 	epochs = 50, 
@@ -41,11 +40,8 @@ seatac <- function(
 	min_reads_coverage = 20
 ){
 
-	flog.info(sprintf('window size(window_size): %d', window_size))
-	flog.info(sprintf('step size(step_size): %s', step_size))
-
-	if (is.na(step_size))
-		step_size <- window_size
+	flog.info(sprintf('window size: %d', metadata(x)$window_size))
+	flog.info(sprintf('step size: %d', metadata(x)$step_size))
 
 	flog.info(sprintf('latent dimension(latent_dim):%d', latent_dim))
 	flog.info(sprintf('# mixture components(n_components):%d', n_components))
@@ -55,7 +51,7 @@ seatac <- function(
 	flog.info(sprintf('minimum average read coverage per window for training(min_reads_coverage): %d', min_reads_coverage))
 	flog.info(sprintf('batch size(batch_size): %d', batch_size))
 
-	x <- makeData(x, window_size = window_size, step_size = step_size, min_reads_per_window = min_reads_per_window, min_reads_coverage = min_reads_coverage)
+	x <- makeData(x, min_reads_per_window = min_reads_per_window, min_reads_coverage = min_reads_coverage)
 
   window_dim <- length(x)
   feature_dim <- metadata(x)$n_intervals

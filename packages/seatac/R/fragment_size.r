@@ -1,22 +1,38 @@
 #' readFragmentSizeMatrix
+#'
+#' @param x a GAlignments object.
+#' @param windows a GRange object that define a set of genomic regions.
+#' @param window_size The size of each genomic window for training the model.
+#' @param step_size The step size for the moving windows
+#' @param bin_size The bin size
+#' @param fragment_size_range
+#' @param fragment_size_interval
+#'
 #' @export
 #'
 readFragmentSizeMatrix <- function(
 	x, 
 	windows, 
-	window_size = 500,
-	bin_size = 10,
-	fragment_size_range = c(50, 690), 
-	fragment_size_interval = 10
+	window_size = 320,
+	step_size = 32,
+	bin_size = 5,
+#	fragment_size_range = c(50, 690), 
+#	fragment_size_interval = 10
+	fragment_size_range = c(60, 700), 
+	fragment_size_interval = 20
 ){
 
   num_samples <- metadata(x)$num_samples
-  n_bins_per_window <- window_size / bin_size
+
+	expand <- 2 * window_size - step_size
+
+  n_bins_per_window <- expand / bin_size
+
 	breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
 
 	n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval
 
-	windows <- windows %>% resize(fix = 'center', width = window_size)
+	windows <- windows %>% resize(fix = 'center', width = expand)
 
 	wb <- cbind(rep(1:length(windows), n_bins_per_window), 1:(length(windows)* n_bins_per_window))	# windows ~ bins, sorted by window
 
@@ -57,10 +73,9 @@ readFragmentSizeMatrix <- function(
     BF <- BC %*% CF  # bins ~ fragment size
     BF[BF > 0] <- 1
     BF <- as.matrix(BF[wb[, 2], ])
-    dim(BF) <- c(n_bins_per_window, length(windows), n_intervals)	# convert BF into an array with bathc_size ~ n_bins_per_window ~ n_intervals
-    BF <- aperm(BF, c(1, 3, 2)) # n_bins_per_window ~ n_intervals ~ bathc_size 
-    dim(BF) <- c(n_bins_per_window * n_intervals, length(windows))
-    BF <- aperm(BF, c(2, 1))  # bathc_size ~ n_bins_per_window * n_intervals
+    dim(BF) <- c(n_bins_per_window, length(windows), n_intervals)	# convert BF into an array with n_bins_per_window ~ batch_size ~ n_intervals
+    BF <- aperm(BF, c(2, 1, 3)) # batch_size, n_bins_per_window ~ n_intervals
+    dim(BF) <- c(length(windows), n_bins_per_window * n_intervals)
     BF <- as(BF, 'dgCMatrix')
     BF
   }))
@@ -73,23 +88,23 @@ readFragmentSizeMatrix <- function(
   metadata(gr)$fragment_size_interval <- fragment_size_interval
   metadata(gr)$bin_size <- bin_size
   metadata(gr)$window_size <- window_size 
+  metadata(gr)$expand <- expand
   metadata(gr)$n_intervals <- n_intervals
   metadata(gr)$num_samples <- num_samples
   metadata(gr)$n_bins_per_window <- n_bins_per_window 
+  metadata(gr)$step_size <- step_size
 
 	gr
 
 } # readFragmentSizeMatrix
 
 
-makeData <- function(x, window_size = 400, step_size = 200, min_reads_per_window = 10, min_reads_coverage = 20){
+makeData <- function(x, min_reads_per_window = 10, min_reads_coverage = 20){
 
-	expand <- metadata(x)$window_size
-	bin_size <- metadata(x)$bin_size
-	n_bins_per_window <- window_size / bin_size
+	n_bins_per_window <- metadata(x)$window_size / metadata(x)$bin_size
 
 	# the index of the 10-bp bins in [-200, +200] window
-	starts <- seq(1, expand / bin_size - n_bins_per_window + 1, by = step_size / bin_size)
+	starts <- seq(1, metadata(x)$expand / metadata(x)$bin_size - n_bins_per_window + 1, by = metadata(x)$step_size / metadata(x)$bin_size)
 	ends <- starts + n_bins_per_window - 1
 	n_block <- length(starts)
 
@@ -100,7 +115,7 @@ makeData <- function(x, window_size = 400, step_size = 200, min_reads_per_window
 		# the index of the bins covering the [-200, +200] window
 		m <- starts[j]:ends[j]
 		xj <- x
-		ranges(xj) <- shift(resize(ranges(xj), fix = 'start', width = window_size), step_size * (j - 1))
+		ranges(xj) <- shift(resize(ranges(xj), fix = 'start', width = metadata(x)$window_size), metadata(x)$step_size * (j - 1))
 		mcols(xj)$coverage <- mcols(xj)$coverage[, m, drop = FALSE]
 		mcols(xj)$min_coverage <- rowMins(mcols(xj)$coverage)
 		mcols(xj)$max_coverage <- rowMaxs(mcols(xj)$coverage)
@@ -111,14 +126,16 @@ makeData <- function(x, window_size = 400, step_size = 200, min_reads_per_window
 		mcols(xj)$coverage <- (mcols(xj)$coverage - mcols(xj)$min_coverage) / (mcols(xj)$max_coverage - mcols(xj)$min_coverage)
 		mcols(xj)$coverage[is.na(mcols(xj)$coverage)] <- 0
 
-		m2 <- rep(m, metadata(x)$n_interval) + (rep(1:metadata(x)$n_interval, each = n_bins_per_window) - 1) * expand / bin_size 
+		m2 <- rep(m, metadata(x)$n_interval) + (rep(1:metadata(x)$n_interval, each = n_bins_per_window) - 1) * metadata(x)$expand / metadata(x)$bin_size 
 		mcols(xj)$counts <- mcols(xj)$counts[, m2, drop = FALSE]
 		mcols(xj)$num_reads <- rowSums(mcols(xj)$counts)
 		xj <- xj[mcols(xj)$num_reads >= min_reads_per_window]
 		mcols(xj)$block <- j
 		xj
 	}))
-	metadata(gr)$window_size <- window_size
+
+	metadata(gr)$expand <- NULL
+	metadata(gr)$step_size <- NULL
 	metadata(gr)$min_reads_per_window <- min_reads_per_window
 	metadata(gr)$n_bins_per_window <- n_bins_per_window
 	gr

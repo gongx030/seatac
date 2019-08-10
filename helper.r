@@ -152,7 +152,7 @@ read_bam_files <- function(gs, peaks, genome, expand = 2000){
 } # read_bam_files
 
 
-read_windows <- function(ga, peaks, expand, bin_size = 10, exclude_exons = FALSE, txdb, min_reads_per_window = 15){
+read_windows <- function(ga, peaks, window_size = 320, step_size = 32, bin_size = 10, exclude_exons = FALSE, txdb, min_reads_per_window = 15){
 
 	peaks <- resize(peaks, fix = 'center', width = 1)
 
@@ -163,7 +163,7 @@ read_windows <- function(ga, peaks, expand, bin_size = 10, exclude_exons = FALSE
 	peaks <- peaks[seqnames(peaks) != 'chrM']
 	seqlevels(peaks, pruning.mode = 'coarse') <- seqlevels(ga)
 
-	gr <- readFragmentSizeMatrix(ga, peaks, window_size = expand, bin_size = bin_size)
+	gr <- readFragmentSizeMatrix(ga, peaks, window_size = window_size, step_size = step_size, bin_size = bin_size)
 	
 	flog.info(sprintf('# total windows: %d', length(gr)))
 
@@ -214,24 +214,18 @@ save_seatac_res <- function(gr, gs, window_size, bin_size, latent_dim, n_compone
 	}
 }
 
-model_dir_name <- function(dataset, peakset, expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage, bin_size){
-	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_expand=%d_latent_dim=%d_n_components=%d_batch_effect=%s_window_size=%d_step_size=%s_min_reads_per_window=%d_min_reads_coverage=%d_bin_size=%d', paste(dataset, collapse = '+'), paste(peakset, collapse = '+'), expand, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage, bin_size)
+model_dir_name <- function(dataset, peakset, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage, bin_size){
+	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_latent_dim=%d_n_components=%d_batch_effect=%s_window_size=%d_step_size=%s_min_reads_per_window=%d_min_reads_coverage=%d_bin_size=%d', paste(dataset, collapse = '+'), paste(peakset, collapse = '+'), latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage, bin_size)
 	flog.info(sprintf('model dir: %s', f))
 	f
 }
 
-evaluate_nucleosome_prediction <- function(windows, y_pred, y_true){
+evaluate_nucleosome_prediction <- function(y, y_pred, y_true){
 
-#	y_true <- resize(y_true, fix = 'center', width = 25)
-	y_true <- windows[windows %over% y_true]
-	y_false <- setdiff(windows, y_true)
-
-	y <- c(granges(y_true), granges(y_false))
-	label <- rep(c(FALSE, TRUE), c(length(y_false), length(y_true)))
-
-	mm <- as.matrix(findOverlaps(y_pred, y))
-	label_pred <- rep(FALSE, length(y))
-	label_pred[mm[, 2]] <- TRUE
+	label <- y %over% y_true
+	label_pred <- y %over% y_pred
+#	label_pred <- sample(label_pred)
+#	label_pred <- rep(TRUE, length(y))
 
 	print(table(label, label_pred))
 
@@ -245,6 +239,10 @@ evaluate_nucleosome_prediction <- function(windows, y_pred, y_true){
 	f1 <- 2 * tp / (2 * tp + fp + fn)
 	acc <-(tp + tn) / (tp + tn + fp + fn)
 	ppv <- tp / (tp + fp)
+	flog.info(sprintf('# False Positive: %d', fp))
+	flog.info(sprintf('# True Positive: %d', tp))
+	flog.info(sprintf('# True Negative: %d', tn))
+	flog.info(sprintf('# False Negative: %d', fn))
 	flog.info(sprintf('# TRUE: %d', sum(label)))
 	flog.info(sprintf('# FALSE: %d', sum(!label)))
 	flog.info(sprintf('sensitivity: %.3f', sensitivity))
