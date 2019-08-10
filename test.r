@@ -26,7 +26,7 @@ latent_dim <- 2; n_components <- 20; epochs <- 100; batch_effect <- FALSE
 
 source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
-source('analysis/seatac/helper.r'); windows <- read_windows(ga, peaks, window_size = window_size, step_size = step_size, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = mr, exclude_exons = TRUE
+source('analysis/seatac/helper.r'); windows <- read_windows(ga, peaks, window_size = window_size, step_size = step_size, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = mr, exclude_exons = TRUE)
 source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, n_components, batch_effect, window_size, step_size, mr, mc, bin_size)
 
 # run the model 
@@ -469,7 +469,7 @@ is_di_nucleosome <- breaks[-1] >= 315 & breaks[-1] <= 473
 is_tri_nucleosome <- breaks[-1] >= 558 & breaks[-1] <= 615
 mcols(gr)$nucleosome <- rowMax(rowMeans(X[, , is_mono_nucleosome | is_di_nucleosome | is_tri_nucleosome], dims = 2))
 R <- log(rowMeans(rowMeans(X[, , is_mono_nucleosome | is_di_nucleosome | is_tri_nucleosome], dims = 2)) + 0.1) - log(rowMeans(rowMeans(X[, , is_nfr], dims = 2)) + 0.1)
-gr2 <- gr[mcols(gr)$nucleosome > quantile(mcols(gr)$nucleosome, 0.5)]
+gr2 <- gr[mcols(gr)$nucleosome > quantile(mcols(gr)$nucleosome, 0.6)]
 #gr2 <- gr[R > quantile(R, 0.8)]
 
 
