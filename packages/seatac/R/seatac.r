@@ -1,6 +1,5 @@
 #' seatac
 #'
-#' @importFrom depmixS4 MVNresponse transInit makeDepmix em.control posterior GLMresponse
 #' @import Matrix
 #' @import SummarizedExperiment
 #' @importFrom matrixStats rowSds rowVars rowMedians rowMins rowMaxs
@@ -13,7 +12,6 @@
 #' @importFrom abind abind
 #' @import tensorflow
 #' @import keras
-#' @import tfprobability
 #' @importFrom reticulate array_reshape
 NULL
 

@@ -8,9 +8,7 @@ library(roxygen2); library(devtools); devtools::document('packages/compbio')
 # -----------------------------------------------------------------------------------
 
 library(tensorflow)
-tfe_enable_eager_execution(device_policy = 'silent')
 library(keras)
-library(tfprobability)
 library(futile.logger); flog.threshold(TRACE)
 library(BSgenome.Mmusculus.UCSC.mm10)
 library(TxDb.Mmusculus.UCSC.mm10.knownGene)
