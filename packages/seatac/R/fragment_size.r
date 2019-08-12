@@ -3,7 +3,6 @@
 #' @param x a GAlignments object.
 #' @param windows a GRange object that define a set of genomic regions.
 #' @param window_size The size of each genomic window for training the model.
-#' @param step_size The step size for the moving windows
 #' @param bin_size The bin size
 #' @param fragment_size_range
 #' @param fragment_size_interval
@@ -14,7 +13,6 @@ readFragmentSizeMatrix <- function(
 	x, 
 	windows, 
 	window_size = 320,
-	step_size = 32,
 	bin_size = 5,
 #	fragment_size_range = c(50, 690), 
 #	fragment_size_interval = 10
@@ -24,15 +22,11 @@ readFragmentSizeMatrix <- function(
 
   num_samples <- metadata(x)$num_samples
 
-	expand <- 2 * window_size - step_size
-
-  n_bins_per_window <- expand / bin_size
+  n_bins_per_window <- window_size / bin_size
 
 	breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
 
 	n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval
-
-	windows <- windows %>% resize(fix = 'center', width = expand)
 
 	wb <- cbind(rep(1:length(windows), n_bins_per_window), 1:(length(windows)* n_bins_per_window))	# windows ~ bins, sorted by window
 
@@ -40,7 +34,6 @@ readFragmentSizeMatrix <- function(
 		slidingWindows(width = bin_size, step = bin_size) %>%
 		unlist()
 
-	# coverage of each 10-bp bin in [-expand / 2, +expand / 2] window
 	gr <- rep(windows, num_samples)
 	mcols(gr)$group <- rep(1:num_samples, each = length(windows))
 
@@ -88,11 +81,9 @@ readFragmentSizeMatrix <- function(
   metadata(gr)$fragment_size_interval <- fragment_size_interval
   metadata(gr)$bin_size <- bin_size
   metadata(gr)$window_size <- window_size 
-  metadata(gr)$expand <- expand
   metadata(gr)$n_intervals <- n_intervals
   metadata(gr)$num_samples <- num_samples
   metadata(gr)$n_bins_per_window <- n_bins_per_window 
-  metadata(gr)$step_size <- step_size
 
 	gr
 

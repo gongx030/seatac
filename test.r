@@ -15,24 +15,114 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 
 
 # -----------------------------------------------------------------------------------
-# [2019-07-11] Training VAE on MEF ATAC-seq data
+# [2019-07-11] Training nucleosome classifier on mESC ATAC-seq data and chemicall mapping
+# data
 # -----------------------------------------------------------------------------------
-gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; window_size <- 320; bin_size <- 10; step_size <- 20; mr <- 5; mc <- 0; bs <- 128
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; window_size <- 320; bin_size <- 10; step_size <- 20; mr <- 5; mc <- 0; bs <- 256; ns <- 1; seed <- 1
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; window_size <- 320; bin_size <- 5; step_size <- 40; mr <- 5; mc <- 0; bs <- 128
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-19'; window_size <- 500; bin_size <- 10; mr <- 5; bs <- 256; ns <- 1; seed <- 1
 
-latent_dim <- 2; n_components <- 20; epochs <- 100; batch_effect <- FALSE
+epochs <- 15
 
 source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
-source('analysis/seatac/helper.r'); windows <- read_windows(ga, peaks, window_size = window_size, step_size = step_size, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = mr, exclude_exons = TRUE)
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, n_components, batch_effect, window_size, step_size, mr, mc, bin_size)
+source('analysis/seatac/helper.r'); windows <- prepare_training_windows(ga, peaks, negative_sample_ratio = ns, seed = seed, window_size = window_size, bin_size  = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = mr, genome = BSgenome.Mmusculus.UCSC.mm10)
+#source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, n_components, batch_effect, window_size, step_size, mr, mc, bin_size)
 
 # run the model 
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, n_components = n_components, epochs = epochs, batch_effect = batch_effect, min_reads_per_window = mr, min_reads_coverage = mc, batch_size = bs)
-devtools::load_all('analysis/seatac/packages/seatac'); saveModel(model, model_dir)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, epochs = epochs, batch_size = bs)
+
+#devtools::load_all('analysis/seatac/packages/seatac'); saveModel(model, model_dir)
 
 # load the model
-devtools::load_all('analysis/seatac/packages/seatac'); model <- loadModel(model_dir)
+#devtools::load_all('analysis/seatac/packages/seatac'); model <- loadModel(model_dir)
+
+
+# -----------------------------------------------------------------------------------
+# [2019-08-11] Predicting the nucleosome positions ATAC-seq peak region on chromosome X
+# And compare with the results from NucleoATAC
+# -----------------------------------------------------------------------------------
+ps <- 'Maza_mESC'; step_size <- 10
+source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
+peaks <- peaks[seqnames(peaks) %in% 'chrX']
+source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
+source('analysis/seatac/helper.r'); windows_test <- read_windows(ga, peaks, window_size = window_size, step_size = step_size, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = 0)
+
+window_dim <- length(windows_test)
+feature_dim <- metadata(windows_test)$n_intervals
+input_dim <- metadata(windows_test)$n_bins_per_window
+
+vplot <- mcols(windows_test)$counts %>%
+	as.matrix() %>%
+	array_reshape(c(window_dim, input_dim, feature_dim, 1))
+
+cvg <- mcols(windows_test)$coverage %>%
+	array_reshape(c(window_dim, input_dim, 1))
+
+mcols(windows_test)$label_pred <- model %>% predict(list(vplot, cvg), batch_size = bs, verbose = 1)
+saveRDS(windows_test, sprintf('%s/test.rds', PROJECT_DIR))
+
+nc_mm10_gz_file <- sprintf('%s/GSM2183909_unique.map_95pc_mm10.bed.gz', sra.run.dir('GSM2183909'))  # a simple seqnames/start/end format
+nuc <- read.table(gzfile(nc_mm10_gz_file), header = FALSE, sep = '\t')
+nuc <- GRanges(seqnames = nuc[, 1], range = IRanges(nuc[, 2], nuc[, 3]))
+nuc <- add.seqinfo(nuc, 'mm10')
+
+ncp_file <- sprintf('%s/GSM2183909_Chemical_NCPscore_mm10.sorted_merged.txt.gz', sra.run.dir('GSM2183909'))
+flog.info(sprintf('reading %s', ncp_file))
+ncp <- rtracklayer::import(ncp_file, format = 'BED', which = reduce(resize(windows_test, width = window_size, fix = 'center')))
+ncp <- resize(ncp, width = 1, fix = 'center')
+ncp <- add.seqinfo(ncp, 'mm10')
+cvg_ncp <- coverage(ncp, weight = as.numeric(mcols(ncp)$name))
+
+
+dataset <- 'dataset=Maza_version=20170302a'
+base.name <- sprintf('%s/mESC_ATAC', dataset_dir(dataset))
+fs <- sprintf('%s.nucleoatac_%s.nucleoatac_signal.smooth.bedgraph.gz', base.name, c('chrX'))
+na <- do.call('rbind', lapply(fs, function(f) read.table(gzfile(f), header = FALSE, sep = '\t')))
+na <- GRanges(seqnames = na[, 1], range = IRanges(na[, 2], na[, 3]), score = na[, 4])
+na <- add.seqinfo(na, 'mm10')
+cvg_nucleoatac <- coverage(na, weight = as.numeric(mcols(na)$score))
+
+
+windows_test <- resize(windows_test, fix = 'center', width = 20)
+mcols(windows_test)$label <- windows_test %over% nuc
+mcols(windows_test)$label_nucleoatac <- windows_test %over% na
+mcols(windows_test)$nucleoatac_score <- mean(cvg_nucleoatac[windows_test])
+mcols(windows_test)$ncp_score <- mean(cvg_ncp[windows_test])
+
+res <- do.call('rbind', lapply(seq(0.01, 0.99, by = 0.01), function(h){
+	y_true <- as.numeric(mcols(windows_test)$label)
+	Y <- data.frame(
+		nucleoatac = mcols(windows_test)$nucleoatac_score > quantile(mcols(windows_test)$nucleoatac_score, h),
+		seatac = mcols(windows_test)$label_pred > quantile(mcols(windows_test)$label_pred, h)
+	)
+	cbind(h = h, do.call('rbind', lapply(1:ncol(Y), function(i){
+		y_pred <- Y[, i]
+		tp <- sum(y_true & y_pred)
+		fp <- sum(!y_true & y_pred)
+		fn <- sum(y_true & !y_pred)
+		tn <- sum(!y_true & !y_pred)
+		sensitivity <- tp / (tp + fn)
+		specificity <- tn / (tn + fp)
+		data.frame(n = sum(y_pred), pct_true = mean(y_pred), method = colnames(Y)[i], sensitivity = sensitivity, specificity = specificity, ppv = tp / (tp + fp), f1 = 2 * tp / (2 * tp + fp + fn))
+	})))
+}))
+
+plot(1 - res$specificity[res$method == 'seatac'], res$sensitivity[res$method == 'seatac'], type = 'l', lwd = 2, col = 'blue', xlim = c(0, 1), ylim = c(0, 1))
+lines(1 - res$specificity[res$method == 'nucleoatac'], res$sensitivity[res$method == 'nucleoatac'], lwd = 2, col = 'black')
+
+
+plot(res$pct_true[res$method == 'seatac'], res$ppv[res$method == 'seatac'], type = 'l', lwd = 2, col = 'blue', xlim = c(0, 1), ylim = c(0.25, 0.55))
+lines(res$pct_true[res$method == 'nucleoatac'], res$ppv[res$method == 'nucleoatac'], type = 'l', lwd = 2, col = 'black')
+
+
+	table(factor(mcols(windows_test)$label, c(FALSE, TRUE)), factor(mcols(windows_test)$label_pred > quantile(mcols(windows_test)$label_pred, h), c(FALSE, TRUE)))
+	table(factor(mcols(windows_test)$label, c(FALSE, TRUE)), factor(mcols(windows_test)$nucleoatac_score > quantile(mcols(windows_test)$nucleoatac_score, h), c(FALSE, TRUE)))
+
+mm <- as.matrix(findOverlaps(na, windows_test))
+
+label_nucleoatac <- windows_test %over% na
+
 
 
 
@@ -511,9 +601,28 @@ plot(X1[i, ], xaxs="i", yaxs="i", main = 'nucleoatac', xpd = TRUE)
 plot(X3[i, ], main = 'MNase', xaxs="i", yaxs="i", xpd = TRUE)
 
 
+# -----------------------------------------------------------------------------------
+# [2019-08-12] Check the NCP score surrounding the TSS
+# -----------------------------------------------------------------------------------
+library(org.Mm.eg.db)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+devtools::load_all('packages/compbio')
+gr <- promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene), upstream = 1000, downstream = 1000)
+gr <- add.seqinfo(gr, 'mm10')
+
+source('analysis/seatac/helper.r'); ncp <- read_ncp_mESC(which = gr)
+cvg <- coverage(ncp, weight = 'name')
+X <- as(as(cvg[gr[strand(gr) == '+']], 'RleViews'), 'matrix')
 
 
-
+# -----------------------------------------------------------------------------------
+# [2019-08-12] Predict the NCP score surrounng TSS
+# -----------------------------------------------------------------------------------
+library(org.Mm.eg.db)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+devtools::load_all('packages/compbio')
+gr <- promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene), upstream = 1000, downstream = 1000)
+gr <- add.seqinfo(gr, 'mm10')
 
 
 

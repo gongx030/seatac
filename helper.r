@@ -2,10 +2,9 @@ library(futile.logger)
 library(GenomicRanges)
 
 devtools::load_all('packages/compbio')
+devtools::load_all('analysis/seatac/packages/seatac')
 
-PROJECT_DIR <- sprintf('%s/seatac', Sys.getenv('TMPDIR'))
-
-flog.info(sprintf('PROJECT_DIR: %s', PROJECT_DIR))
+PROJECT_DIR <- '/panfs/roc/scratch/gongx030/seatac'
 
 # touch everything in the project dir
 # find /panfs/roc/scratch/gongx030/seatac -type f -exec touch {} +
@@ -59,7 +58,8 @@ list_peak_files <- function(){
 		'Maza_mESC_chr1' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed',
 		'Maza_mESC_chr2' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed',
 		'Maza_mESC_chr3' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed',
-		'Maza_mESC_chr1-3' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed'
+		'Maza_mESC_chr1-3' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed',
+		'Maza_mESC_chr1-19' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed'
 	))
 
 	if (!all(file.exists(filenames)))
@@ -87,6 +87,8 @@ read_peaks <- function(ps){
 			x <- x[seqnames(x) == 'chr3']
 		}else if (ps == 'Maza_mESC_chr1-3'){
 			x <- x[seqnames(x) %in% c('chr1', 'chr2', 'chr3')]
+		}else if (ps == 'Maza_mESC_chr1-19'){
+			x <- x[seqnames(x) %in% sprintf('chr%d', 1:19)]
 		}
 
 	}else if (ps %in% c('MEF_active_TSS', 'MEF_active_TSS_0_400', 'MEF_active_TSS_0_800')){
@@ -161,9 +163,13 @@ read_windows <- function(ga, peaks, window_size = 320, step_size = 32, bin_size 
 
 	flog.info('removing chrM reads')
 	peaks <- peaks[seqnames(peaks) != 'chrM']
-	seqlevels(peaks, pruning.mode = 'coarse') <- seqlevels(ga)
+	peaks <- add.seqinfo(peaks, 'mm10')
 
-	gr <- readFragmentSizeMatrix(ga, peaks, window_size = window_size, step_size = step_size, bin_size = bin_size)
+	peaks <- resize(peaks, fix = 'center', width = window_size)
+	peaks <- unlist(slidingWindows(peaks, step = step_size, width = step_size))
+	peaks <- resize(peaks, fix = 'center', width = window_size)
+
+	gr <- readFragmentSizeMatrix(ga, peaks, window_size = window_size, bin_size = bin_size)
 	
 	flog.info(sprintf('# total windows: %d', length(gr)))
 
@@ -253,4 +259,67 @@ evaluate_nucleosome_prediction <- function(y, y_pred, y_true){
 }
 
 
+prepare_training_windows <- function(ga, peaks, negative_sample_ratio = 2, bin_size = 10, step_size = 10, nfr_width = 50, seed = 1, window_size = 320, min_reads_per_window = 15, txdb, genome){
 
+	peaks <- resize(peaks, width = window_size, fix = 'center')
+	peaks <- peaks[seqnames(peaks) != 'chrM']
+	peaks <- add.seqinfo(peaks, 'mm10')
+
+	nc_mm10_gz_file <- sprintf('%s/GSM2183909_unique.map_95pc_mm10.bed.gz', sra.run.dir('GSM2183909'))  # a simple seqnames/start/end format
+	flog.info(sprintf('reading %s', nc_mm10_gz_file))
+	nuc <- read.table(gzfile(nc_mm10_gz_file), header = FALSE, sep = '\t')
+	nuc <- GRanges(seqnames = nuc[, 1], range = IRanges(nuc[, 2], nuc[, 3]))
+	nuc <- add.seqinfo(nuc, 'mm10')
+
+	nuc <- nuc[nuc %over% peaks]
+
+	n_pos <- length(nuc)
+	n_neg <- n_pos * negative_sample_ratio
+	flog.info(sprintf('# positive samples: %d', n_pos))
+	flog.info(sprintf('# negative samples: %d', n_neg))
+	flog.info(sprintf('# total windows: %d', n_pos + n_neg))
+
+	nuc <- resize(nuc, fix = 'center', width = 147)
+	nfr <- setdiff(peaks, nuc)
+
+	ncp <- read_ncp_mESC(which = reduce(resize(nfr, width = window_size, fix = 'center')))
+	cvg <- coverage(ncp, weight = as.numeric(mcols(ncp)$name))
+
+	nfr <- unlist(slidingWindows(nfr, width = nfr_width, step = step_size))
+	nfr <- nfr[nfr %over% ncp]
+	mcols(nfr)$ncp_score <- mean(cvg[nfr])
+
+	set.seed(seed)
+	nfr <- nfr[sample(which(mcols(nfr)$ncp_score < quantile(mcols(nfr)$ncp_score, 0.25)), n_neg)]
+
+	gr <- c(nuc, nfr)
+	mcols(gr)$ncp_score <- NULL
+	mcols(gr)$label <- rep(c(TRUE, FALSE), c(n_pos, n_neg))
+	gr <- resize(gr, fix = 'center', width = window_size)
+
+	gr <- readFragmentSizeMatrix(ga, gr, window_size = window_size, bin_size = bin_size)
+
+	A <- matrix(mcols(gr)$num_reads >= min_reads_per_window, nrow = length(gr), ncol = metadata(ga)$num_samples)
+	i <- rowSums(A) == metadata(ga)$num_samples
+	gr <- gr[i]
+	flog.info(sprintf('# total windows more than %d PE reads in all %d samples: %d', min_reads_per_window, metadata(ga)$num_samples, sum(i)))
+
+	gr
+} # prepare_training_peaks
+
+
+read_ncp_mESC <- function(which = NULL){
+	if (is.null(which))
+		stop('which cannot be NULL')
+	ncp_file <- sprintf('%s/GSM2183909_Chemical_NCPscore_mm10.sorted_merged.txt.gz', sra.run.dir('GSM2183909'))
+	flog.info(sprintf('reading %s', ncp_file))
+	ncp <- rtracklayer::import(ncp_file, format = 'BED', which = reduce(which))
+	ncp <- add.seqinfo(ncp, 'mm10')
+	ncp <- resize(ncp, width = 1, fix = 'center')
+	values(ncp)$name <- as.numeric(values(ncp)$name)
+	ncp
+}
+
+
+find_nfr_mESC <- function(){
+}

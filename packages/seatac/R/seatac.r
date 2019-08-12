@@ -15,8 +15,6 @@
 #' @importFrom reticulate array_reshape
 NULL
 
-#tfe_enable_eager_execution(device_policy = 'silent')
-
 #' seatac 
 #'
 #' Integrating multiple sources of temporal scRNA-seq data by neighborhood component analysis
@@ -27,29 +25,12 @@ NULL
 #'
 seatac <- function(
 	x,			# GenomicRanges object
-	latent_dim = 2, 
-	n_components = 10, 
-	prior = 'gmm',
-	batch_effect = FALSE,
 	epochs = 50, 
-	batch_size = 256, 
-	beta = 1,
-	min_reads_per_window = 10,
-	min_reads_coverage = 20
+	batch_size = 256,
+	validation_split = 0.1
 ){
 
 	flog.info(sprintf('window size: %d', metadata(x)$window_size))
-	flog.info(sprintf('step size: %d', metadata(x)$step_size))
-
-	flog.info(sprintf('latent dimension(latent_dim):%d', latent_dim))
-	flog.info(sprintf('# mixture components(n_components):%d', n_components))
-	flog.info(sprintf('modeling batch effect(batch_effect): %s', batch_effect))
-	flog.info(sprintf('latent prior model: %s', prior))
-	flog.info(sprintf('minimum PE read pairs in each window for training(min_reads_per_window): %d', min_reads_per_window))
-	flog.info(sprintf('minimum average read coverage per window for training(min_reads_coverage): %d', min_reads_coverage))
-	flog.info(sprintf('batch size(batch_size): %d', batch_size))
-
-	x <- makeData(x, min_reads_per_window = min_reads_per_window, min_reads_coverage = min_reads_coverage)
 
   window_dim <- length(x)
   feature_dim <- metadata(x)$n_intervals
@@ -59,15 +40,82 @@ seatac <- function(
 	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
 	flog.info(sprintf('# features per bin(feature_dim): %d', feature_dim))
 
-  model <- vae(
-    input_dim = input_dim, 
-    feature_dim = feature_dim, 
-    latent_dim = latent_dim, 
-    n_components = n_components, 
-    num_samples = metadata(x)$num_samples,
-		prior = prior
-  )
-	model %>% fit(x, epochs = epochs, beta = beta)
+	vplot_inputs <- layer_input(shape = c(input_dim, feature_dim, 1L))
+
+	vplot_output <- vplot_inputs %>% 
+	  layer_conv_2d(
+			filters = 32L,
+			kernel_size = 3L,
+			strides = shape(2L, 2L),
+			activation = 'relu'
+		) %>%
+	  layer_batch_normalization() %>%
+		layer_conv_2d(
+			filters = 32L,
+			kernel_size = 3L,
+			strides = shape(2L, 2L),
+			activation = 'relu'
+		) %>%
+		layer_batch_normalization() %>%
+		layer_conv_2d(
+			filters = 32L,
+			kernel_size = 3L,
+			strides = shape(2L, 2L),
+			activation = 'relu'
+		) %>%
+		layer_batch_normalization() %>%
+		layer_flatten() %>%
+		layer_dense(units = 16L, activation = 'relu') %>%
+		layer_dropout(rate = 0.3)
+
+	coverage_inputs <- layer_input(shape = c(input_dim, 1L))
+
+	coverage_output <- coverage_inputs %>%
+		layer_conv_1d(
+			filters = 8L,
+			kernel_size = 3L,
+			strides = 2L,
+			activation = 'relu'
+		) %>%
+		layer_batch_normalization() %>%
+		layer_flatten() %>%
+		layer_dense(units = 16L, activation = 'relu') %>%
+		layer_dropout(rate = 0.3)
+
+	outputs <- layer_concatenate(list(vplot_output, coverage_output)) %>%
+		layer_dense(units = 16L, activation = 'relu') %>%
+		layer_dropout(rate = 0.3) %>%
+		layer_dense(units = 1L, activation = 'sigmoid')
+
+	model <- keras_model(
+		inputs = list(vplot_inputs, coverage_inputs),
+		outputs = outputs
+	)
+
+	model %>% compile(
+		optimizer = 'rmsprop',
+		loss = 'binary_crossentropy',
+		metrics = c('accuracy')
+	)
+	print(summary(model))
+
+	vplot <- mcols(x)$counts %>%
+		as.matrix() %>%
+		array_reshape(c(window_dim, input_dim, feature_dim, 1))
+
+	cvg <- mcols(x)$coverage %>%
+		array_reshape(c(window_dim, input_dim, 1))
+
+	label <- mcols(x)$label %>% as.numeric()
+
+	model %>% fit(
+		x = list(vplot, cvg),
+		y = label,
+		batch_size = batch_size,
+		epochs = epochs,
+		validation_split = validation_split
+	)
+
 	model
 
 } # seatac
