@@ -20,13 +20,16 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 # -----------------------------------------------------------------------------------
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; window_size <- 320; bin_size <- 10; step_size <- 20; mr <- 5; mc <- 0; bs <- 256; ns <- 1; seed <- 1
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; window_size <- 320; bin_size <- 5; step_size <- 40; mr <- 5; mc <- 0; bs <- 128
-gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-19'; window_size <- 500; bin_size <- 10; mr <- 5; bs <- 256; ns <- 1; seed <- 1
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-19'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; bs <- 256; ns <- 1
 
-epochs <- 15
+epochs <- 50
 
 source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
-source('analysis/seatac/helper.r'); windows <- prepare_training_windows(ga, peaks, negative_sample_ratio = ns, seed = seed, window_size = window_size, bin_size  = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = mr, genome = BSgenome.Mmusculus.UCSC.mm10)
+source('analysis/seatac/helper.r'); windows <- prepare_training_windows(peaks, expand = expand, window_size = window_size, negative_sample_ratio = ns)
+source('analysis/seatac/helper.r'); windows <- readFragmentSizeMatrix(ga, windows, window_size = window_size, bin_size = bin_size)
+windows <- windows[mcols(windows)$num_reads >= mr]
+
 #source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, n_components, batch_effect, window_size, step_size, mr, mc, bin_size)
 
 # run the model 
@@ -60,7 +63,7 @@ cvg <- mcols(windows_test)$coverage %>%
 	array_reshape(c(window_dim, input_dim, 1))
 
 mcols(windows_test)$label_pred <- model %>% predict(list(vplot, cvg), batch_size = bs, verbose = 1)
-saveRDS(windows_test, sprintf('%s/test.rds', PROJECT_DIR))
+#saveRDS(windows_test, sprintf('%s/test.rds', PROJECT_DIR))
 
 nc_mm10_gz_file <- sprintf('%s/GSM2183909_unique.map_95pc_mm10.bed.gz', sra.run.dir('GSM2183909'))  # a simple seqnames/start/end format
 nuc <- read.table(gzfile(nc_mm10_gz_file), header = FALSE, sep = '\t')
@@ -84,7 +87,7 @@ na <- add.seqinfo(na, 'mm10')
 cvg_nucleoatac <- coverage(na, weight = as.numeric(mcols(na)$score))
 
 
-windows_test <- resize(windows_test, fix = 'center', width = 20)
+windows_test <- resize(windows_test, fix = 'center', width = 100)
 mcols(windows_test)$label <- windows_test %over% nuc
 mcols(windows_test)$label_nucleoatac <- windows_test %over% na
 mcols(windows_test)$nucleoatac_score <- mean(cvg_nucleoatac[windows_test])
@@ -110,7 +113,6 @@ res <- do.call('rbind', lapply(seq(0.01, 0.99, by = 0.01), function(h){
 
 plot(1 - res$specificity[res$method == 'seatac'], res$sensitivity[res$method == 'seatac'], type = 'l', lwd = 2, col = 'blue', xlim = c(0, 1), ylim = c(0, 1))
 lines(1 - res$specificity[res$method == 'nucleoatac'], res$sensitivity[res$method == 'nucleoatac'], lwd = 2, col = 'black')
-
 
 plot(res$pct_true[res$method == 'seatac'], res$ppv[res$method == 'seatac'], type = 'l', lwd = 2, col = 'blue', xlim = c(0, 1), ylim = c(0.25, 0.55))
 lines(res$pct_true[res$method == 'nucleoatac'], res$ppv[res$method == 'nucleoatac'], type = 'l', lwd = 2, col = 'black')
@@ -621,8 +623,24 @@ X <- as(as(cvg[gr[strand(gr) == '+']], 'RleViews'), 'matrix')
 library(org.Mm.eg.db)
 library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 devtools::load_all('packages/compbio')
-gr <- promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene), upstream = 1000, downstream = 1000)
+gr <- promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene), upstream = 500, downstream = 500)
 gr <- add.seqinfo(gr, 'mm10')
+gr <- gr[seqnames(gr) %in% 'chrX' & strand(gr) == '+']
+ps <- 'Maza_mESC'; step_size <- 10
+source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
+source('analysis/seatac/helper.r'); windows_test <- read_windows(ga, gr, window_size = window_size, step_size = step_size, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = 0)
 
+window_dim <- length(windows_test)
+feature_dim <- metadata(windows_test)$n_intervals
+input_dim <- metadata(windows_test)$n_bins_per_window
+
+vplot <- mcols(windows_test)$counts %>%
+  as.matrix() %>%
+  array_reshape(c(window_dim, input_dim, feature_dim, 1))
+
+cvg <- mcols(windows_test)$coverage %>%
+  array_reshape(c(window_dim, input_dim, 1))
+
+mcols(windows_test)$label_pred <- model %>% predict(list(vplot, cvg), batch_size = bs, verbose = 1)
 
 

@@ -27,7 +27,7 @@ seatac <- function(
 	x,			# GenomicRanges object
 	epochs = 50, 
 	batch_size = 256,
-	validation_split = 0.1
+	validation_split = 0.2
 ){
 
 	flog.info(sprintf('window size: %d', metadata(x)$window_size))
@@ -39,6 +39,8 @@ seatac <- function(
 	flog.info(sprintf('total number of training windows(window_dim): %d', window_dim))
 	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
 	flog.info(sprintf('# features per bin(feature_dim): %d', feature_dim))
+	flog.info(sprintf('validation split(validation_split): %.2f', validation_split))
+	dropout_rate <- 0.3
 
 	vplot_inputs <- layer_input(shape = c(input_dim, feature_dim, 1L))
 
@@ -66,7 +68,7 @@ seatac <- function(
 		layer_batch_normalization() %>%
 		layer_flatten() %>%
 		layer_dense(units = 16L, activation = 'relu') %>%
-		layer_dropout(rate = 0.3)
+		layer_dropout(rate = dropout_rate)
 
 	coverage_inputs <- layer_input(shape = c(input_dim, 1L))
 
@@ -80,11 +82,11 @@ seatac <- function(
 		layer_batch_normalization() %>%
 		layer_flatten() %>%
 		layer_dense(units = 16L, activation = 'relu') %>%
-		layer_dropout(rate = 0.3)
+		layer_dropout(rate = dropout_rate)
 
 	outputs <- layer_concatenate(list(vplot_output, coverage_output)) %>%
 		layer_dense(units = 16L, activation = 'relu') %>%
-		layer_dropout(rate = 0.3) %>%
+		layer_dropout(rate = dropout_rate) %>%
 		layer_dense(units = 1L, activation = 'sigmoid')
 
 	model <- keras_model(

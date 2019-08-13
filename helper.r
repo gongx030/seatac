@@ -259,9 +259,9 @@ evaluate_nucleosome_prediction <- function(y, y_pred, y_true){
 }
 
 
-prepare_training_windows <- function(ga, peaks, negative_sample_ratio = 2, bin_size = 10, step_size = 10, nfr_width = 50, seed = 1, window_size = 320, min_reads_per_window = 15, txdb, genome){
+prepare_training_windows <- function(peaks, expand = 2000, step_size = 10, window_size = 320, negative_sample_ratio = 1){
 
-	peaks <- resize(peaks, width = window_size, fix = 'center')
+	peaks <- resize(peaks, width = expand, fix = 'center')
 	peaks <- peaks[seqnames(peaks) != 'chrM']
 	peaks <- add.seqinfo(peaks, 'mm10')
 
@@ -271,7 +271,11 @@ prepare_training_windows <- function(ga, peaks, negative_sample_ratio = 2, bin_s
 	nuc <- GRanges(seqnames = nuc[, 1], range = IRanges(nuc[, 2], nuc[, 3]))
 	nuc <- add.seqinfo(nuc, 'mm10')
 
-	nuc <- nuc[nuc %over% peaks]
+	# the 500-bp window centered at the known nucleosome center must be within peak regions
+	# so that there will be enough ATAC-seq reads
+	nuc <- nuc[nuc %within% peaks]
+	nuc <- resize(nuc, width = window_size, fix = 'center')
+	nuc <- nuc[nuc %within% peaks]	
 
 	n_pos <- length(nuc)
 	n_neg <- n_pos * negative_sample_ratio
@@ -279,32 +283,24 @@ prepare_training_windows <- function(ga, peaks, negative_sample_ratio = 2, bin_s
 	flog.info(sprintf('# negative samples: %d', n_neg))
 	flog.info(sprintf('# total windows: %d', n_pos + n_neg))
 
-	nuc <- resize(nuc, fix = 'center', width = 147)
-	nfr <- setdiff(peaks, nuc)
+	# the NFR should be any region that are outside of center 147 bp of any known nuc center
+	nfr <- setdiff(peaks, resize(nuc, fix = 'center', width = 147))
+	nfr <- unlist(slidingWindows(nfr, width = window_size, step = step_size))
+	nfr <- nfr[width(nfr) == window_size]
+	nfr <- nfr[nfr %within% peaks]
 
-	ncp <- read_ncp_mESC(which = reduce(resize(nfr, width = window_size, fix = 'center')))
+	# reading the NCP score on the candidate NFR region
+	ncp <- read_ncp_mESC(which = reduce(peaks))
 	cvg <- coverage(ncp, weight = as.numeric(mcols(ncp)$name))
-
-	nfr <- unlist(slidingWindows(nfr, width = nfr_width, step = step_size))
-	nfr <- nfr[nfr %over% ncp]
-	mcols(nfr)$ncp_score <- mean(cvg[nfr])
-
-	set.seed(seed)
-	nfr <- nfr[sample(which(mcols(nfr)$ncp_score < quantile(mcols(nfr)$ncp_score, 0.25)), n_neg)]
+	nfr <- nfr[resize(nfr, width = 147, fix = 'center') %over% ncp]
+	mcols(nfr)$ncp_score <- mean(cvg[resize(nfr, width = 147, fix = 'center')])
+	nfr <- nfr[order(mcols(nfr)$ncp_score)[1:n_neg]]
 
 	gr <- c(nuc, nfr)
-	mcols(gr)$ncp_score <- NULL
+	mcols(gr)$ncp_score <- mean(cvg[resize(gr, width = 147, fix = 'center')])
 	mcols(gr)$label <- rep(c(TRUE, FALSE), c(n_pos, n_neg))
-	gr <- resize(gr, fix = 'center', width = window_size)
+	gr	
 
-	gr <- readFragmentSizeMatrix(ga, gr, window_size = window_size, bin_size = bin_size)
-
-	A <- matrix(mcols(gr)$num_reads >= min_reads_per_window, nrow = length(gr), ncol = metadata(ga)$num_samples)
-	i <- rowSums(A) == metadata(ga)$num_samples
-	gr <- gr[i]
-	flog.info(sprintf('# total windows more than %d PE reads in all %d samples: %d', min_reads_per_window, metadata(ga)$num_samples, sum(i)))
-
-	gr
 } # prepare_training_peaks
 
 
@@ -322,4 +318,6 @@ read_ncp_mESC <- function(which = NULL){
 
 
 find_nfr_mESC <- function(){
+	ncp <- read_ncp_mESC()
+	browser()
 }
