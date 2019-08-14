@@ -20,18 +20,18 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 
 			b <- G[s, ]	# window index for current batch
 			x <- mcols(gr)$counts[b, ] %>%
-				as.matrix() %>% 
-				tf$cast(tf$float32) %>% 
-				tf$reshape(shape(batch_size, model$feature_dim, model$input_dim)) %>%
-				tf$expand_dims(axis = 3L)
+				as.matrix() %>%
+				array_reshape(c(batch_size, model$input_dim, model$feature_dim, 1L)) %>%
+				tf$cast(tf$float32)
 
 			y <- mcols(gr)$coverage[b, , drop = FALSE] %>%
-				tf$cast(tf$float32) %>% 
-				tf$expand_dims(axis = 2L)
+				array_reshape(c(batch_size, model$input_dim, 1L)) %>%
+				tf$cast(tf$float32)
 
 			# determining the weight for each window
 			w <- (mcols(gr)$num_reads[b] / 25)^(3/4)
 			w[w > 1] <- 1
+			w <- windows_weight(mcols(gr)$num_reads[b])
 
       with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
@@ -62,6 +62,8 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 
         loss <- kl_div + avg_nll_x + avg_nll_y
       })
+
+			browser()
 
       total_loss <- total_loss + loss
 			total_loss_nll_x <- total_loss_nll_x + avg_nll_x

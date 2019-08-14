@@ -28,12 +28,9 @@ seatac <- function(
 	latent_dim = 2, 
 	n_components = 10, 
 	prior = 'gmm',
-	batch_effect = FALSE,
 	epochs = 50, 
 	batch_size = 256, 
-	beta = 1,
-	min_reads_per_window = 10,
-	min_reads_coverage = 20
+	beta = 1
 ){
 
 	flog.info(sprintf('window size: %d', metadata(x)$window_size))
@@ -41,13 +38,8 @@ seatac <- function(
 
 	flog.info(sprintf('latent dimension(latent_dim):%d', latent_dim))
 	flog.info(sprintf('# mixture components(n_components):%d', n_components))
-	flog.info(sprintf('modeling batch effect(batch_effect): %s', batch_effect))
 	flog.info(sprintf('latent prior model: %s', prior))
-	flog.info(sprintf('minimum PE read pairs in each window for training(min_reads_per_window): %d', min_reads_per_window))
-	flog.info(sprintf('minimum average read coverage per window for training(min_reads_coverage): %d', min_reads_coverage))
 	flog.info(sprintf('batch size(batch_size): %d', batch_size))
-
-	x <- makeData(x, min_reads_per_window = min_reads_per_window, min_reads_coverage = min_reads_coverage)
 
 	window_dim <- length(x)
 	feature_dim <- metadata(x)$n_intervals
