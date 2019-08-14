@@ -8,19 +8,15 @@ predict.vae <- function(model, x, batch_size = 2^13){
 
 	flog.info(sprintf('# input peaks: %d', window_dim))
 
-	starts <- seq(1, metadata(x)$expand / metadata(x)$bin_size - n_bins_per_window + 1, by = metadata(x)$step_size / metadata(x)$bin_size)
-	ends <- starts + n_bins_per_window - 1
-	n_block <- length(starts)
-
 	# determine the batches
-	batch_size2 <- floor(batch_size / n_block)
-	bs <- seq(1, window_dim, by = batch_size2)
-	be <- bs + batch_size2 - 1
+	bs <- seq(1, window_dim, by = batch_size)
+	be <- bs + batch_size - 1
 	be[be > window_dim] <- window_dim
 	n_batch <- length(bs)
 
-	gr <- NULL
-	center <- 1:(metadata(x)$step_size / metadata(x)$bin_size) - (metadata(x)$step_size / metadata(x)$bin_size) / 2 + n_bins_per_window / 2
+	latent <- NULL
+	fitted_coverage  <- NULL
+	fitted_counts <- NULL
 	
 	if (model$prior == 'gmm'){
 
@@ -29,18 +25,16 @@ predict.vae <- function(model, x, batch_size = 2^13){
 			flog.info(sprintf('prediction | batch=%4.d/%4.d', b, n_batch))
 
 			i <- bs[b]:be[b]
-			xi <- makeData(x[i], min_reads_per_window = 0, min_reads_coverage = 0)
-			window_dim2 <- length(xi)
+			window_dim2 <- length(i)
 
-			X <- mcols(xi)$counts %>%
+			X <- mcols(x)$counts[i, ] %>%
 				as.matrix() %>%
-				tf$cast(tf$float32) %>% 
-				tf$reshape(shape(window_dim2, model$feature_dim, model$input_dim)) %>%
-				tf$expand_dims(axis = 3L)
+				array_reshape(c(window_dim2, model$input_dim, model$feature_dim, 1L)) %>%
+				tf$cast(tf$float32) # need to convert to tensors
 
-			Y <- mcols(xi)$coverage %>% 
-				tf$cast(tf$float32) %>%
-				tf$expand_dims(axis = 2L)
+			Y <- mcols(x)$coverage[i, , drop = FALSE] %>%
+				array_reshape(c(window_dim2, model$input_dim, 1L)) %>%
+				tf$cast(tf$float32)
 
 			Z_x <- model$encoder$vplot(X)$loc
 			Z_y <- model$encoder$coverage(Y)$loc
@@ -51,40 +45,24 @@ predict.vae <- function(model, x, batch_size = 2^13){
 				as.array() %>%
 				aperm(perm = c(1, 3, 2))	# change from row-major to column-major
 
-			X <- X[, center, , drop = FALSE]
-			dim(X) <- c(window_dim2, length(center) * model$feature_dim)
+			dim(X) <- c(window_dim2, model$input_dim * model$feature_dim)
 
 			Y <- model$decoder$coverage(Z)$mean() %>% 
-				tf$squeeze() %>%
-				as.matrix() 
-			Y <- Y[, center, drop = FALSE]
+				as.array() 
+	
+			dim(Y) <- c(window_dim2, model$input_dim)
 
-			grb <- granges(resize(xi, width = metadata(x)$step_size, fix = 'center'))
-			mcols(grb)$group <- mcols(xi)$group
-			mcols(grb)$window_id <- i
-			mcols(grb)$block <- mcols(xi)$block
-			mcols(grb)$latent <- Z %>% as.matrix()
-			mcols(grb)$fitted_coverage <- Y
-			mcols(grb)$fitted_counts <- X
-
-			if (is.null(gr))
-				gr <- grb
-			else
-				gr <- c(gr, grb)
-			
+			latent <- rbind(latent, Z %>% as.matrix())
+			fitted_coverage <- rbind(fitted_coverage, Y)
+			fitted_counts <- rbind(fitted_counts, X)
 		}
 	}else
 		stop(sprintf('model$prior %s is not supported', model$prior))
 
-	metadata(gr)$fragment_size_range <- metadata(x)$fragment_size_range
-	metadata(gr)$fragment_size_interval <- metadata(x)$fragment_size_interval
-	metadata(gr)$bin_size <- metadata(x)$bin_size
-	metadata(gr)$window_size <- metadata(x)$step_size
-	metadata(gr)$n_intervals <- metadata(x)$n_intervals
-	metadata(gr)$num_samples <- metadata(x)$num_samples
-	metadata(gr)$n_bins_per_window <- metadata(gr)$window_size / metadata(gr)$bin_size
-
-	gr	
+	mcols(x)$latent <- latent
+	mcols(x)$fitted_coverage <- fitted_coverage
+	mcols(x)$fitted_counts <- fitted_counts
+	x
 
 } # predict.vae
 

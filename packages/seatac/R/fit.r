@@ -22,15 +22,13 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 			x <- mcols(gr)$counts[b, ] %>%
 				as.matrix() %>%
 				array_reshape(c(batch_size, model$input_dim, model$feature_dim, 1L)) %>%
-				tf$cast(tf$float32)
+				tf$cast(tf$float32)	# need to convert to tensors
 
 			y <- mcols(gr)$coverage[b, , drop = FALSE] %>%
 				array_reshape(c(batch_size, model$input_dim, 1L)) %>%
 				tf$cast(tf$float32)
 
 			# determining the weight for each window
-			w <- (mcols(gr)$num_reads[b] / 25)^(3/4)
-			w[w > 1] <- 1
 			w <- windows_weight(mcols(gr)$num_reads[b])
 
       with(tf$GradientTape(persistent = TRUE) %as% tape, {
@@ -62,8 +60,6 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 
         loss <- kl_div + avg_nll_x + avg_nll_y
       })
-
-			browser()
 
       total_loss <- total_loss + loss
 			total_loss_nll_x <- total_loss_nll_x + avg_nll_x
@@ -102,7 +98,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 			)
     }
 
-    flog.info(sprintf('training | epoch=%4.d/%4.d | nll(vplot)=%7.1f | nll(coverage)=%7.1f | kl=%7.1f | beta=%5.3f | total=%7.1f', epoch, epochs, total_loss_nll_x, total_loss_nll_y, total_loss_kl, beta, total_loss))
+    flog.info(sprintf('training | epoch=%4.d/%4.d | nll(vplot)=%7.1f | nll(coverage)=%7.1f | kl=%7.1f | total=%7.1f', epoch, epochs, total_loss_nll_x, total_loss_nll_y, total_loss_kl, total_loss))
   }
 
 } # fit_vae

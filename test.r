@@ -23,7 +23,7 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 # -----------------------------------------------------------------------------------
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; window_size <- 320; bin_size <- 10; step_size <- 20; mr <- 5; mc <- 0; bs <- 256; ns <- 1; seed <- 1
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; window_size <- 320; bin_size <- 5; step_size <- 40; mr <- 5; mc <- 0; bs <- 128
-gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; expand <- 1000; window_size <- 500; bin_size <- 10; mr <- 10; bs <- 256; ns <- 1
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1
 
 latent_dim <- 2; n_components <- 20; epochs <- 100
 
@@ -31,7 +31,7 @@ source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
 source('analysis/seatac/helper.r'); windows <- prepare_training_windows(peaks, expand = expand, window_size = window_size, negative_sample_ratio = ns)
 source('analysis/seatac/helper.r'); windows <- readFragmentSizeMatrix(ga, windows, window_size = window_size, bin_size = bin_size)
-windows <- windows[mcols(windows)$num_reads >= mr]
+windows <- windows[mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= mc]
 
 #source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, n_components, batch_effect, window_size, step_size, mr, mc, bin_size)
 
@@ -43,6 +43,8 @@ devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, 
 
 # load the model
 #devtools::load_all('analysis/seatac/packages/seatac'); model <- loadModel(model_dir)
+
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows)
 
 
 # -----------------------------------------------------------------------------------
@@ -245,7 +247,7 @@ seqinfo(gr) <- seqinfo(cvg)
 x_mnase <- mean(cvg[unlist(slidingWindows(gr, width = 10, step = 10))])
 
 
-par(mfcol = c(5, 1))
+par(mfcol = c(4, 6))
 i <- 1
 yy <- c(50, 200, 400, 600, 670)
 image(matrix(as.matrix(mcols(gr)$counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
@@ -256,7 +258,6 @@ axis(2, at = (yy - 50) / (670 - 50), label = yy)
 axis(1, at = c(0, 0.5, 1))
 plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
-plot(x_mnase, type = 'b', lwd = 2, xaxs="i", yaxs="i")
 
 
 # -----------------------------------------------------------------------------------
