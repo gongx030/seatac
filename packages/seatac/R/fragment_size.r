@@ -41,6 +41,11 @@ readFragmentSizeMatrix <- function(
 		cvg <- coverage(x[mcols(x)$group == i])
 		matrix(mean(cvg[bins]), nrow = length(windows), ncol = n_bins_per_window, byrow = TRUE)
 	}))
+	mcols(gr)$min_coverage <- rowMins(mcols(gr)$coverage)
+	mcols(gr)$max_coverage <- rowMaxs(mcols(gr)$coverage)
+	mcols(gr)$mean_coverage <- rowMeans(mcols(gr)$coverage)
+	mcols(gr)$coverage <- (mcols(gr)$coverage - mcols(gr)$min_coverage) / (mcols(gr)$max_coverage - mcols(gr)$min_coverage)
+	mcols(gr)$coverage[is.na(mcols(gr)$coverage)] <- 0
 
 	# compute the center point between PE reads
 	# this is faster than using GAlignmentPairs
@@ -89,46 +94,3 @@ readFragmentSizeMatrix <- function(
 
 } # readFragmentSizeMatrix
 
-
-makeData <- function(x, min_reads_per_window = 10, min_reads_coverage = 20){
-
-	n_bins_per_window <- metadata(x)$window_size / metadata(x)$bin_size
-
-	# the index of the 10-bp bins in [-200, +200] window
-	starts <- seq(1, metadata(x)$expand / metadata(x)$bin_size - n_bins_per_window + 1, by = metadata(x)$step_size / metadata(x)$bin_size)
-	ends <- starts + n_bins_per_window - 1
-	n_block <- length(starts)
-
-	# reads coverage of moving 400-bp window for each bin in [-200, +200] window (aka, core bins)
-	# with step size 200 bp
-	gr <- Reduce('c', lapply(1:n_block, function(j){
-
-		# the index of the bins covering the [-200, +200] window
-		m <- starts[j]:ends[j]
-		xj <- x
-		ranges(xj) <- shift(resize(ranges(xj), fix = 'start', width = metadata(x)$window_size), metadata(x)$step_size * (j - 1))
-		mcols(xj)$coverage <- mcols(xj)$coverage[, m, drop = FALSE]
-		mcols(xj)$min_coverage <- rowMins(mcols(xj)$coverage)
-		mcols(xj)$max_coverage <- rowMaxs(mcols(xj)$coverage)
-		mcols(xj)$mean_coverage <- rowMeans(mcols(xj)$coverage)
-
-		xj <- xj[mcols(xj)$mean_coverage >= min_reads_coverage]
-
-		mcols(xj)$coverage <- (mcols(xj)$coverage - mcols(xj)$min_coverage) / (mcols(xj)$max_coverage - mcols(xj)$min_coverage)
-		mcols(xj)$coverage[is.na(mcols(xj)$coverage)] <- 0
-
-		m2 <- rep(m, metadata(x)$n_interval) + (rep(1:metadata(x)$n_interval, each = n_bins_per_window) - 1) * metadata(x)$expand / metadata(x)$bin_size 
-		mcols(xj)$counts <- mcols(xj)$counts[, m2, drop = FALSE]
-		mcols(xj)$num_reads <- rowSums(mcols(xj)$counts)
-		xj <- xj[mcols(xj)$num_reads >= min_reads_per_window]
-		mcols(xj)$block <- j
-		xj
-	}))
-
-	metadata(gr)$expand <- NULL
-	metadata(gr)$step_size <- NULL
-	metadata(gr)$min_reads_per_window <- min_reads_per_window
-	metadata(gr)$n_bins_per_window <- n_bins_per_window
-	gr
-
-} # makeTrainData

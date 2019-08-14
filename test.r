@@ -8,10 +8,13 @@ library(roxygen2); library(devtools); devtools::document('packages/compbio')
 # -----------------------------------------------------------------------------------
 
 library(tensorflow)
+tfe_enable_eager_execution(device_policy = 'silent')
 library(keras)
+library(tfprobability)
 library(futile.logger); flog.threshold(TRACE)
 library(BSgenome.Mmusculus.UCSC.mm10)
 library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+
 
 
 # -----------------------------------------------------------------------------------
@@ -20,7 +23,7 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 # -----------------------------------------------------------------------------------
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; window_size <- 320; bin_size <- 10; step_size <- 20; mr <- 5; mc <- 0; bs <- 256; ns <- 1; seed <- 1
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; window_size <- 320; bin_size <- 5; step_size <- 40; mr <- 5; mc <- 0; bs <- 128
-gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-19'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; bs <- 256; ns <- 1
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; expand <- 1000; window_size <- 500; bin_size <- 10; mr <- 10; bs <- 256; ns <- 1
 
 epochs <- 50
 
