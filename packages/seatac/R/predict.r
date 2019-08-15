@@ -36,6 +36,10 @@ predict.vae <- function(model, x, batch_size = 2^13){
 				array_reshape(c(window_dim2, model$input_dim, 1L)) %>%
 				tf$cast(tf$float32)
 
+			label_pred <- model$classifier(list(vplot = X, coverage = Y))$mean() %>% as.matrix()
+
+			browser()
+
 			Z_x <- model$encoder$vplot(X)$loc
 			Z_y <- model$encoder$coverage(Y)$loc
 			Z <- tf$concat(list(Z_x, Z_y), axis = 1L)

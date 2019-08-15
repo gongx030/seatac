@@ -1,4 +1,4 @@
-fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256, beta = 1, learning_rate = 0.001){
+fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 256, beta = 1, gamma = 10, learning_rate = 0.001){
 
 	optimizer <- tf$train$AdamOptimizer(learning_rate)
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
@@ -14,6 +14,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
     total_loss <- 0
     total_loss_nll_x <- 0
     total_loss_nll_y <- 0
+    total_loss_nll_label <- 0
     total_loss_kl <- 0
 
 		for (s in 1:steps_per_epoch){
@@ -24,7 +25,14 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 				array_reshape(c(batch_size, model$input_dim, model$feature_dim, 1L)) %>%
 				tf$cast(tf$float32)	# need to convert to tensors
 
-			y <- mcols(gr)$coverage[b, , drop = FALSE] %>%
+#			y <- mcols(gr)$coverage[b, , drop = FALSE] %>%
+#				array_reshape(c(batch_size, model$input_dim, 1L)) %>%
+#				tf$cast(tf$float32)
+
+			label <- as.numeric(mcols(gr)$label[b])
+			
+			y <- mcols(gr)$coverage[b, , drop = FALSE]; y[, 1:10] <- label
+			y <- y %>%
 				array_reshape(c(batch_size, model$input_dim, 1L)) %>%
 				tf$cast(tf$float32)
 
@@ -39,16 +47,24 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
         posterior_y <- y %>% model$encoder$coverage()
         posterior_sample_y <- posterior_y$sample()
 
-				posterior_sample <- tf$concat(list(posterior_sample_x, posterior_sample_y), 1L)
+				label_dist <- list(vplot = x, coverage = y) %>% model$classifier()
+				label_pred <- label_dist$sample()
+
+				posterior_sample <- tf$concat(list(posterior_sample_x, posterior_sample_y, label_pred %>% tf$cast(tf$float32)), 1L)
 
        	likelihood_x <- posterior_sample %>% model$decoder$vplot()
        	likelihood_y <- posterior_sample %>% model$decoder$coverage()
 
 				nll_x <- -w * likelihood_x$log_prob(x)
 				nll_y <- -w * likelihood_y$log_prob(y)
+				nll_label <- - label_dist$log_prob(label)
+
+				tab <- table(label, label_pred %>% as.matrix())
+				print((tab[1, 1] + tab[2, 2]) / sum(tab))
 
         avg_nll_x <- tf$reduce_mean(nll_x)
         avg_nll_y <- tf$reduce_mean(nll_y)
+        avg_nll_label <- gamma * tf$reduce_mean(nll_label)
 
 				prior_model <- model$latent_prior_model(NULL)
 
@@ -58,36 +74,42 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 
 				kl_div <- beta * tf$reduce_mean(kl_div)
 
-        loss <- kl_div + avg_nll_x + avg_nll_y
+        loss <- 0 * kl_div + 0 * avg_nll_x + 0 * avg_nll_y + avg_nll_label
       })
 
       total_loss <- total_loss + loss
 			total_loss_nll_x <- total_loss_nll_x + avg_nll_x
       total_loss_nll_y <- total_loss_nll_y + avg_nll_y
+      total_loss_nll_label <- total_loss_nll_label + avg_nll_label
       total_loss_kl <- total_loss_kl + kl_div
 
       encoder_gradients_x <- tape$gradient(loss, model$encoder$vplot$variables)
-      encoder_gradients_y <- tape$gradient(loss, model$encoder$coverage$variables)
-      decoder_gradients_x <- tape$gradient(loss, model$decoder$vplot$variables)
-      decoder_gradients_y <- tape$gradient(loss, model$decoder$coverage$variables)
-
       optimizer$apply_gradients(
         purrr::transpose(list(encoder_gradients_x, model$encoder$vplot$variables)),
         global_step = tf$train$get_or_create_global_step()
       )
 
+      encoder_gradients_y <- tape$gradient(loss, model$encoder$coverage$variables)
       optimizer$apply_gradients(
         purrr::transpose(list(encoder_gradients_y, model$encoder$coverage$variables)),
         global_step = tf$train$get_or_create_global_step()
       )
 
+      decoder_gradients_x <- tape$gradient(loss, model$decoder$vplot$variables)
       optimizer$apply_gradients(
         purrr::transpose(list(decoder_gradients_x, model$decoder$vplot$variables)),
         global_step = tf$train$get_or_create_global_step()
       )
 
+      decoder_gradients_y <- tape$gradient(loss, model$decoder$coverage$variables)
       optimizer$apply_gradients(
         purrr::transpose(list(decoder_gradients_y, model$decoder$coverage$variables)),
+        global_step = tf$train$get_or_create_global_step()
+      )
+
+			classifier_gradients <- tape$gradient(loss, model$classifier$variables)
+      optimizer$apply_gradients(
+        purrr::transpose(list(classifier_gradients, model$classifier$variables)),
         global_step = tf$train$get_or_create_global_step()
       )
 
@@ -98,7 +120,7 @@ fit.vae <- function(model, gr, epochs = 1, steps_per_epoch = 10, batch_size = 25
 			)
     }
 
-    flog.info(sprintf('training | epoch=%4.d/%4.d | nll(vplot)=%7.1f | nll(coverage)=%7.1f | kl=%7.1f | total=%7.1f', epoch, epochs, total_loss_nll_x, total_loss_nll_y, total_loss_kl, total_loss))
+    flog.info(sprintf('training | epoch=%4.d/%4.d | nll(vplot)=%7.1f | nll(coverage)=%7.1f | nll(classifier)=%7.5f | kl=%7.1f | total=%7.1f', epoch, epochs, total_loss_nll_x, total_loss_nll_y, total_loss_nll_label, total_loss_kl, total_loss))
   }
 
 } # fit_vae

@@ -4,7 +4,7 @@
 vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, prior = 'gmm'){
 
 	if (prior == 'gmm'){
-		latent_prior_model <- gmm_prior_model(2 * latent_dim, n_components)
+		latent_prior_model <- gmm_prior_model(2 * latent_dim + 1, n_components)
 	}else
 		stop(sprintf('unknown prior model: %s', prior))
 
@@ -13,6 +13,7 @@ vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, p
 			vplot = vplot_encoder_model(latent_dim),
 			coverage = coverage_encoder_model(latent_dim)
 		),
+		classifier = classifier_model(input_dim, feature_dim),
 		decoder = list(
 			vplot = vplot_decoder_model(input_dim, feature_dim), 
 			coverage = coverage_decoder_model(input_dim)
@@ -343,3 +344,76 @@ coverage_decoder_model <- function(input_dim, filters0 = 8L, filters = c(8L, 1L)
 	})
 }
 
+classifier_model <- function(input_dim, feature_dim, name = NULL){
+
+	keras_model_custom(name = name, function(self){
+
+		self$conv_vplot_1 <- layer_conv_2d(
+			filters = 32L,
+			kernel_size = 3L,
+			strides = shape(2L, 2L)
+		)
+		self$bn_vplot_1 <- layer_batch_normalization()
+		self$activation_vplot_1 <- layer_activation(activation = 'relu')
+		self$pooling_vplot_1 <- layer_max_pooling_2d(pool_size = c(2L, 2L))
+
+		self$conv_vplot_2 <- layer_conv_2d(
+			filters = 32L,
+			kernel_size = 3L,
+			strides = shape(2L, 2L)
+		)
+		self$bn_vplot_2 <- layer_batch_normalization()
+		self$activation_vplot_2 <- layer_activation(activation = 'relu')
+		self$pooling_vplot_2 <- layer_max_pooling_2d(pool_size = c(2L, 2L))
+
+		self$flatten_vplot_1 <- layer_flatten()
+
+		self$conv_coverage_1 <- layer_conv_1d(
+			filters = 8L,
+			kernel_size = 3L,
+			strides = 2L
+		)
+		self$bn_coverage_1 <- layer_batch_normalization()
+		self$activation_coverage_1 <- layer_activation(activation = 'relu')
+		self$pooling_coverage_1 <- layer_max_pooling_1d(pool_size = 4L)
+
+		self$flatten_coverage_1 <- layer_flatten()
+
+		self$dense_1 <- layer_dense(units = 16L, activation = 'relu')
+		self$dropout_1 <- layer_dropout(rate = 0.2)
+		self$dense_2 <- layer_dense(units = 1L)
+
+		function(x, mask = NULL){
+
+			h_vplot <- x$vplot %>% 
+
+#				self$conv_vplot_1() %>%
+#				self$bn_vplot_1() %>%
+#				self$activation_vplot_1() %>%
+#				self$pooling_vplot_1() %>%
+
+#				self$conv_vplot_2() %>%
+#				self$bn_vplot_2() %>%
+#				self$activation_vplot_2() %>%
+#				self$pooling_vplot_2() %>%
+
+				self$flatten_vplot_1()
+			
+			h_coverage <- x$coverage %>%
+
+#				self$conv_coverage_1() %>%
+#				self$bn_coverage_1() %>%
+#				self$activation_coverage_1() %>%
+#				self$pooling_coverage_1() %>%
+
+				self$flatten_coverage_1()
+			
+			y <- layer_concatenate(list(h_vplot, h_coverage)) %>%
+				self$dense_1() %>%
+				self$dropout_1() %>%
+				self$dense_2()
+
+			tfd_bernoulli(logits = y)
+		}
+	})
+}

@@ -36,7 +36,7 @@ windows <- windows[mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage
 #source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, n_components, batch_effect, window_size, step_size, mr, mc, bin_size)
 
 # run the model 
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, n_components = n_components, epochs = epochs, batch_size = bs)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, n_components = n_components, epochs = 20, batch_size = bs)
 
 
 #devtools::load_all('analysis/seatac/packages/seatac'); saveModel(model, model_dir)
@@ -45,6 +45,7 @@ devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, 
 #devtools::load_all('analysis/seatac/packages/seatac'); model <- loadModel(model_dir)
 
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows)
+image(matrix(colMeans(mcols(gr)$fitted_counts[mcols(gr)$label, ]), 32, 32), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'))
 
 
 # -----------------------------------------------------------------------------------
