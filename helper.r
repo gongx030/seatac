@@ -220,8 +220,8 @@ save_seatac_res <- function(gr, gs, window_size, bin_size, latent_dim, n_compone
 	}
 }
 
-model_dir_name <- function(dataset, peakset, latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage, bin_size){
-	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_latent_dim=%d_n_components=%d_batch_effect=%s_window_size=%d_step_size=%s_min_reads_per_window=%d_min_reads_coverage=%d_bin_size=%d', paste(dataset, collapse = '+'), paste(peakset, collapse = '+'), latent_dim, n_components, batch_effect, window_size, step_size, min_reads_per_window, min_reads_coverage, bin_size)
+model_dir_name <- function(dataset, peakset, latent_dim, expand, window_size, min_reads_per_window, min_reads_coverage, bin_size, negative_sample_ratio){
+	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_latent_dim=%d_expand=%d_window_size=%d_min_reads_per_window=%d_min_reads_coverage=%d_bin_size=%d_negative_sample_ratio=%d', dataset, peakset, latent_dim, expand, window_size, min_reads_per_window, min_reads_coverage, bin_size, negative_sample_ratio)
 	flog.info(sprintf('model dir: %s', f))
 	f
 }

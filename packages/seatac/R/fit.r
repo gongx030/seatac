@@ -27,4 +27,4 @@ fit.vae <- function(model, gr, epochs = 1, batch_size = 256, learning_rate = 0.0
 
 	model
 
-} # fit_vae
+} # fit.vae

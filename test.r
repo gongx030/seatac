@@ -23,28 +23,21 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; window_size <- 320; bin_size <- 5; step_size <- 40; mr <- 5; mc <- 0; bs <- 128
 gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1
 
-latent_dim <- 2; epochs <- 100
+latent_dim <- 2; epochs <- 20
 
 source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
 source('analysis/seatac/helper.r'); windows <- prepare_training_windows(peaks, expand = expand, window_size = window_size, negative_sample_ratio = ns)
 source('analysis/seatac/helper.r'); windows <- readFragmentSizeMatrix(ga, windows, window_size = window_size, bin_size = bin_size)
 windows <- windows[mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= mc]
-
-#source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, n_components, batch_effect, window_size, step_size, mr, mc, bin_size)
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, expand, window_size, mr, mc, bin_size, ns)
 
 # run the model 
-train <- seqnames(windows) %in% c('chr2', 'chr3')
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows[train], latent_dim = latent_dim, epochs = 20, batch_size = bs)
-
-
-#devtools::load_all('analysis/seatac/packages/seatac'); saveModel(model, model_dir)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = 2, batch_size = bs)
+devtools::load_all('analysis/seatac/packages/seatac'); save_model(model, model_dir)
 
 # load the model
-#devtools::load_all('analysis/seatac/packages/seatac'); model <- loadModel(model_dir)
-
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows[train])
-
+devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
 
 
 # -----------------------------------------------------------------------------------

@@ -50,19 +50,20 @@ vae <- function(input_dim, feature_dim, latent_dim, num_samples){
 			inputs = list(vplot_input, coverage_input),
 			outputs = list(vplot_prob, coverage_prob, label_prob)
 		),
-		recovery = keras_model(
+		nucleosome = keras_model(
 			inputs = list(vplot_input, coverage_input),
-			outputs = list(vplot_decoded, coverage_decoded, label)
+			outputs = label 
 		),
 		num_samples = num_samples,
 		input_dim = input_dim,
-		feature_dim = feature_dim
+		feature_dim = feature_dim,
+		latent_dim = latent_dim
 	), class = 'vae')
 
 } # vae
 
 
-saveModel <- function(x, dir){
+save_model <- function(x, dir){
 
 	if (missing(dir))
 		stop('dir must be specified')
@@ -70,45 +71,26 @@ saveModel <- function(x, dir){
 	if (!file.exists(dir))
 		dir.create(dir, recursive = TRUE)
 
-	encoder_vplot_file <- sprintf('%s/encoder_vplot.h5', dir)
-	flog.info(sprintf('writing %s', encoder_vplot_file))
-	x$encoder$vplot$save_weights(encoder_vplot_file)
-	x$encoder$vplot_weight_file <- encoder_vplot_file
+	vae_file <- sprintf('%s/vae.h5', dir)
+	flog.info(sprintf('writing %s', vae_file))
+	x$vae$save_weights(vae_file)
+	x$vae_file <- vae_file
 
-	encoder_coverage_file <- sprintf('%s/encoder_coverage.h5', dir)
-	flog.info(sprintf('writing %s', encoder_coverage_file))
-	x$encoder$coverage$save_weights(encoder_coverage_file)
-	x$encoder$coverage_weight_file <- encoder_coverage_file
+	nucleosome_file <- sprintf('%s/nucleosome.h5', dir)
+	flog.info(sprintf('writing %s', nucleosome_file))
+	x$nucleosome$save_weights(nucleosome_file)
+	x$nucleosome_file <- nucleosome_file
 
-	decoder_vplot_file <- sprintf('%s/decoder_vplot.h5', dir)
-	flog.info(sprintf('writing %s', decoder_vplot_file))
-	x$decoder$vplot$save_weights(decoder_vplot_file)
-	x$decoder$vplot_weight_file <- decoder_vplot_file
-
-	decoder_coverage_file <- sprintf('%s/decoder_coverage.h5', dir)
-	flog.info(sprintf('writing %s', decoder_coverage_file))
-	x$decoder$coverage$save_weights(decoder_coverage_file)
-	x$decoder$coverage_weight_file <- decoder_coverage_file
-
-	latent_prior_file <- sprintf('%s/latent_prior_model.h5', dir)
-	flog.info(sprintf('writing %s', latent_prior_file))
-	x$latent_prior_model$save_weights(latent_prior_file)
-	x$latent_prior_file_weight_file <- latent_prior_file
-
-	x$encoder$vplot <- NULL
-	x$encoder$coverage <- NULL
-	x$decoder$vplot <- NULL
-	x$decoder$coverage <- NULL
-	x$latent_prior_model <- NULL
+	x$encoder$vae <- NULL
 
 	model_file <- sprintf('%s/model.rds', dir)
 	flog.info(sprintf('writing %s', model_file))
 	saveRDS(x, model_file)
 
-} # saveModel
+} # save_model
 
 
-loadModel <- function(dir){
+load_model <- function(dir){
 
 	if (missing(dir))
 		stop('dir must be specified')
@@ -118,42 +100,25 @@ loadModel <- function(dir){
 	if (!file.exists(model_file))
 		stop(sprintf('%s does not exist', model_file))
 
+	flog.info(sprintf('reading %s', model_file))
 	x <- readRDS(model_file)
 
 	model <- vae(
 		input_dim = x$input_dim,
 		feature_dim = x$feature_dim,
 		latent_dim = x$latent_dim,
-		n_components = x$n_components,
-		num_samples = x$num_samples,
-		prior = x$prior
+		num_samples = x$num_samples
 	)
 
-  # reactivate the layers
-  array(0, dim = c(1, model$input_dim, model$feature_dim, 1)) %>%
-	  tf$cast(tf$float32) %>%
-	  model$encoder$vplot()
-	model$encoder$vplot$load_weights(x$encoder$vplot_weight_file)
+	flog.info(sprintf('reading %s', x$vae_file))
+	model$vae$load_weights(x$vae_file)
 
-  array(0, dim = c(1, model$input_dim, 1)) %>%
-	  tf$cast(tf$float32) %>%
-	  model$encoder$coverage()
-	model$encoder$coverage$load_weights(x$encoder$coverage_weight_file)
-
-  array(0, dim = c(1, model$latent_dim * 2)) %>%
-	  tf$cast(tf$float32) %>%
-	  model$decoder$vplot()
-	model$decoder$vplot$load_weights(x$decoder$vplot_weight_file)
-
-  array(0, dim = c(1, model$latent_dim * 2)) %>%
-	  tf$cast(tf$float32) %>%
-	  model$decoder$coverage()
-	model$decoder$coverage$load_weights(x$decoder$coverage_weight_file)
-
-	model$latent_prior_model$load_weights(x$latent_prior_file_weight_file)
+	flog.info(sprintf('reading %s', x$nucleosome_file))
+	model$nucleosome$load_weights(x$nucleosome_file)
 
 	model
-} # loadModel
+
+} # load_model
 
 
 #' encoding model for the coverage data
@@ -230,7 +195,8 @@ vplot_decoder_model <- function(
 			filters = filters[3],
 			kernel_size = kernel_size[3],
 			strides = shape(input_strides[3], feature_strides[3]),
-			padding = 'same'
+			padding = 'same',
+			name = 'vplot_decoded'
 		) 
 	y
 } # vplot_decoder_model
@@ -268,7 +234,10 @@ coverage_decoder_model <- function(
 			strides = shape(strides[2], 1L),
 			padding = 'same'
 		) %>% 
-		layer_reshape(target_shape = c(input_dim, 1L))
+		layer_reshape(
+			target_shape = c(input_dim, 1L),
+			name = 'coverage_decoded'
+		)
 	y			
 } # coverage_decoder_model
 
@@ -313,7 +282,7 @@ classifier <- function(x){
 	label <- layer_concatenate(list(h_vplot, h_coverage)) %>%
 		layer_dense(units = 16L, activation = 'relu') %>%
 		layer_dropout(rate = 0.2) %>%
-		layer_dense(units = 1L)
+		layer_dense(units = 1L, name = 'label')
 	
 	label
 } # classifier
