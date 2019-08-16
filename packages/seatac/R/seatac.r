@@ -26,19 +26,14 @@ NULL
 seatac <- function(
 	x,			# GenomicRanges object
 	latent_dim = 2, 
-	n_components = 10, 
-	prior = 'gmm',
 	epochs = 50, 
-	batch_size = 256, 
-	beta = 1
+	batch_size = 256
 ){
 
 	flog.info(sprintf('window size: %d', metadata(x)$window_size))
 	flog.info(sprintf('step size: %d', metadata(x)$step_size))
 
 	flog.info(sprintf('latent dimension(latent_dim):%d', latent_dim))
-	flog.info(sprintf('# mixture components(n_components):%d', n_components))
-	flog.info(sprintf('latent prior model: %s', prior))
 	flog.info(sprintf('batch size(batch_size): %d', batch_size))
 
 	window_dim <- length(x)
@@ -53,11 +48,9 @@ seatac <- function(
 		input_dim = input_dim, 
 		feature_dim = feature_dim, 
 		latent_dim = latent_dim, 
-		n_components = n_components, 
-		num_samples = metadata(x)$num_samples,
-		prior = prior
+		num_samples = metadata(x)$num_samples
 	)
-	model %>% fit(x, epochs = epochs, beta = beta)
+	model %>% fit(x, epochs = epochs)
 	model
 
 } # seatac

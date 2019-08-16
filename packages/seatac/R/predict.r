@@ -1,72 +1,27 @@
 #' predict.vae
 #' 
-predict.vae <- function(model, x, batch_size = 2^13){
+predict.vae <- function(model, gr, batch_size = 256){
 
-	window_dim <- length(x)
-	num_samples <- metadata(x)$num_samples
-	n_bins_per_window <- metadata(x)$window_size / metadata(x)$bin_size
+	window_dim <- length(gr)
+	num_samples <- metadata(gr)$num_samples
+	n_bins_per_window <- metadata(gr)$window_size / metadata(gr)$bin_size
 
 	flog.info(sprintf('# input peaks: %d', window_dim))
 
-	# determine the batches
-	bs <- seq(1, window_dim, by = batch_size)
-	be <- bs + batch_size - 1
-	be[be > window_dim] <- window_dim
-	n_batch <- length(bs)
+	x <- mcols(gr)$counts %>%
+		as.matrix() %>%
+		array_reshape(c(window_dim, model$input_dim, model$feature_dim, 1L))
 
-	latent <- NULL
-	fitted_coverage  <- NULL
-	fitted_counts <- NULL
-	
-	if (model$prior == 'gmm'){
+	y <- mcols(gr)$coverage %>%
+		array_reshape(c(window_dim, model$input_dim, 1L))
 
-		for (b in 1:n_batch){
+	r <- model$recover %>% predict(list(x, y), batch_size = batch_size, verbose = 1)
 
-			flog.info(sprintf('prediction | batch=%4.d/%4.d', b, n_batch))
+	mcols(gr)$fitted_counts <- array_reshape(r[[1]], dim = c(window_dim, model$input_dim * model$feature_dim))
+	mcols(gr)$fitted_coverage <- array_reshape(r[[2]], dim = c(window_dim, model$input_dim))
+	mcols(gr)$label_pred <- r[[3]] > 0
 
-			i <- bs[b]:be[b]
-			window_dim2 <- length(i)
-
-			X <- mcols(x)$counts[i, ] %>%
-				as.matrix() %>%
-				array_reshape(c(window_dim2, model$input_dim, model$feature_dim, 1L)) %>%
-				tf$cast(tf$float32) # need to convert to tensors
-
-			Y <- mcols(x)$coverage[i, , drop = FALSE] %>%
-				array_reshape(c(window_dim2, model$input_dim, 1L)) %>%
-				tf$cast(tf$float32)
-
-			label_pred <- model$classifier(list(vplot = X, coverage = Y))$mean() %>% as.matrix()
-
-			browser()
-
-			Z_x <- model$encoder$vplot(X)$loc
-			Z_y <- model$encoder$coverage(Y)$loc
-			Z <- tf$concat(list(Z_x, Z_y), axis = 1L)
-
-			X <- model$decoder$vplot(Z)$mean() %>% 
-				tf$squeeze() %>%
-				as.array() %>%
-				aperm(perm = c(1, 3, 2))	# change from row-major to column-major
-
-			dim(X) <- c(window_dim2, model$input_dim * model$feature_dim)
-
-			Y <- model$decoder$coverage(Z)$mean() %>% 
-				as.array() 
-	
-			dim(Y) <- c(window_dim2, model$input_dim)
-
-			latent <- rbind(latent, Z %>% as.matrix())
-			fitted_coverage <- rbind(fitted_coverage, Y)
-			fitted_counts <- rbind(fitted_counts, X)
-		}
-	}else
-		stop(sprintf('model$prior %s is not supported', model$prior))
-
-	mcols(x)$latent <- latent
-	mcols(x)$fitted_coverage <- fitted_coverage
-	mcols(x)$fitted_counts <- fitted_counts
-	x
+	gr
 
 } # predict.vae
 

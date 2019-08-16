@@ -1,32 +1,63 @@
 #' vae
 #'
 
-vae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, prior = 'gmm'){
+vae <- function(input_dim, feature_dim, latent_dim, num_samples){
 
-	if (prior == 'gmm'){
-		latent_prior_model <- gmm_prior_model(2 * latent_dim + 1, n_components)
-	}else
-		stop(sprintf('unknown prior model: %s', prior))
+	vplot_input <- layer_input(shape = c(input_dim, feature_dim, 1L))
+	coverage_input <- layer_input(shape = c(input_dim, 1L))
+
+	z_vplot <- vplot_input %>% vplot_encoder_model()
+	z_coverage <- coverage_input %>% coverage_encoder_model()
+	label <- classifier(list(vplot = vplot_input, coverage = coverage_input))
+
+	z <- layer_concatenate(list(z_vplot, z_coverage, label)) %>%
+	  layer_dense(units = params_size_multivariate_normal_tri_l(latent_dim)) %>%
+	  layer_multivariate_normal_tri_l(event_size = latent_dim) %>%
+		layer_kl_divergence_add_loss(
+			distribution = tfd_independent(
+				tfd_normal(loc = rep(0, latent_dim), scale = 1),
+				reinterpreted_batch_ndims = 1
+			),
+		weight = 1)
+
+	label_prob <- label %>%
+		layer_independent_bernoulli(
+			event_shape = 1L, 
+			convert_to_tensor_fn = tfp$distributions$Bernoulli$logits,
+			name = 'label_output'
+		)
+
+	vplot_decoded <- z %>% vplot_decoder_model(input_dim = input_dim, feature_dim = feature_dim)
+	vplot_prob <- vplot_decoded %>% 
+		layer_flatten() %>%
+		layer_independent_bernoulli(
+			event_shape = c(input_dim, feature_dim, 1L),
+			convert_to_tensor_fn = tfp$distributions$Bernoulli$logits,
+			name = 'vplot_output'
+		)
+
+	coverage_decoded <- z %>% coverage_decoder_model(input_dim = input_dim)
+	coverage_prob <- coverage_decoded %>%
+		layer_flatten() %>%
+		layer_independent_bernoulli(
+			event_shape = c(input_dim, 1L),
+			convert_to_tensor_fn = tfp$distributions$Bernoulli$logits,
+			name = 'coverage_output'
+		)
 
 	structure(list(
-		encoder = list(
-			vplot = vplot_encoder_model(latent_dim),
-			coverage = coverage_encoder_model(latent_dim)
+		vae = keras_model(
+			inputs = list(vplot_input, coverage_input),
+			outputs = list(vplot_prob, coverage_prob, label_prob)
 		),
-		classifier = classifier_model(input_dim, feature_dim),
-		decoder = list(
-			vplot = vplot_decoder_model(input_dim, feature_dim), 
-			coverage = coverage_decoder_model(input_dim)
+		recovery = keras_model(
+			inputs = list(vplot_input, coverage_input),
+			outputs = list(vplot_decoded, coverage_decoded, label)
 		),
-		latent_prior_model = latent_prior_model,
-		trainable_prior = TRUE,
-		input_dim = input_dim,
-		feature_dim = feature_dim,
-		latent_dim = latent_dim,
-		n_components = n_components,
 		num_samples = num_samples,
-		prior = prior
-	), class = c('seatac_model', 'vae'))
+		input_dim = input_dim,
+		feature_dim = feature_dim
+	), class = 'vae')
 
 } # vae
 
@@ -125,86 +156,12 @@ loadModel <- function(dir){
 } # loadModel
 
 
-#' encoding model for the vplot
-#'
-vplot_encoder_model <- function(
-	latent_dim, 
-	filters = c(32L, 32L, 32L), 
-	kernel_size = c(3L, 3L, 3L), 
-	input_strides = c(2L, 2L, 2L), 
-	feature_strides = c(2L, 2L, 1L), 
-	name = NULL
-){
-
-	keras_model_custom(name = name, function(self){
-
-		self$conv_1 <- layer_conv_2d(
-			filters = filters[1],
-			kernel_size = kernel_size[1],
-			strides = shape(input_strides[1], feature_strides[1]),
-			activation = 'relu'
-		)
-
-		self$bn_1 <- layer_batch_normalization()
-
-		self$conv_2 <- layer_conv_2d(
-			filters = filters[2],
-			kernel_size = kernel_size[2],
-			strides = shape(input_strides[2], feature_strides[2]),
-			activation = 'relu'
-		)
-
-		self$bn_2 <- layer_batch_normalization()
-
-		self$conv_3 <- layer_conv_2d(
-			filters = filters[3],
-			kernel_size = kernel_size[3],
-			strides = shape(input_strides[3], feature_strides[3]),
-			activation = 'relu'
-		)
-
-		self$bn_3 <- layer_batch_normalization()
-
-		self$flatten_1 <- layer_flatten()
-		self$dense_1 <- layer_dense(units = 2 * latent_dim)
-
-		function(x, mask = NULL){
-
-			y <- x %>% 
-				self$conv_1() %>%
-				self$bn_1() %>%
-				self$conv_2() %>%
-				self$bn_2() %>%
-				self$conv_3() %>%
-				self$bn_3() %>%
-				self$flatten_1() %>%
-				self$dense_1()
-
-			tfd_multivariate_normal_diag(
-				loc = y[, 1:latent_dim],
-				scale_diag = tf$nn$softplus(y[, (latent_dim + 1):(2 * latent_dim)] + 1e-5)
-			)
-		}
-	})
-}
-
 #' encoding model for the coverage data
 #
-coverage_encoder_model <- function(latent_dim, filters = c(8L), kernel_size = c(3L), strides = c(2L), name = NULL){
+coverage_encoder <- function(x, latent_dim, filters = c(8L), kernel_size = c(3L), strides = c(2L), name = NULL){
 
 	keras_model_custom(name = name, function(self){
 
-		self$conv_1 <- layer_conv_1d(
-			filters = filters[1],
-			kernel_size = kernel_size[1],
-			strides = strides[1],
-			activation = 'relu'
-		)
-		self$bn_1 <- layer_batch_normalization()
-
-		self$flatten_1 <- layer_flatten()
-		self$dense_1 <- layer_dense(units = 2 * latent_dim)
-		self$dropout_1 <- layer_dropout(rate = 0.2)
 
 		function(x, mask = NULL){
 
@@ -232,188 +189,177 @@ coverage_encoder_model <- function(latent_dim, filters = c(8L), kernel_size = c(
 #' @param kernel_size the kernel size of each deconv layer.  The feature and input spaces shared the same kernel size. 
 #'
 vplot_decoder_model <- function(
+	x,
 	input_dim, 
 	feature_dim, 
 	filters0 = 32L, 
 	filters = c(32L, 32L, 1L), 
 	kernel_size = c(3L, 3L, 3L), 
 	input_strides = c(2L, 2L, 2L), 
-	feature_strides = c(2L, 2L, 1L), 
-	name = NULL
+	feature_strides = c(2L, 2L, 1L)
 ){
 
 	input_dim0 <- input_dim / prod(input_strides)
-	feature_dim0 <- feature_dim / prod(feature_strides)
+  feature_dim0 <- feature_dim / prod(feature_strides)
 	output_dim0 <- input_dim0 * feature_dim0 * filters0
 
-	keras_model_custom(name = name, function(self){
+	y <- x %>% 
+		layer_dense(units = output_dim0, activation = 'relu') %>%
+		layer_dropout(rate = 0.2) %>%
+		layer_reshape(target_shape = c(input_dim0, feature_dim0, filters0)) %>%
 
-		self$dense_1 <- layer_dense(units = output_dim0, activation = 'relu')
-		self$dropout_1 <- layer_dropout(rate = 0.2)
-		self$reshape_1 <- layer_reshape(target_shape = c(input_dim0, feature_dim0, filters0))
-
-		self$deconv_1 <- layer_conv_2d_transpose(
+		layer_conv_2d_transpose(
 			filters = filters[1],
 			kernel_size = kernel_size[1],
 			strides = shape(input_strides[1], feature_strides[1]),
 			padding = 'same',
 			activation = 'relu'
-		)
-		self$bn_1 <- layer_batch_normalization()
+		) %>%
+		layer_batch_normalization() %>%
 
-		self$deconv_2 <- layer_conv_2d_transpose(
+		layer_conv_2d_transpose( 
 			filters = filters[2],
 			kernel_size = kernel_size[2],
 			strides = shape(input_strides[2], feature_strides[2]),
 			padding = 'same',
 			activation = 'relu'
-		)
-		self$bn_2 <- layer_batch_normalization()
+		) %>%
+		layer_batch_normalization() %>%
 
-		self$deconv_3 <- layer_conv_2d_transpose(
+		layer_conv_2d_transpose(
 			filters = filters[3],
 			kernel_size = kernel_size[3],
 			strides = shape(input_strides[3], feature_strides[3]),
 			padding = 'same'
-		)
+		) 
+	y
+} # vplot_decoder_model
 
-		function(x, mask = NULL){
 
-			y <- x %>%
-				self$dense_1() %>%
-				self$dropout_1() %>%
-				self$reshape_1() %>%
-				self$deconv_1() %>%
-				self$bn_1() %>%
-				self$deconv_2() %>%
-				self$bn_2() %>%
-				self$deconv_3()
-			
-			tfd_independent(
-				tfd_bernoulli(logits = y), 
-				reinterpreted_batch_ndims = 3L
-			)
-		}
-	})
-}
-
-coverage_decoder_model <- function(input_dim, filters0 = 8L, filters = c(8L, 1L), kernel_size = c(3L, 3L), strides = c(4L, 1L), name = NULL){
+coverage_decoder_model <- function(
+	x,
+	input_dim, 
+	filters0 = 8L, 
+	filters = c(8L, 1L), 
+	kernel_size = c(3L, 3L), 
+	strides = c(4L, 1L))
+{
 
 	input_dim0 <- input_dim / prod(strides)
 	output_dim0 <- input_dim0 * 1 * filters0
 
-	keras_model_custom(name = name, function(self){
+	y <- x %>%
+		layer_dense(units = output_dim0, activation = 'relu') %>%
+		layer_dropout(rate = 0.2) %>%
+		layer_reshape(target_shape = c(input_dim0, 1L, filters0)) %>%
 
-		self$dense_1 <- layer_dense(units = output_dim0, activation = 'relu')
-		self$dropout_1 <- layer_dropout(rate = 0.2)
-		self$reshape_1 <- layer_reshape(target_shape = c(input_dim0, 1L, filters0))
-		self$reshape_2 <- layer_reshape(target_shape = c(input_dim, 1L))
-
-		self$deconv_1 <- layer_conv_2d_transpose(
+		layer_conv_2d_transpose(
 			filters = filters[1],
 			kernel_size = shape(kernel_size[1], 1L),
 			strides = shape(strides[1], 1L),
 			padding = 'same',
 			activation = 'relu'
-		)
-		self$bn_1 <- layer_batch_normalization()
+		) %>%
+		layer_batch_normalization() %>%
 
-		self$deconv_2 <- layer_conv_2d_transpose(
+		layer_conv_2d_transpose(
 			filters = filters[2],
 			kernel_size = shape(kernel_size[2], 1L),
 			strides = shape(strides[2], 1L),
 			padding = 'same'
-		)
+		) %>% 
+		layer_reshape(target_shape = c(input_dim, 1L))
+	y			
+} # coverage_decoder_model
 
-		function(x, mask = NULL){
 
-			y <- x %>%
-				self$dense_1() %>%
-				self$dropout_1() %>%
-				self$reshape_1() %>%
-				self$deconv_1() %>%
-				self$bn_1() %>%
-				self$deconv_2() %>%
-				self$reshape_2() 
-			
-			tfd_independent(
-				tfd_bernoulli(logits = y),
-				reinterpreted_batch_ndims = 2L
-			)
-		}
-	})
-}
+classifier <- function(x){
 
-classifier_model <- function(input_dim, feature_dim, name = NULL){
+	h_vplot <- x$vplot %>%
 
-	keras_model_custom(name = name, function(self){
-
-		self$conv_vplot_1 <- layer_conv_2d(
+		layer_conv_2d(
 			filters = 32L,
 			kernel_size = 3L,
 			strides = shape(2L, 2L)
-		)
-		self$bn_vplot_1 <- layer_batch_normalization()
-		self$activation_vplot_1 <- layer_activation(activation = 'relu')
-		self$pooling_vplot_1 <- layer_max_pooling_2d(pool_size = c(2L, 2L))
+		) %>%
+		layer_batch_normalization() %>%
+		layer_activation(activation = 'relu') %>%
+		layer_max_pooling_2d(pool_size = c(2L, 2L)) %>%
 
-		self$conv_vplot_2 <- layer_conv_2d(
+		layer_conv_2d(
 			filters = 32L,
 			kernel_size = 3L,
 			strides = shape(2L, 2L)
-		)
-		self$bn_vplot_2 <- layer_batch_normalization()
-		self$activation_vplot_2 <- layer_activation(activation = 'relu')
-		self$pooling_vplot_2 <- layer_max_pooling_2d(pool_size = c(2L, 2L))
+		) %>%
+		layer_batch_normalization() %>%
+		layer_activation(activation = 'relu') %>%
+		layer_max_pooling_2d(pool_size = c(2L, 2L)) %>%
 
-		self$flatten_vplot_1 <- layer_flatten()
+		layer_flatten()
 
-		self$conv_coverage_1 <- layer_conv_1d(
+	h_coverage <- x$coverage %>%
+
+		layer_conv_1d(
 			filters = 8L,
 			kernel_size = 3L,
 			strides = 2L
-		)
-		self$bn_coverage_1 <- layer_batch_normalization()
-		self$activation_coverage_1 <- layer_activation(activation = 'relu')
-		self$pooling_coverage_1 <- layer_max_pooling_1d(pool_size = 4L)
+		) %>%
+		layer_batch_normalization() %>%
+		layer_activation(activation = 'relu') %>%
+		layer_max_pooling_1d(pool_size = 4L) %>%
 
-		self$flatten_coverage_1 <- layer_flatten()
+		layer_flatten()
+	
+	label <- layer_concatenate(list(h_vplot, h_coverage)) %>%
+		layer_dense(units = 16L, activation = 'relu') %>%
+		layer_dropout(rate = 0.2) %>%
+		layer_dense(units = 1L)
+	
+	label
+} # classifier
 
-		self$dense_1 <- layer_dense(units = 16L, activation = 'relu')
-		self$dropout_1 <- layer_dropout(rate = 0.2)
-		self$dense_2 <- layer_dense(units = 1L)
+vplot_encoder_model <- function(x, output_dim = 16L){
 
-		function(x, mask = NULL){
+	y <- x %>%
 
-			h_vplot <- x$vplot %>% 
+		layer_conv_2d(
+			filters = 32L,
+			kernel_size = 3L,
+			strides = 2L,
+			activation = 'relu'
+		) %>%
+		layer_batch_normalization() %>%
+		layer_conv_2d(
+			filters = 32L,
+			kernel_size = 3L,
+			strides = 2L,
+			activation = 'relu'
+		) %>%
+		layer_batch_normalization() %>%
+		layer_conv_2d(
+			filters = 32L,
+			kernel_size = 3L,
+			strides = 2L,
+			activation = 'relu'
+		) %>%
+		layer_batch_normalization() %>%
+		layer_flatten() %>%
+		layer_dense(units = output_dim, activation = 'relu')
 
-#				self$conv_vplot_1() %>%
-#				self$bn_vplot_1() %>%
-#				self$activation_vplot_1() %>%
-#				self$pooling_vplot_1() %>%
+} # vplot_encoder_model
 
-#				self$conv_vplot_2() %>%
-#				self$bn_vplot_2() %>%
-#				self$activation_vplot_2() %>%
-#				self$pooling_vplot_2() %>%
 
-				self$flatten_vplot_1()
-			
-			h_coverage <- x$coverage %>%
+coverage_encoder_model <- function(x, output_dim = 8L){
 
-#				self$conv_coverage_1() %>%
-#				self$bn_coverage_1() %>%
-#				self$activation_coverage_1() %>%
-#				self$pooling_coverage_1() %>%
+	y <- x %>%
+		layer_conv_1d(
+			filters = 8L,
+			kernel_size = 3L,
+			strides = 2L,
+			activation = 'relu'
+		) %>%
+		layer_batch_normalization() %>%
+		layer_flatten() %>%
+		layer_dense(units = output_dim, activation = 'relu')
 
-				self$flatten_coverage_1()
-			
-			y <- layer_concatenate(list(h_vplot, h_coverage)) %>%
-				self$dense_1() %>%
-				self$dropout_1() %>%
-				self$dense_2()
-
-			tfd_bernoulli(logits = y)
-		}
-	})
-}
+} # coverage_encoder_model

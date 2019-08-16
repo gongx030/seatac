@@ -8,7 +8,6 @@ library(roxygen2); library(devtools); devtools::document('packages/compbio')
 # -----------------------------------------------------------------------------------
 
 library(tensorflow)
-tfe_enable_eager_execution(device_policy = 'silent')
 library(keras)
 library(tfprobability)
 library(futile.logger); flog.threshold(TRACE)
@@ -25,7 +24,7 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; window_size <- 320; bin_size <- 5; step_size <- 40; mr <- 5; mc <- 0; bs <- 128
 gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1
 
-latent_dim <- 2; n_components <- 20; epochs <- 100
+latent_dim <- 2; epochs <- 100
 
 source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
@@ -36,7 +35,8 @@ windows <- windows[mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage
 #source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, n_components, batch_effect, window_size, step_size, mr, mc, bin_size)
 
 # run the model 
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, n_components = n_components, epochs = 20, batch_size = bs)
+train <- seqnames(windows) %in% c('chr2', 'chr3')
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows[train], latent_dim = latent_dim, epochs = 20, batch_size = bs)
 
 
 #devtools::load_all('analysis/seatac/packages/seatac'); saveModel(model, model_dir)
@@ -44,8 +44,8 @@ devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, 
 # load the model
 #devtools::load_all('analysis/seatac/packages/seatac'); model <- loadModel(model_dir)
 
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows)
-image(matrix(colMeans(mcols(gr)$fitted_counts[mcols(gr)$label, ]), 32, 32), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'))
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows[train])
+
 
 
 # -----------------------------------------------------------------------------------
