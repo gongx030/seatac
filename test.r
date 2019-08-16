@@ -15,7 +15,6 @@ library(BSgenome.Mmusculus.UCSC.mm10)
 library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 
 
-
 # -----------------------------------------------------------------------------------
 # [2019-07-11] Training nucleosome classifier on mESC ATAC-seq data and chemicall mapping
 # data
