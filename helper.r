@@ -4,8 +4,6 @@ library(GenomicRanges)
 devtools::load_all('packages/compbio')
 devtools::load_all('analysis/seatac/packages/seatac')
 
-PROJECT_DIR <- '/panfs/roc/scratch/gongx030/seatac'
-
 # touch everything in the project dir
 # find /panfs/roc/scratch/gongx030/seatac -type f -exec touch {} +
 
@@ -141,7 +139,7 @@ read_peaks <- function(ps){
 
 read_bam_files <- function(gs, peaks, genome, expand = 2000){
 
-	ga_file <- sprintf('%s/data/summits/%s_expand=%d_ga.rds', PROJECT_DIR, paste(gs, collapse = '+'), expand)
+	ga_file <- sprintf('%s/data/summits/%s_expand=%d_ga.rds', project_dir('seatac'), paste(gs, collapse = '+'), expand)
 	if (!file.exists(ga_file)){
 		x <- readBAM(list_bam_files()[gs], peaks, genome, expand = expand)
 		flog.info(sprintf('writing %s', ga_file))
@@ -154,45 +152,9 @@ read_bam_files <- function(gs, peaks, genome, expand = 2000){
 } # read_bam_files
 
 
-read_windows <- function(ga, peaks, window_size = 320, step_size = 32, bin_size = 10, exclude_exons = FALSE, txdb, min_reads_per_window = 15){
-
-	peaks <- resize(peaks, fix = 'center', width = 1)
-
-	devtools::load_all('analysis/seatac/packages/seatac')
-	flog.info(sprintf('# total input peaks: %d', length(peaks)))
-
-	flog.info('removing chrM reads')
-	peaks <- peaks[seqnames(peaks) != 'chrM']
-	peaks <- add.seqinfo(peaks, 'mm10')
-
-	peaks <- resize(peaks, fix = 'center', width = window_size)
-	peaks <- unlist(slidingWindows(peaks, step = step_size, width = step_size))
-	peaks <- resize(peaks, fix = 'center', width = window_size)
-
-	gr <- readFragmentSizeMatrix(ga, peaks, window_size = window_size, bin_size = bin_size)
-	
-	flog.info(sprintf('# total windows: %d', length(gr)))
-
-	A <- matrix(mcols(gr)$num_reads >= min_reads_per_window, nrow = length(peaks), ncol = metadata(ga)$num_samples)
-	i <- rowSums(A) == metadata(ga)$num_samples
-	gr <- gr[i]
-	flog.info(sprintf('# total windows more than %d PE reads in all %d samples: %d', min_reads_per_window, metadata(ga)$num_samples, sum(i)))
-
-	if (exclude_exons){
-		flog.info('removing windows overlapping with exons')
-		ex <- exons(txdb)
-		is_exon <- 1:length(gr) %in% as.matrix(findOverlaps(gr, ex))[, 1]
-		gr <- gr[!is_exon]
-		flog.info(sprintf('# total windows: %d', length(gr)))
-	}
-	gr
-
-} # read_windows
-
-
 get_seatac_res <- function(gs, window_size, bin_size, latent_dim, n_components, prior, beta, epochs, batch_effect){
 
-	output_dir <- sprintf('%s/data/summits/%s_window=%d_bin=%d', PROJECT_DIR, paste(gs, collapse = '+'), window_size, bin_size)
+	output_dir <- sprintf('%s/data/summits/%s_window=%d_bin=%d', project_dir('seatac'), paste(gs, collapse = '+'), window_size, bin_size)
 	gr_file <- sprintf('%s/latent=%d_components=%d_prior=%s_beta=%d_epochs=%d_batch=%s.rds', output_dir, latent_dim, n_components, prior, beta, epochs, batch_effect)
 	if (!file.exists(gr_file))
 		stop(sprintf('%s does not exist', gr_file))
@@ -208,7 +170,7 @@ get_seatac_res <- function(gs, window_size, bin_size, latent_dim, n_components, 
 
 save_seatac_res <- function(gr, gs, window_size, bin_size, latent_dim, n_components, prior, beta, epochs, batch_effect){
 
-	output_dir <- sprintf('%s/data/summits/%s_window=%d_bin=%d', PROJECT_DIR, paste(gs, collapse = '+'), window_size, bin_size)
+	output_dir <- sprintf('%s/data/summits/%s_window=%d_bin=%d', project_dir('seatac'), paste(gs, collapse = '+'), window_size, bin_size)
 	if (!file.exists(output_dir)) 
 		dir.create(output_dir)
 	gr_file <- sprintf('%s/latent=%d_components=%d_prior=%s_beta=%d_epochs=%d_batch=%s.rds', output_dir, latent_dim, n_components, prior, beta, epochs, batch_effect)
@@ -220,8 +182,8 @@ save_seatac_res <- function(gr, gs, window_size, bin_size, latent_dim, n_compone
 	}
 }
 
-model_dir_name <- function(dataset, peakset, latent_dim, expand, window_size, min_reads_per_window, min_reads_coverage, bin_size, negative_sample_ratio){
-	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_latent_dim=%d_expand=%d_window_size=%d_min_reads_per_window=%d_min_reads_coverage=%d_bin_size=%d_negative_sample_ratio=%d', dataset, peakset, latent_dim, expand, window_size, min_reads_per_window, min_reads_coverage, bin_size, negative_sample_ratio)
+model_dir_name <- function(dataset, peakset, latent_dim, expand, window_size, min_reads_per_window, min_reads_coverage, bin_size, negative_sample_ratio, core_width){
+	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_latent_dim=%d_expand=%d_window_size=%d_min_reads_per_window=%d_min_reads_coverage=%d_bin_size=%d_negative_sample_ratio=%d_core_width=%d', dataset, peakset, latent_dim, expand, window_size, min_reads_per_window, min_reads_coverage, bin_size, negative_sample_ratio, core_width)
 	flog.info(sprintf('model dir: %s', f))
 	f
 }
@@ -259,7 +221,7 @@ evaluate_nucleosome_prediction <- function(y, y_pred, y_true){
 }
 
 
-prepare_training_windows <- function(peaks, expand = 2000, step_size = 10, window_size = 320, negative_sample_ratio = 1){
+prepare_training_windows <- function(peaks, expand = 2000, step_size = 10, window_size = 320, core_width = 50, negative_sample_ratio = 1){
 
 	peaks <- resize(peaks, width = expand, fix = 'center')
 	peaks <- peaks[seqnames(peaks) != 'chrM']
@@ -283,8 +245,12 @@ prepare_training_windows <- function(peaks, expand = 2000, step_size = 10, windo
 	flog.info(sprintf('# negative samples: %d', n_neg))
 	flog.info(sprintf('# total windows: %d', n_pos + n_neg))
 
-	# the NFR should be any region that are outside of center 147 bp of any known nuc center
-	nfr <- setdiff(peaks, resize(nuc, fix = 'center', width = 147))
+	# the NFR should be any region that are outside of "core_width" region of any known nuc center
+	# the core_width was initially set as 147 bp, and thus only use the regions outside as the negative samples
+	# However, it appears when using such a trained model for predicting the nucleosome at higher reolustion e.g. 10bp
+	# the model tends to over-estimate the # of nucleosome.  I think this might due to that the difference between pos/neg samples
+	# are too small
+	nfr <- setdiff(peaks, resize(nuc, fix = 'center', width = core_width))
 	nfr <- unlist(slidingWindows(nfr, width = window_size, step = step_size))
 	nfr <- nfr[width(nfr) == window_size]
 	nfr <- nfr[nfr %within% peaks]
@@ -292,12 +258,12 @@ prepare_training_windows <- function(peaks, expand = 2000, step_size = 10, windo
 	# reading the NCP score on the candidate NFR region
 	ncp <- read_ncp_mESC(which = reduce(peaks))
 	cvg <- coverage(ncp, weight = as.numeric(mcols(ncp)$name))
-	nfr <- nfr[resize(nfr, width = 147, fix = 'center') %over% ncp]
-	mcols(nfr)$ncp_score <- mean(cvg[resize(nfr, width = 147, fix = 'center')])
+	nfr <- nfr[resize(nfr, width = core_width, fix = 'center') %over% ncp]
+	mcols(nfr)$ncp_score <- mean(cvg[resize(nfr, width = core_width, fix = 'center')])
 	nfr <- nfr[order(mcols(nfr)$ncp_score)[1:n_neg]]
 
 	gr <- c(nuc, nfr)
-	mcols(gr)$ncp_score <- mean(cvg[resize(gr, width = 147, fix = 'center')])
+	mcols(gr)$ncp_score <- mean(cvg[resize(gr, width = core_width, fix = 'center')])
 	mcols(gr)$label <- rep(c(TRUE, FALSE), c(n_pos, n_neg))
 	gr	
 
@@ -316,8 +282,3 @@ read_ncp_mESC <- function(which = NULL){
 	ncp
 }
 
-
-find_nfr_mESC <- function(){
-	ncp <- read_ncp_mESC()
-	browser()
-}

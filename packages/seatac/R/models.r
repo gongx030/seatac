@@ -28,6 +28,8 @@ vae <- function(input_dim, feature_dim, latent_dim, num_samples){
 		)
 
 	vplot_decoded <- z %>% vplot_decoder_model(input_dim = input_dim, feature_dim = feature_dim)
+	vplot_decoded_center <- vplot_decoded[, round(input_dim / 2), , , drop = FALSE ]
+
 	vplot_prob <- vplot_decoded %>% 
 		layer_flatten() %>%
 		layer_independent_bernoulli(
@@ -52,7 +54,7 @@ vae <- function(input_dim, feature_dim, latent_dim, num_samples){
 		),
 		nucleosome = keras_model(
 			inputs = list(vplot_input, coverage_input),
-			outputs = label 
+			outputs = label
 		),
 		num_samples = num_samples,
 		input_dim = input_dim,
@@ -80,6 +82,11 @@ save_model <- function(x, dir){
 	flog.info(sprintf('writing %s', nucleosome_file))
 	x$nucleosome$save_weights(nucleosome_file)
 	x$nucleosome_file <- nucleosome_file
+
+#	vplot_file <- sprintf('%s/vplot.h5', dir)
+#	flog.info(sprintf('writing %s', vplot_file))
+#	x$vplot$save_weights(vplot_file)
+#	x$vplot_file <- vplot_file 
 
 	x$encoder$vae <- NULL
 
@@ -115,6 +122,9 @@ load_model <- function(dir){
 
 	flog.info(sprintf('reading %s', x$nucleosome_file))
 	model$nucleosome$load_weights(x$nucleosome_file)
+
+#	flog.info(sprintf('reading %s', x$vplot_file))
+#	model$vplot$load_weights(x$vplot_file)
 
 	model
 

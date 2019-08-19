@@ -12,7 +12,6 @@ library(keras)
 library(tfprobability)
 library(futile.logger); flog.threshold(TRACE)
 library(BSgenome.Mmusculus.UCSC.mm10)
-library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 
 
 # -----------------------------------------------------------------------------------
@@ -21,82 +20,101 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 # -----------------------------------------------------------------------------------
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; window_size <- 320; bin_size <- 10; step_size <- 20; mr <- 5; mc <- 0; bs <- 256; ns <- 1; seed <- 1
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; window_size <- 320; bin_size <- 5; step_size <- 40; mr <- 5; mc <- 0; bs <- 128
-gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1; cw <- 20
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1; cw <- 10
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1; cw <- 147
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1; cw <- 5
 
-latent_dim <- 2; epochs <- 20
+latent_dim <- 2; epochs <- 30
 
 source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
-source('analysis/seatac/helper.r'); windows <- prepare_training_windows(peaks, expand = expand, window_size = window_size, negative_sample_ratio = ns)
+source('analysis/seatac/helper.r'); windows <- prepare_training_windows(peaks, expand = expand, window_size = window_size, core_width = cw, negative_sample_ratio = ns)
 source('analysis/seatac/helper.r'); windows <- readFragmentSizeMatrix(ga, windows, window_size = window_size, bin_size = bin_size)
 windows <- windows[mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= mc]
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, expand, window_size, mr, mc, bin_size, ns)
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, expand, window_size, mr, mc, bin_size, ns, cw)
 
 # run the model 
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = 2, batch_size = bs)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = epochs, batch_size = bs)
 devtools::load_all('analysis/seatac/packages/seatac'); save_model(model, model_dir)
+
 
 # load the model
 devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
 
 
+devtools::load_all('analysis/seatac/packages/seatac'); model %>% predict(windows[1:100])
+
 # -----------------------------------------------------------------------------------
-# [2019-08-11] Predicting the nucleosome positions ATAC-seq peak region on chromosome X
-# And compare with the results from NucleoATAC
+# [2019-08-16] Predicting the nucleosome positions ATAC-seq peak region on mESC
+# Compare the ROC curve  between seatac and NucleoATAC
 # -----------------------------------------------------------------------------------
-ps <- 'Maza_mESC'; step_size <- 10
+
+# --- prepare all the positive and negative samples
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1
+latent_dim <- 2; epochs <- 20
 source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
-peaks <- peaks[seqnames(peaks) %in% 'chrX']
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
-source('analysis/seatac/helper.r'); windows_test <- read_windows(ga, peaks, window_size = window_size, step_size = step_size, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = 0)
+source('analysis/seatac/helper.r'); windows <- prepare_training_windows(peaks, expand = expand, window_size = window_size, negative_sample_ratio = ns)
+source('analysis/seatac/helper.r'); windows <- readFragmentSizeMatrix(ga, windows, window_size = window_size, bin_size = bin_size)
 
-window_dim <- length(windows_test)
-feature_dim <- metadata(windows_test)$n_intervals
-input_dim <- metadata(windows_test)$n_bins_per_window
+# --- train the model based on each of the 4/5 the data and predict the nucleosome score on the remaining 1/5
+cross <- 5
+set.seed(1); groups <- sample(1:cross, length(windows), replace = TRUE)
+wins <- lapply(1:cross, function(i){
+	windows_train <- windows[groups != i]
+	windows_test <- windows[groups == i]
+	windows_train <- windows_train[mcols(windows_train)$num_reads >= mr & mcols(windows_train)$mean_coverage >= mc]
+	model <- seatac(windows_train, latent_dim = latent_dim, epochs = epochs, batch_size = bs)
+	windows_test <- model %>% predict(windows_test)
+})
+wins <- Reduce('c', wins)
+wins <- add.seqinfo(wins, 'mm10')
+devtools::load_all('packages/compbio'); win_file <- sprintf('%s/Maza_mESC_seatac_5fold_cv.rds', project_dir('seatac'))
+saveRDS(wins, win_file)
 
-vplot <- mcols(windows_test)$counts %>%
-	as.matrix() %>%
-	array_reshape(c(window_dim, input_dim, feature_dim, 1))
+# --- load the predicted nucleosome scores
+devtools::load_all('packages/compbio'); win_file <- sprintf('%s/Maza_mESC_seatac_5fold_cv.rds', project_dir('seatac'))
+wins <- readRDS(win_file)
 
-cvg <- mcols(windows_test)$coverage %>%
-	array_reshape(c(window_dim, input_dim, 1))
-
-mcols(windows_test)$label_pred <- model %>% predict(list(vplot, cvg), batch_size = bs, verbose = 1)
-#saveRDS(windows_test, sprintf('%s/test.rds', PROJECT_DIR))
-
+# --- read ~80M called nucleosomes by the chemical mapping method
 nc_mm10_gz_file <- sprintf('%s/GSM2183909_unique.map_95pc_mm10.bed.gz', sra.run.dir('GSM2183909'))  # a simple seqnames/start/end format
 nuc <- read.table(gzfile(nc_mm10_gz_file), header = FALSE, sep = '\t')
 nuc <- GRanges(seqnames = nuc[, 1], range = IRanges(nuc[, 2], nuc[, 3]))
 nuc <- add.seqinfo(nuc, 'mm10')
 
+# --- read the NCP scores over the windows
 ncp_file <- sprintf('%s/GSM2183909_Chemical_NCPscore_mm10.sorted_merged.txt.gz', sra.run.dir('GSM2183909'))
 flog.info(sprintf('reading %s', ncp_file))
-ncp <- rtracklayer::import(ncp_file, format = 'BED', which = reduce(resize(windows_test, width = window_size, fix = 'center')))
+ncp <- rtracklayer::import(ncp_file, format = 'BED', which = reduce(resize(wins, width = window_size, fix = 'center')))
 ncp <- resize(ncp, width = 1, fix = 'center')
 ncp <- add.seqinfo(ncp, 'mm10')
 cvg_ncp <- coverage(ncp, weight = as.numeric(mcols(ncp)$name))
 
-
+# --- read the nucleosome signal by NucleoATAC
 dataset <- 'dataset=Maza_version=20170302a'
 base.name <- sprintf('%s/mESC_ATAC', dataset_dir(dataset))
-fs <- sprintf('%s.nucleoatac_%s.nucleoatac_signal.smooth.bedgraph.gz', base.name, c('chrX'))
+fs <- sprintf('%s.nucleoatac_%s.nucleoatac_signal.smooth.bedgraph.gz', base.name, sprintf('chr%s', c(1:19, 'X', 'Y')))
 na <- do.call('rbind', lapply(fs, function(f) read.table(gzfile(f), header = FALSE, sep = '\t')))
 na <- GRanges(seqnames = na[, 1], range = IRanges(na[, 2], na[, 3]), score = na[, 4])
 na <- add.seqinfo(na, 'mm10')
 cvg_nucleoatac <- coverage(na, weight = as.numeric(mcols(na)$score))
 
 
-windows_test <- resize(windows_test, fix = 'center', width = 100)
-mcols(windows_test)$label <- windows_test %over% nuc
-mcols(windows_test)$label_nucleoatac <- windows_test %over% na
-mcols(windows_test)$nucleoatac_score <- mean(cvg_nucleoatac[windows_test])
-mcols(windows_test)$ncp_score <- mean(cvg_ncp[windows_test])
+# --- Compar the sensitivity / specificity 
+wins <- resize(wins, fix = 'center', width = 147)
+mcols(wins)$label <- wins %over% nuc	# the ground truth
+mcols(wins)$label_nucleoatac <- wins %over% na	# whether marked as nucleosome by NucleoATAC
+mcols(wins)$nucleoatac_score <- mean(cvg_nucleoatac[wins])	# the continuous call by NucleoATAC
+mcols(wins)$ncp_score <- mean(cvg_ncp[wins])
 
 res <- do.call('rbind', lapply(seq(0.01, 0.99, by = 0.01), function(h){
 	y_true <- as.numeric(mcols(windows_test)$label)
 	Y <- data.frame(
 		nucleoatac = mcols(windows_test)$nucleoatac_score > quantile(mcols(windows_test)$nucleoatac_score, h),
-		seatac = mcols(windows_test)$label_pred > quantile(mcols(windows_test)$label_pred, h)
+		seatac = mcols(windows_test)$nucleosome_score> quantile(mcols(windows_test)$nucleosome_score, h)
 	)
 	cbind(h = h, do.call('rbind', lapply(1:ncol(Y), function(i){
 		y_pred <- Y[, i]
@@ -113,16 +131,252 @@ res <- do.call('rbind', lapply(seq(0.01, 0.99, by = 0.01), function(h){
 plot(1 - res$specificity[res$method == 'seatac'], res$sensitivity[res$method == 'seatac'], type = 'l', lwd = 2, col = 'blue', xlim = c(0, 1), ylim = c(0, 1))
 lines(1 - res$specificity[res$method == 'nucleoatac'], res$sensitivity[res$method == 'nucleoatac'], lwd = 2, col = 'black')
 
-plot(res$pct_true[res$method == 'seatac'], res$ppv[res$method == 'seatac'], type = 'l', lwd = 2, col = 'blue', xlim = c(0, 1), ylim = c(0.25, 0.55))
+plot(res$pct_true[res$method == 'seatac'], res$ppv[res$method == 'seatac'], type = 'l', lwd = 2, col = 'blue', xlim = c(0, 1), ylim = c(0.2, 1))
 lines(res$pct_true[res$method == 'nucleoatac'], res$ppv[res$method == 'nucleoatac'], type = 'l', lwd = 2, col = 'black')
 
 
-	table(factor(mcols(windows_test)$label, c(FALSE, TRUE)), factor(mcols(windows_test)$label_pred > quantile(mcols(windows_test)$label_pred, h), c(FALSE, TRUE)))
-	table(factor(mcols(windows_test)$label, c(FALSE, TRUE)), factor(mcols(windows_test)$nucleoatac_score > quantile(mcols(windows_test)$nucleoatac_score, h), c(FALSE, TRUE)))
+# -----------------------------------------------------------------------------------
+# [2019-08-18] Predict the nucleosome score on every 10 bp bins of all
+# 320-bp windows surrounding each ATAC-seq summits
+# -----------------------------------------------------------------------------------
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand0 <- 320; window_size <- 320; bin_size <- 10; step_size <- 10
+source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
+source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, genome = BSgenome.Mmusculus.UCSC.mm10)
+devtools::load_all('analysis/seatac/packages/seatac'); windows <- read_windows(ga, peaks, expand = expand0, window_size = window_size, step_size = step_size, bin_size = bin_size)
 
-mm <- as.matrix(findOverlaps(na, windows_test))
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; latent_dim <- 2; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; ns <- 1; cw <- 5
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, expand, window_size, mr, mc, bin_size, ns, cw)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
+windows <- model %>% predict(windows)
+windows <- add.seqinfo(windows, 'mm10')
 
-label_nucleoatac <- windows_test %over% na
+#--- Add the mean NCP score for each bin
+ncp_file <- sprintf('%s/GSM2183909_Chemical_NCPscore_mm10.sorted_merged.txt.gz', sra.run.dir('GSM2183909'))
+flog.info(sprintf('reading %s', ncp_file))
+ncp <- rtracklayer::import(ncp_file, format = 'BED', which = reduce(resize(peaks, width = window_size, fix = 'center')))
+ncp <- resize(ncp, width = 1, fix = 'center')
+ncp <- add.seqinfo(ncp, 'mm10')
+cvg_ncp <- coverage(ncp, weight = as.numeric(mcols(ncp)$name))
+mcols(windows)$ncp_score <- mean(cvg_ncp[resize(windows, fix = 'center', width = step_size)])
+
+# --- Add the known nucleosome indicator (ground truth)
+nc_mm10_gz_file <- sprintf('%s/GSM2183909_unique.map_95pc_mm10.bed.gz', sra.run.dir('GSM2183909'))  # a simple seqnames/start/end format
+nuc <- read.table(gzfile(nc_mm10_gz_file), header = FALSE, sep = '\t')
+nuc <- GRanges(seqnames = nuc[, 1], range = IRanges(nuc[, 2], nuc[, 3]))
+nuc <- add.seqinfo(nuc, 'mm10')
+mcols(windows)$label <- resize(windows, fix = 'center', width = step_size) %over% nuc
+
+# --- Add nucleosome signal by NucleoATAC
+dataset <- 'dataset=Maza_version=20170302a'
+base.name <- sprintf('%s/mESC_ATAC', dataset_dir(dataset))
+fs <- sprintf('%s.nucleoatac_%s.nucleoatac_signal.smooth.bedgraph.gz', base.name, sprintf('chr%s', c(1:19, 'X', 'Y')))
+na <- do.call('rbind', lapply(fs, function(f) read.table(gzfile(f), header = FALSE, sep = '\t')))
+na <- GRanges(seqnames = na[, 1], range = IRanges(na[, 2], na[, 3]), score = na[, 4])
+na <- add.seqinfo(na, 'mm10')
+cvg_nucleoatac <- coverage(na, weight = as.numeric(mcols(na)$score))
+mcols(windows)$score_nucleoatac <- mean(cvg_nucleoatac[resize(windows, fix = 'center', width = step_size)])
+
+# --- Add the nucleosome identified by NuceloATAC
+dataset <- 'dataset=Maza_version=20170302a'
+base.name <- sprintf('%s/mESC_ATAC', dataset_dir(dataset))
+fs <- sprintf('%s.nucleoatac_%s.occpeaks.bed.gz', base.name, sprintf('chr%s', c(1:19, 'X', 'Y')))
+occ <- do.call('rbind', lapply(fs, function(f) read.table(gzfile(f), header = FALSE, sep = '\t')))
+occ <- GRanges(seqnames = occ[, 1], range = IRanges(occ[, 2], occ[, 3]), score = occ[, 4])
+occ <- occ[occ %over% resize(peaks, width = window_size, fix = 'center')]
+occ <- add.seqinfo(occ, 'mm10')
+mcols(windows)$label_nucleoatac <- resize(windows, fix = 'center', width = step_size) %over% occ
+
+
+# --- look at the mean NCP score of positive/negative predicted bins
+label_pred2 <- mcols(windows)$nucleosome_score > quantile(mcols(windows)$nucleosome_score, 0.95)
+boxplot(list(mcols(windows)$ncp_score[label_pred2], mcols(windows)$ncp_score[!label_pred2]), ylim = c(0, 0.25), outline = FALSE)
+
+boxplot(list(mcols(windows)$ncp_score[mcols(windows)$label_nucleoatac], mcols(windows)$ncp_score[!mcols(windows)$label_nucleoatac]), ylim = c(0, 0.25), outline = FALSE)
+boxplot(list(mcols(windows)$ncp_score[mcols(windows)$label], mcols(windows)$ncp_score[!mcols(windows)$label]), ylim = c(0, 0.25), outline = FALSE)
+
+# --- ROC and PPV 
+j <- mcols(windows)$mean_coverage > 5 & mcols(windows)$num_reads > 5
+res <- do.call('rbind', lapply(seq(0.9, 0.999, by = 0.001), function(h){
+	y_true <- as.numeric(mcols(windows)$label)
+	Y <- data.frame(
+		nucleoatac = mcols(windows)$score_nucleoatac > quantile(mcols(windows)$score_nucleoatac, h),
+		seatac = mcols(windows)$nucleosome_score> quantile(mcols(windows)$nucleosome_score, h)
+	)
+	y_true <- y_true[j]; Y <- Y[j, ]
+	cbind(h = h, do.call('rbind', lapply(1:ncol(Y), function(i){
+		y_pred <- Y[, i]
+		tp <- sum(y_true & y_pred)
+		fp <- sum(!y_true & y_pred)
+		fn <- sum(y_true & !y_pred)
+		tn <- sum(!y_true & !y_pred)
+		sensitivity <- tp / (tp + fn)
+		specificity <- tn / (tn + fp)
+		data.frame(n = sum(y_pred), pct_true = mean(y_pred), method = colnames(Y)[i], sensitivity = sensitivity, specificity = specificity, ppv = tp / (tp + fp), f1 = 2 * tp / (2 * tp + fp + fn))
+	})))
+}))
+
+
+plot(1 - res$specificity[res$method == 'seatac'], res$sensitivity[res$method == 'seatac'], type = 'l', lwd = 2, col = 'blue', xlim = c(0, 1), ylim = c(0, 1))
+lines(1 - res$specificity[res$method == 'nucleoatac'], res$sensitivity[res$method == 'nucleoatac'], lwd = 2, col = 'black')
+
+plot(res$pct_true[res$method == 'seatac'], res$ppv[res$method == 'seatac'], type = 'l', lwd = 2, col = 'blue', xlim = c(0, 0.1))
+lines(res$pct_true[res$method == 'nucleoatac'], res$ppv[res$method == 'nucleoatac'], type = 'l', lwd = 2, col = 'black')
+
+
+
+# -----------------------------------------------------------------------------------
+# [2019-08-18] Look at the AT/TT/TA pattern surrounding the called nucleosome center
+# -----------------------------------------------------------------------------------
+gr <- list()
+
+label_pred2 <- mcols(windows)$nucleosome_score > quantile(mcols(windows)$nucleosome_score, 0.90)
+gr[['seatac']] <- windows[label_pred2]
+
+dataset <- 'dataset=Maza_version=20170302a'
+base.name <- sprintf('%s/mESC_ATAC', dataset_dir(dataset))
+fs <- sprintf('%s.nucleoatac_%s.occpeaks.bed.gz', base.name, sprintf('chr%s', c(1:19, 'X', 'Y')))
+occ <- do.call('rbind', lapply(fs, function(f) read.table(gzfile(f), header = FALSE, sep = '\t')))
+occ <- GRanges(seqnames = occ[, 1], range = IRanges(occ[, 2], occ[, 3]), score = occ[, 4])
+gr[['nucleoatac']] <- occ[occ %over% resize(peaks, width = window_size, fix = 'center')]
+gr[['nucleoatac']] <- add.seqinfo(gr[['nucleoatac']], 'mm10')
+
+nc_mm10_gz_file <- sprintf('%s/GSM2183909_unique.map_95pc_mm10.bed.gz', sra.run.dir('GSM2183909'))  # a simple seqnames/start/end format
+nuc <- read.table(gzfile(nc_mm10_gz_file), header = FALSE, sep = '\t')
+nuc <- GRanges(seqnames = nuc[, 1], range = IRanges(nuc[, 2], nuc[, 3]))
+gr[['chemical']] <- nuc[nuc %over% resize(peaks, width = window_size, fix = 'center')]
+gr[['chemical']] <- add.seqinfo(gr[['chemical']], 'mm10')
+
+
+
+
+# -----------------------------------------------------------------------------------
+# [2019-08-18] read the NCP scores over the *peaks*
+# -----------------------------------------------------------------------------------
+
+w <- 147
+dinuc <- expand.grid(c('A', 'C', 'G', 'T'), c('A', 'C', 'G', 'T'))
+dinuc <- sprintf('%s%s', dinuc[, 1], dinuc[, 2])
+Y <- list()
+
+for (g in c('nucleoatac', 'chemical', 'seatac')){
+	mcols(gr[[g]])$sequence <- getSeq(Mmusculus, resize(gr[[g]], fix = 'center', width = w))
+	Y[[g]] <- do.call('cbind', lapply(1:(w - 1), function(i){
+		table(factor(as.character(subseq(mcols(gr[[g]])$sequence, start = i, width = 2)), dinuc)) / length(gr[[g]])
+	}))
+}
+
+WW <- do.call('rbind', lapply(1:length(Y), function(i){
+	ww <- colSums(Y[[i]][c('AA', 'AT', 'TA', 'TT'), ])
+#	ww <- (ww - min(ww)) / (max(ww) - min(ww))
+	ww
+}))
+
+plot(WW[1, ], type = 'b')
+plot(WW[2, ], type = 'b')
+plot(WW[3, ], type = 'b')
+
+
+# -----------------------------------------------------------------------------------
+# [2019-08-18] Check see if there is bias based on AT at called nucleosome
+# -----------------------------------------------------------------------------------
+library(seqinr)
+w2 <- 10
+mcols(windows)$sequence <- getSeq(Mmusculus, resize(windows, fix = 'center', width = w2))
+mcols(windows)$gc <- rowSums(alphabetFrequency(mcols(windows)$sequence)[, 2:3]) / w2
+
+boxplot(split(mcols(windows)$gc, list(mcols(windows)$label)))
+boxplot(split(mcols(windows)$gc, list(label_pred2)))
+boxplot(split(mcols(windows)$gc, list(mcols(windows)$label_nucleoatac)))
+
+
+
+
+
+# -----------------------------------------------------------------------------------
+# [2019-08-18] Look at the called nucleosome positions surrounding the TSS
+# -----------------------------------------------------------------------------------
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; latent_dim <- 2; expand0 <- 500; window_size <- 320; bin_size <- 10; bs <- 256; step_size <- 5
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+pmt <- promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene), upstream = expand0 / 2, downstream = expand0 / 2)
+source('analysis/seatac/helper.r'); peaks <- pmt[pmt %over% read_peaks(ps)]
+source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, genome = BSgenome.Mmusculus.UCSC.mm10)
+devtools::load_all('analysis/seatac/packages/seatac'); windows <- read_windows(ga, peaks, expand = expand0, window_size = window_size, step_size = step_size, bin_size = bin_size)
+
+# --- load the trained model on mESC and predict the nucleosome score
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; latent_dim <- 2; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; ns <- 1; cw <- 147
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, expand, window_size, mr, mc, bin_size, ns, cw)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
+devtools::load_all('analysis/seatac/packages/seatac'); windows <- model %>% predict(windows)
+windows <- add.seqinfo(windows, 'mm10')
+
+X <- matrix(mcols(windows)$nucleosome_score, length(peaks), expand0 / step_size, byrow = TRUE)
+X <- matrix(rowMeans(mcols(windows)$vplot_center[, 1:7]), length(peaks), expand0 / step_size, byrow = TRUE)
+
+# --- read the NCP score
+ncp_file <- sprintf('%s/GSM2183909_Chemical_NCPscore_mm10.sorted_merged.txt.gz', sra.run.dir('GSM2183909'))
+flog.info(sprintf('reading %s', ncp_file))
+ncp <- rtracklayer::import(ncp_file, format = 'BED', which = reduce(resize(peaks, width = expand0 + 20, fix = 'center')))
+ncp <- resize(ncp, width = 1, fix = 'center')
+ncp <- add.seqinfo(ncp, 'mm10')
+cvg_ncp <- coverage(ncp, weight = as.numeric(mcols(ncp)$name))
+X1 <- as(as(cvg_ncp[resize(peaks, fix = 'center', width = expand0)], 'RleViews'), 'matrix')
+
+# --- read the nucleosome signal by NucleoATAC
+dataset <- 'dataset=Maza_version=20170302a'
+base.name <- sprintf('%s/mESC_ATAC', dataset_dir(dataset))
+fs <- sprintf('%s.nucleoatac_%s.nucleoatac_signal.smooth.bedgraph.gz', base.name, sprintf('chr%s', c(1:19, 'X', 'Y')))
+na <- do.call('rbind', lapply(fs, function(f) read.table(gzfile(f), header = FALSE, sep = '\t')))
+na <- GRanges(seqnames = na[, 1], range = IRanges(na[, 2], na[, 3]), score = na[, 4])
+na <- add.seqinfo(na, 'mm10')
+cvg_nucleoatac <- coverage(na, weight = as.numeric(mcols(na)$score))
+X2 <- as(as(cvg_nucleoatac[resize(peaks, fix = 'center', width = expand0)], 'RleViews'), 'matrix')
+
+plot(colMeans(X[as.character(strand(peaks)) == '-', ]), type = 'b'); abline(v = expand0 / step_size / 2)
+plot(colMeans(X1[as.character(strand(peaks)) == '-', ]), type = 'b'); abline(v = expand0 / 2)
+plot(colMeans(X2[as.character(strand(peaks)) == '-', ]), type = 'b'); abline(v = expand0 / 2)
+
+
+
+# -----------------------------------------------------------------------------------
+# [2019-08-18] Look at continuous score surrounding each known nucleosome
+# -----------------------------------------------------------------------------------
+nc_mm10_gz_file <- sprintf('%s/GSM2183909_unique.map_95pc_mm10.bed.gz', sra.run.dir('GSM2183909'))  # a simple seqnames/start/end format
+nuc <- read.table(gzfile(nc_mm10_gz_file), header = FALSE, sep = '\t')
+nuc <- GRanges(seqnames = nuc[, 1], range = IRanges(nuc[, 2], nuc[, 3]))
+nuc <- add.seqinfo(nuc, 'mm10')
+ps <- 'Maza_mESC'; window_size <- 320
+source('analysis/seatac/helper.r'); peaks <- nuc[nuc %within% resize(read_peaks(ps), fix = 'center', width = window_size)]
+
+# --- score by seatac
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand0 <- 500; window_size <- 320; bin_size <- 10; step_size <- 20
+source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, genome = BSgenome.Mmusculus.UCSC.mm10)
+devtools::load_all('analysis/seatac/packages/seatac'); windows <- read_windows(ga, peaks, expand = expand0, window_size = window_size, step_size = step_size, bin_size = bin_size)
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; latent_dim <- 2; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; ns <- 1; cw <- 147
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, expand, window_size, mr, mc, bin_size, ns, cw)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
+devtools::load_all('analysis/seatac/packages/seatac'); windows <- model %>% predict(windows)
+windows <- add.seqinfo(windows, 'mm10')
+X <- matrix(mcols(windows)$nucleosome_score > 0, length(peaks), expand0 / step_size, byrow = TRUE)
+
+
+# --- read the nucleosome signal by NucleoATAC
+dataset <- 'dataset=Maza_version=20170302a'
+base.name <- sprintf('%s/mESC_ATAC', dataset_dir(dataset))
+fs <- sprintf('%s.nucleoatac_%s.nucleoatac_signal.smooth.bedgraph.gz', base.name, sprintf('chr%s', c(1:19, 'X', 'Y')))
+na <- do.call('rbind', lapply(fs, function(f) read.table(gzfile(f), header = FALSE, sep = '\t')))
+na <- GRanges(seqnames = na[, 1], range = IRanges(na[, 2], na[, 3]), score = na[, 4])
+na <- add.seqinfo(na, 'mm10')
+cvg_nucleoatac <- coverage(na, weight = as.numeric(mcols(na)$score))
+X2 <- as(as(cvg_nucleoatac[resize(peaks, fix = 'center', width = expand0)], 'RleViews'), 'matrix')
+
+
+mcols(windows)$label <- resize(windows, fix = 'center', width = 147) %over% nuc
+mcols(windows)$label_nucleoatac <- resize(windows, fix = 'center', width = 20) %over% occ
+
+mcols(windows)$ncp_score <- mean(cvg_ncp[resize(windows, fix = 'center', width = 20)])
+mcols(windows)$nucleoatac_score <- mean(cvg_nucleoatac[resize(windows, fix = 'center', width = 147)])	# the continuous call by NucleoATAC
+
+
 
 
 
@@ -617,16 +871,23 @@ X <- as(as(cvg[gr[strand(gr) == '+']], 'RleViews'), 'matrix')
 
 # -----------------------------------------------------------------------------------
 # [2019-08-12] Predict the NCP score surrounng TSS
+# [2019-08-16] Predict the NCP score surrounng TSS for MEF
 # -----------------------------------------------------------------------------------
+
+# --- load the trained model on mESC
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; latent_dim <- 2; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; ns <- 1
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, expand, window_size, mr, mc, bin_size, ns)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
+
 library(org.Mm.eg.db)
 library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 devtools::load_all('packages/compbio')
-gr <- promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene), upstream = 500, downstream = 500)
-gr <- add.seqinfo(gr, 'mm10')
-gr <- gr[seqnames(gr) %in% 'chrX' & strand(gr) == '+']
-ps <- 'Maza_mESC'; step_size <- 10
+pmt <- promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene), upstream = 500, downstream = 500)
+pmt <- add.seqinfo(pmt, 'mm10')
+gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; step_size <- 10
+source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
 source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
-source('analysis/seatac/helper.r'); windows_test <- read_windows(ga, gr, window_size = window_size, step_size = step_size, bin_size = bin_size, txdb = TxDb.Mmusculus.UCSC.mm10.knownGene, min_reads_per_window = 0)
+devtools::load_all('analysis/seatac/packages/seatac'); windows <- read_windows(ga, peaks, window_size = window_size, step_size = step_size, bin_size = bin_size)
 
 window_dim <- length(windows_test)
 feature_dim <- metadata(windows_test)$n_intervals

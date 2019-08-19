@@ -15,10 +15,9 @@ predict.vae <- function(model, gr, type = 'nucleosome', batch_size = 256){
 	y <- mcols(gr)$coverage %>%
 		array_reshape(c(window_dim, model$input_dim, 1L))
 
-	if (type == 'nucleosome'){
-		mcols(gr)$label_pred <- model$nucleosome %>% predict(list(x, y), batch_size = batch_size, verbose = 1)
-		mcols(gr)$label_pred <- mcols(gr)$label_pred > 0
-	}
+	r <- model$nucleosome %>% predict(list(x, y), batch_size = batch_size, verbose = 1)
+	mcols(gr)$nucleosome_score <- c(r)
+	mcols(gr)$label_pred <- mcols(gr)$nucleosome_score > 0
 
 	gr
 
