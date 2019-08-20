@@ -258,41 +258,41 @@ nucleosome_score_model <- function(
 
 	y <- x %>%
 		
-#		layer_dense(units = 32L) %>%
-#		layer_batch_normalization() %>%
-#		layer_activation(activation = 'relu') %>%
-#		layer_dropout(rate = 0.2) %>%
-
-#		layer_dense(units = 32L) %>%
-#		layer_batch_normalization() %>%
-#		layer_activation(activation = 'relu') %>%
-#		layer_dropout(rate = 0.2) %>%
-
-#		layer_dense(units = window_size)
-
-		layer_dense(units = output_dim0, activation = 'relu') %>%
-		layer_dropout(rate = 0.2) %>%
-		layer_reshape(target_shape = c(window_size0, 1L, filters0)) %>%
-
-		layer_conv_2d_transpose(
-			filters = filters[1],
-			kernel_size = shape(kernel_size[1], 1L),
-			strides = shape(strides[1], 1L),
-			padding = 'same',
-			activation = 'relu'
-		) %>%
+		layer_dense(units = 32L) %>%
 		layer_batch_normalization() %>%
+		layer_activation(activation = 'relu') %>%
+		layer_dropout(rate = 0.2) %>%
 
-		layer_conv_2d_transpose(
-			filters = filters[2],
-			kernel_size = shape(kernel_size[2], 1L),
-			strides = shape(strides[2], 1L),
-			padding = 'same'
-		) %>% 
-		layer_reshape(
-			target_shape = window_size,
-			name = 'nucleosome_score'
-		)
+		layer_dense(units = 32L) %>%
+		layer_batch_normalization() %>%
+		layer_activation(activation = 'relu') %>%
+		layer_dropout(rate = 0.2) %>%
+
+		layer_dense(units = window_size)
+
+#		layer_dense(units = output_dim0, activation = 'relu') %>%
+#		layer_dropout(rate = 0.2) %>%
+#		layer_reshape(target_shape = c(window_size0, 1L, filters0)) %>%
+
+#		layer_conv_2d_transpose(
+#			filters = filters[1],
+#			kernel_size = shape(kernel_size[1], 1L),
+#			strides = shape(strides[1], 1L),
+#			padding = 'same',
+#			activation = 'relu'
+#		) %>%
+#		layer_batch_normalization() %>%
+
+#		layer_conv_2d_transpose(
+#			filters = filters[2],
+#			kernel_size = shape(kernel_size[2], 1L),
+#			strides = shape(strides[2], 1L),
+#			padding = 'same'
+#		) %>% 
+#		layer_reshape(
+#			target_shape = window_size,
+#			name = 'nucleosome_score'
+#		)
 
 	y
 

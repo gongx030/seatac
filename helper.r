@@ -263,6 +263,16 @@ read_ncp_mESC <- function(which = NULL){
 }
 
 
+read_nucleosome_mESC <- function(){
+	nc_mm10_gz_file <- sprintf('%s/GSM2183909_unique.map_95pc_mm10.bed.gz', sra.run.dir('GSM2183909'))  # a simple seqnames/start/end format
+	flog.info(sprintf('reading %s', nc_mm10_gz_file))
+	nuc <- read.table(gzfile(nc_mm10_gz_file), header = FALSE, sep = '\t')
+	nuc <- GRanges(seqnames = nuc[, 1], range = IRanges(nuc[, 2], nuc[, 3]))
+	nuc <- add.seqinfo(nuc, 'mm10')
+	nuc
+} # read_nucleosome_mESC
+
+
 #' prepare_training_windows2
 #'
 prepare_training_windows2 <- function(gs, ps, window_size = 320, bin_size = 10, genome){
@@ -279,17 +289,24 @@ prepare_training_windows2 <- function(gs, ps, window_size = 320, bin_size = 10, 
 
 	if (gs == 'Maza_mESC'){
 
-		ncp <- read_ncp_mESC(which = reduce(peaks_extend))
-		cvg_ncp <- coverage(ncp, weight = 'name')
-		X <- as(as(cvg_ncp[peaks_extend], 'RleViews'), 'matrix')
-		w <- exp(-((-73:73) / 20)^2 / 2)
-		js <- (73 + 1):(73 + window_size)
-		mcols(peaks)$nucleosome_score <- do.call('cbind', lapply(js, function(j) rowSums(X[, (j - 73):(j + 73)] %*% diag(w))))
-		mcols(peaks)$min_nucleosome_score <- rowMins(mcols(peaks)$nucleosome_score)
-		mcols(peaks)$max_nucleosome_score <- rowMaxs(mcols(peaks)$nucleosome_score)
-		mcols(peaks)$mean_nucleosome_score <- rowMeans(mcols(peaks)$nucleosome_score)
-		mcols(peaks)$nucleosome_score <- (mcols(peaks)$nucleosome_score - mcols(peaks)$min_nucleosome_score) / (mcols(peaks)$max_nucleosome_score - mcols(peaks)$min_nucleosome_score)
-		mcols(peaks)$nucleosome_score[is.na(mcols(peaks)$nucleosome_score)] <- 0
+#		ncp <- read_ncp_mESC(which = reduce(peaks_extend))
+#		cvg_ncp <- coverage(ncp, weight = 'name')
+#		X <- as(as(cvg_ncp[peaks_extend], 'RleViews'), 'matrix')
+#		w <- exp(-((-73:73) / 20)^2 / 2)
+#		js <- (73 + 1):(73 + window_size)
+#		mcols(peaks)$nucleosome_score <- do.call('cbind', lapply(js, function(j) rowSums(X[, (j - 73):(j + 73)] %*% diag(w))))
+#		mcols(peaks)$min_nucleosome_score <- rowMins(mcols(peaks)$nucleosome_score)
+#		mcols(peaks)$max_nucleosome_score <- rowMaxs(mcols(peaks)$nucleosome_score)
+#		mcols(peaks)$mean_nucleosome_score <- rowMeans(mcols(peaks)$nucleosome_score)
+#		mcols(peaks)$nucleosome_score <- (mcols(peaks)$nucleosome_score - mcols(peaks)$min_nucleosome_score) / (mcols(peaks)$max_nucleosome_score - mcols(peaks)$min_nucleosome_score)
+#		mcols(peaks)$nucleosome_score[is.na(mcols(peaks)$nucleosome_score)] <- 0
+
+		nuc <- read_nucleosome_mESC()
+		nuc <- nuc[nuc %over% peaks]
+		nuc <- resize(nuc, width = 50, fix = 'center')
+		cvg <- coverage(nuc)
+		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+		mcols(peaks)$nucleosome_score[mcols(peaks)$nucleosome_score > 1] <- 1
 
 		flog.info('reading NucleoATAC smooth signal')
 		dataset <- 'dataset=Maza_version=20170302a'
