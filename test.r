@@ -12,40 +12,51 @@ library(keras)
 library(tfprobability)
 library(futile.logger); flog.threshold(TRACE)
 library(BSgenome.Mmusculus.UCSC.mm10)
+library(BSgenome.Hsapiens.UCSC.hg19)
 
 
 # -----------------------------------------------------------------------------------
 # [2019-07-11] Training nucleosome classifier on mESC ATAC-seq data and chemicall mapping
 # data
 # -----------------------------------------------------------------------------------
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; window_size <- 320; bin_size <- 10; step_size <- 20; mr <- 5; mc <- 0; bs <- 256; ns <- 1; seed <- 1
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1'; window_size <- 320; bin_size <- 5; step_size <- 40; mr <- 5; mc <- 0; bs <- 128
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC_chr1-3'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1; cw <- 20
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1; cw <- 10
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1; cw <- 147
-gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; ns <- 1; cw <- 5
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; genome <- BSgenome.Mmusculus.UCSC.mm10
+#gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; genome <- BSgenome.Mmusculus.UCSC.mm10
+#gs <- 'GM12878'; ps <- 'GM12878'; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; genome <- BSgenome.Hsapiens.UCSC.hg19
 
-latent_dim <- 2; epochs <- 30
+latent_dim <- 10; epochs <- 20
 
-source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
-source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
-source('analysis/seatac/helper.r'); windows <- prepare_training_windows(peaks, expand = expand, window_size = window_size, core_width = cw, negative_sample_ratio = ns)
-source('analysis/seatac/helper.r'); windows <- readFragmentSizeMatrix(ga, windows, window_size = window_size, bin_size = bin_size)
-windows <- windows[mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= mc]
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, expand, window_size, mr, mc, bin_size, ns, cw)
+source('analysis/seatac/helper.r'); windows <- prepare_training_windows2(gs, ps, window_size, bin_size, genome = genome)
+
+train <- mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= mc
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, window_size, mr, mc, bin_size)
 
 # run the model 
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = epochs, batch_size = bs)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows[train], latent_dim = latent_dim, epochs = epochs, batch_size = bs)
 devtools::load_all('analysis/seatac/packages/seatac'); save_model(model, model_dir)
 
 
 # load the model
 devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
 
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows)
 
-devtools::load_all('analysis/seatac/packages/seatac'); model %>% predict(windows[1:100])
+par(mfcol = c(7, 6))
+i <- 1
+
+yy <- c(50, 200, 400, 600, 670)
+image(matrix(as.matrix(mcols(gr)$counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+axis(2, at = (yy - 50) / (670 - 50), label = yy)
+axis(1, at = c(0, 0.5, 1))
+image(matrix(as.matrix(mcols(gr)$fitted_counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+axis(2, at = (yy - 50) / (670 - 50), label = yy)
+axis(1, at = c(0, 0.5, 1))
+plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(mcols(gr)$nucleosome_score[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(mcols(gr)$fitted_nucleosome_score[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(mcols(gr)$nucleoatac_signal[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+
+
 
 # -----------------------------------------------------------------------------------
 # [2019-08-16] Predicting the nucleosome positions ATAC-seq peak region on mESC
@@ -461,13 +472,6 @@ barplot(c(7910, 143))
 
 par(mfcol = c(6, 6))
 i <- 2
-yy <- c(50, 200, 400, 600, 670)
-image(matrix(as.matrix(mcols(gr)$counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
-axis(2, at = (yy - 50) / (670 - 50), label = yy)
-axis(1, at = c(0, 0.5, 1))
-image(matrix(as.matrix(mcols(gr)$fitted_counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
-axis(2, at = (yy - 50) / (670 - 50), label = yy)
-axis(1, at = c(0, 0.5, 1))
 plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$state[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i", ylim = c(-1, 1))

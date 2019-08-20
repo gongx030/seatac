@@ -39,6 +39,7 @@ seatac <- function(
 	window_dim <- length(x)
 	feature_dim <- metadata(x)$n_intervals
 	input_dim <- metadata(x)$n_bins_per_window
+	window_size <- metadata(x)$window_size
 
 	flog.info(sprintf('total number of training windows(window_dim): %d', window_dim))
 	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
@@ -48,6 +49,7 @@ seatac <- function(
 		input_dim = input_dim, 
 		feature_dim = feature_dim, 
 		latent_dim = latent_dim, 
+		window_size = window_size,
 		num_samples = metadata(x)$num_samples
 	)
 	model %>% fit(x, epochs = epochs)

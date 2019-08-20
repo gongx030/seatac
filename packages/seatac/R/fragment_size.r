@@ -39,7 +39,7 @@ readFragmentSizeMatrix <- function(
 
 	mcols(gr)$coverage <- do.call('rbind', lapply(1:num_samples, function(i){
 		cvg <- coverage(x[mcols(x)$group == i])
-		matrix(mean(cvg[bins]), nrow = length(windows), ncol = n_bins_per_window, byrow = TRUE)
+		as(as(cvg[windows], 'RleViews'), 'matrix')
 	}))
 	mcols(gr)$min_coverage <- rowMins(mcols(gr)$coverage)
 	mcols(gr)$max_coverage <- rowMaxs(mcols(gr)$coverage)

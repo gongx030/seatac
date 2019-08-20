@@ -7,37 +7,11 @@ devtools::load_all('analysis/seatac/packages/seatac')
 # touch everything in the project dir
 # find /panfs/roc/scratch/gongx030/seatac -type f -exec touch {} +
 
-list_bam_files <- function(){
-
-	bam <- c(
-		'MEF_NoDox' = 'ATAC_MEF_NoDox.bam',
-		'MEF_Dox_D1' = 'ATAC_MEF_Dox_D1.bam',
-		'MEF_Dox_D2' = 'ATAC_MEF_Dox_D2.bam',
-		'MEF_Dox_D7' = 'ATAC_MEF_Dox_D7.bam',
-		'MEF_Dox_D7_Flk1pos' = 'ATAC_MEF_Dox_D7_Flk1pos.bam',
-		'EB_NoDox_D25' = 'ATAC_EB_NoDox_D25.bam',
-		'EB_Dox_D25_Flk1pos' = 'ATAC_EB_Dox_D25_Flk1pos.bam',
-		'EB_Dox_D25' = 'ATAC_EB_Dox_D25.bam',
-		'Maza_MEF' = 'Maza_MEF.bam'
-	)
-	filenames <- sprintf('analysis/seatac/data/%s', bam)
-	names(filenames) <- names(bam)
-
-	filenames <- c(filenames,
-		'Maza_mESC' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC.bam'
-	)
-
-	if (!all(file.exists(filenames)))
-		stop('BAM files missing')
-
-	filenames
-
-} # list_bam_files
-
+#' list_peak_files
+#'
 list_peak_files <- function(){
 
 	peaks <- c(
-		'MEF_NoDox' = 'ATAC_MEF_NoDox_summits.bed',
 		'MEF_Dox_D1' = 'ATAC_MEF_Dox_D1_summits.bed',
 		'MEF_Dox_D2' = 'ATAC_MEF_Dox_D2_summits.bed',
 		'MEF_Dox_D7' = 'ATAC_MEF_Dox_D7_summits.bed',
@@ -60,6 +34,10 @@ list_peak_files <- function(){
 		'Maza_mESC_chr1-19' = '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC_summits.bed'
 	))
 
+	filenames <- c(filenames, c(
+		'MEF_NoDox' = sprintf('%s/MEF_NoDox_summits.bed', dataset_dir('dataset=Etv2ATAC_version=20190228a'))
+	))
+
 	if (!all(file.exists(filenames)))
 		stop('Peak files missing')
 
@@ -67,6 +45,8 @@ list_peak_files <- function(){
 
 }
 
+#' read_peaks
+#'
 read_peaks <- function(ps){
 
 	peak_files <- list_peak_files()
@@ -182,8 +162,8 @@ save_seatac_res <- function(gr, gs, window_size, bin_size, latent_dim, n_compone
 	}
 }
 
-model_dir_name <- function(dataset, peakset, latent_dim, expand, window_size, min_reads_per_window, min_reads_coverage, bin_size, negative_sample_ratio, core_width){
-	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_latent_dim=%d_expand=%d_window_size=%d_min_reads_per_window=%d_min_reads_coverage=%d_bin_size=%d_negative_sample_ratio=%d_core_width=%d', dataset, peakset, latent_dim, expand, window_size, min_reads_per_window, min_reads_coverage, bin_size, negative_sample_ratio, core_width)
+model_dir_name <- function(dataset, peakset, latent_dim, window_size, min_reads_per_window, min_reads_coverage, bin_size){
+	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_latent_dim=%d_window_size=%d_min_reads_per_window=%d_min_reads_coverage=%d_bin_size=%d', dataset, peakset, latent_dim, window_size, min_reads_per_window, min_reads_coverage, bin_size)
 	flog.info(sprintf('model dir: %s', f))
 	f
 }
@@ -282,3 +262,76 @@ read_ncp_mESC <- function(which = NULL){
 	ncp
 }
 
+
+#' prepare_training_windows2
+#'
+prepare_training_windows2 <- function(gs, ps, window_size = 320, bin_size = 10, genome){
+
+	peaks <- read_peaks(ps)
+	ga <- read_bam_files(gs, peaks, genome = genome)
+
+	flog.info('removing peaks from chrM')
+	peaks <- peaks[seqnames(peaks) != 'chrM']
+	peaks <- resize(peaks, fix = 'center', width = window_size)
+	peaks <- add.seqinfo(peaks, 'mm10')
+
+	peaks_extend <- resize(peaks, fix = 'center', width = window_size + 73 * 2)
+
+	if (gs == 'Maza_mESC'){
+
+		ncp <- read_ncp_mESC(which = reduce(peaks_extend))
+		cvg_ncp <- coverage(ncp, weight = 'name')
+		X <- as(as(cvg_ncp[peaks_extend], 'RleViews'), 'matrix')
+		w <- exp(-((-73:73) / 20)^2 / 2)
+		js <- (73 + 1):(73 + window_size)
+		mcols(peaks)$nucleosome_score <- do.call('cbind', lapply(js, function(j) rowSums(X[, (j - 73):(j + 73)] %*% diag(w))))
+		mcols(peaks)$min_nucleosome_score <- rowMins(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$max_nucleosome_score <- rowMaxs(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$mean_nucleosome_score <- rowMeans(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$nucleosome_score <- (mcols(peaks)$nucleosome_score - mcols(peaks)$min_nucleosome_score) / (mcols(peaks)$max_nucleosome_score - mcols(peaks)$min_nucleosome_score)
+		mcols(peaks)$nucleosome_score[is.na(mcols(peaks)$nucleosome_score)] <- 0
+
+		flog.info('reading NucleoATAC smooth signal')
+		dataset <- 'dataset=Maza_version=20170302a'
+		base.name <- sprintf('%s/mESC_ATAC', dataset_dir(dataset))
+		fs <- sprintf('%s.nucleoatac_%s.nucleoatac_signal.smooth.bedgraph.gz', base.name, sprintf('chr%s', c(1:19, 'X', 'Y')))
+		na <- do.call('rbind', lapply(fs, function(f) read.table(gzfile(f), header = FALSE, sep = '\t')))
+		na <- GRanges(seqnames = na[, 1], range = IRanges(na[, 2], na[, 3]), score = na[, 4])
+		na <- add.seqinfo(na, 'mm10')
+		cvg_nucleoatac <- coverage(na, weight = as.numeric(mcols(na)$score))
+		mcols(peaks)$nucleoatac_signal <- as(as(cvg_nucleoatac[peaks], 'RleViews'), 'matrix')
+
+	}else if (gs == 'MEF_NoDox'){
+
+		bw_files <- get_bigwig_files()
+		bw_file <- bw_files['MEF_MNase']
+		flog.info(sprintf('reading %s', bw_file))
+		cvg <- rtracklayer::import(bw_file, which = reduce(peaks_extend), as = 'Rle')
+		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+		mcols(peaks)$min_nucleosome_score <- rowMins(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$max_nucleosome_score <- rowMaxs(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$mean_nucleosome_score <- rowMeans(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$nucleosome_score <- (mcols(peaks)$nucleosome_score - mcols(peaks)$min_nucleosome_score) / (mcols(peaks)$max_nucleosome_score - mcols(peaks)$min_nucleosome_score)
+		mcols(peaks)$nucleosome_score[is.na(mcols(peaks)$nucleosome_score)] <- 0
+
+		flog.info('reading NucleoATAC smooth signal')
+		dataset <- 'dataset=Etv2ATAC_version=20190228a'
+		base.name <- sprintf('%s/MEF_NoDox', dataset_dir(dataset))
+    mcols(peaks)$nucleoatac_signal <- matrix(NA, length(peaks), window_size)
+		for (chr in sprintf('chr%s', c(1:19, 'X', 'Y'))){
+			f <- sprintf('%s.nucleoatac_%s.nucleoatac_signal.smooth.bedgraph.gz', base.name, chr)
+			flog.info(sprintf('reading %s', f))
+			na <- read.table(gzfile(f), header = FALSE, sep = '\t')
+			na <- GRanges(seqnames = na[, 1], range = IRanges(na[, 2], na[, 3]), score = na[, 4])
+			na <- add.seqinfo(na, 'mm10')
+			cvg_nucleoatac <- coverage(na, weight = as.numeric(mcols(na)$score))
+			i <- seqnames(peaks) == chr
+    	mcols(peaks[i])$nucleoatac_signal <- as(as(cvg_nucleoatac[peaks[i]], 'RleViews'), 'matrix')
+		}
+	}else
+		stop(sprintf('unknown ps: %s', ps))
+
+	peaks <- readFragmentSizeMatrix(ga, peaks, window_size = window_size, bin_size = bin_size)
+
+	peaks
+}

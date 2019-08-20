@@ -12,9 +12,10 @@ fit.vae <- function(model, gr, epochs = 1, batch_size = 256, learning_rate = 0.0
 		array_reshape(c(window_dim, model$input_dim, model$feature_dim, 1L)) 
 
 	y <- mcols(gr)$coverage %>%
-		array_reshape(c(window_dim, model$input_dim, 1L))
+		array_reshape(c(window_dim, model$window_size, 1L))
 
-	label <- as.numeric(mcols(gr)$label)
+	z <- mcols(gr)$nucleosome_score %>%
+		array_reshape(c(window_dim, model$window_size))
 
 	vae_loss <- function (y_true, y_pred) - (y_pred %>% tfd_log_prob(y_true))
 
@@ -23,7 +24,7 @@ fit.vae <- function(model, gr, epochs = 1, batch_size = 256, learning_rate = 0.0
 		optimizer = optimizer_adam(lr = learning_rate)
 	)
 
-	model$vae %>% fit(list(x, y), list(x, y, label), epochs = epochs, batch_size = batch_size)
+	model$vae %>% fit(list(x, y), list(x, y, z), epochs = epochs, batch_size = batch_size)
 
 	model
 
