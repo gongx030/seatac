@@ -19,26 +19,39 @@ library(BSgenome.Hsapiens.UCSC.hg19)
 # [2019-07-11] Training nucleosome classifier on mESC ATAC-seq data and chemicall mapping
 # data
 # -----------------------------------------------------------------------------------
-gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; genome <- BSgenome.Mmusculus.UCSC.mm10
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; window_size <- 320; bin_size <- 5; bs <- 256; genome <- 'mm10'
 #gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; genome <- BSgenome.Mmusculus.UCSC.mm10
 #gs <- 'GM12878'; ps <- 'GM12878'; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; genome <- BSgenome.Hsapiens.UCSC.hg19
 
-latent_dim <- 10; epochs <- 20
-
 source('analysis/seatac/helper.r'); windows <- prepare_training_windows2(gs, ps, window_size, bin_size, genome = genome)
+f <- sprintf('%s/dataset=%s_peakset=%s_window_size=%d__bin_size=%d.rds', project_dir('seatac'), gs, ps, window_size, bin_size)
+saveRDS(windows, f)
 
-train <- mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= mc
+# load the training data
+source('analysis/seatac/helper.r'); f <- sprintf('%s/dataset=%s_peakset=%s_window_size=%d__bin_size=%d.rds', project_dir('seatac'), gs, ps, window_size, bin_size)
+windows <- readRDS(f)
+
+# train the model 
+latent_dim <- 20; epochs <- 50
+mr <- 10; mc <- 5; train <- mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= mc
 source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, window_size, mr, mc, bin_size)
-
-# run the model 
 devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows[train], latent_dim = latent_dim, epochs = epochs, batch_size = bs)
 devtools::load_all('analysis/seatac/packages/seatac'); save_model(model, model_dir)
 
 
-# load the model
+# --- load the model
+gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; latent_dim <- 20; window_size <- 320; mr <- 10; mc <- 5; bin_size <- 5
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, window_size, mr, mc, bin_size)
 devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
 
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows)
+
+# --- testing
+#gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; window_size <- 320; bin_size <- 5; bs <- 256; genome <- BSgenome.Mmusculus.UCSC.mm10
+gs <- 'GM12878_50k_cells'; ps <- 'GM12878_50k_cells'; window_size <- 320; bin_size <- 5; bs <- 256; genome <- 'hg19'
+source('analysis/seatac/helper.r'); windows_test <- prepare_training_windows2(gs, ps, window_size, bin_size, genome = genome)
+mr <- 15; mc <- 10; test<- mcols(windows_test)$num_reads >= mr & mcols(windows_test)$mean_coverage >= mc
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows_test[test])
+
 
 par(mfcol = c(7, 6))
 i <- 1
@@ -53,8 +66,10 @@ axis(1, at = c(0, 0.5, 1))
 plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$nucleosome_score[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
-plot(mcols(gr)$fitted_nucleosome_score[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(1 / (1 + exp(-mcols(gr)$fitted_nucleosome_score[i, ])), type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$nucleoatac_signal[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+
+
 
 
 

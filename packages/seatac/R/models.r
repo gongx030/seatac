@@ -109,6 +109,7 @@ load_model <- function(dir){
 		input_dim = x$input_dim,
 		feature_dim = x$feature_dim,
 		latent_dim = x$latent_dim,
+		window_size = x$window_size,
 		num_samples = x$num_samples
 	)
 
@@ -248,51 +249,48 @@ nucleosome_score_model <- function(
 	x,
 	window_size,
 	filters0 = 32L, 
-	filters = c(32L, 1L), 
-	kernel_size = c(3L, 3L), 
-	strides = c(2L, 2L))
+	filters = c(32L, 32L, 1L), 
+	kernel_size = c(3L, 3L, 3L), 
+	strides = c(2L, 2L, 2L))
 {
 
 	window_size0 <- window_size / prod(strides)
 	output_dim0 <- window_size0 * 1 * filters0
 
 	y <- x %>%
-		
-		layer_dense(units = 32L) %>%
-		layer_batch_normalization() %>%
-		layer_activation(activation = 'relu') %>%
+
+		layer_dense(units = output_dim0, activation = 'relu') %>%
 		layer_dropout(rate = 0.2) %>%
+		layer_reshape(target_shape = c(window_size0, 1L, filters0)) %>%
 
-		layer_dense(units = 32L) %>%
+		layer_conv_2d_transpose(
+			filters = filters[1],
+			kernel_size = shape(kernel_size[1], 1L),
+			strides = shape(strides[1], 1L),
+			padding = 'same',
+			activation = 'relu'
+		) %>%
 		layer_batch_normalization() %>%
-		layer_activation(activation = 'relu') %>%
-		layer_dropout(rate = 0.2) %>%
 
-		layer_dense(units = window_size)
+		layer_conv_2d_transpose(
+			filters = filters[2],
+			kernel_size = shape(kernel_size[2], 1L),
+			strides = shape(strides[2], 1L),
+			padding = 'same'
+		) %>% 
+		layer_batch_normalization() %>%
 
-#		layer_dense(units = output_dim0, activation = 'relu') %>%
-#		layer_dropout(rate = 0.2) %>%
-#		layer_reshape(target_shape = c(window_size0, 1L, filters0)) %>%
+		layer_conv_2d_transpose(
+			filters = filters[3],
+			kernel_size = shape(kernel_size[3], 1L),
+			strides = shape(strides[3], 1L),
+			padding = 'same'
+		) %>% 
 
-#		layer_conv_2d_transpose(
-#			filters = filters[1],
-#			kernel_size = shape(kernel_size[1], 1L),
-#			strides = shape(strides[1], 1L),
-#			padding = 'same',
-#			activation = 'relu'
-#		) %>%
-#		layer_batch_normalization() %>%
-
-#		layer_conv_2d_transpose(
-#			filters = filters[2],
-#			kernel_size = shape(kernel_size[2], 1L),
-#			strides = shape(strides[2], 1L),
-#			padding = 'same'
-#		) %>% 
-#		layer_reshape(
-#			target_shape = window_size,
-#			name = 'nucleosome_score'
-#		)
+		layer_reshape(
+			target_shape = window_size,
+			name = 'nucleosome_score'
+		)
 
 	y
 
