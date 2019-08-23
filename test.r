@@ -16,44 +16,49 @@ library(BSgenome.Hsapiens.UCSC.hg19)
 
 
 # -----------------------------------------------------------------------------------
-# [2019-07-11] Training nucleosome classifier on mESC ATAC-seq data and chemicall mapping
-# data
+# [2019-07-11] Preparing windows
 # -----------------------------------------------------------------------------------
-gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; window_size <- 320; bin_size <- 5; bs <- 256; genome <- 'mm10'
-#gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; genome <- BSgenome.Mmusculus.UCSC.mm10
-#gs <- 'GM12878'; ps <- 'GM12878'; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; bs <- 256; genome <- BSgenome.Hsapiens.UCSC.hg19
+#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; window_size <- 320; bin_size <- 5; bs <- 256; genome <- 'mm10'
+#gs <- 'MEF_NoDox'; window_size <- 320; bin_size <- 5; genome <- 'mm10'
+#gs <- 'MEF_NoDox'; window_size <- 640; bin_size <- 10; genome <- 'mm10'
+#gs <- 'MEF_NoDox'; window_size <- 320; bin_size <- 10; genome <- 'mm10'
+gs <- 'MEF_D1_Dox_Etv2'; window_size <- 640; bin_size <- 10; genome <- 'mm10'
+source('analysis/seatac/helper.r'); windows <- prepare_training_windows2(gs, window_size, bin_size, genome = genome)
+source('analysis/seatac/helper.r'); save_windows(windows, gs, window_size, bin_size)
 
-source('analysis/seatac/helper.r'); windows <- prepare_training_windows2(gs, ps, window_size, bin_size, genome = genome)
-f <- sprintf('%s/dataset=%s_peakset=%s_window_size=%d__bin_size=%d.rds', project_dir('seatac'), gs, ps, window_size, bin_size)
-saveRDS(windows, f)
 
-# load the training data
-source('analysis/seatac/helper.r'); f <- sprintf('%s/dataset=%s_peakset=%s_window_size=%d__bin_size=%d.rds', project_dir('seatac'), gs, ps, window_size, bin_size)
-windows <- readRDS(f)
-
-# train the model 
-latent_dim <- 20; epochs <- 50
-mr <- 10; mc <- 5; train <- mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= mc
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, window_size, mr, mc, bin_size)
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows[train], latent_dim = latent_dim, epochs = epochs, batch_size = bs)
+# -----------------------------------------------------------------------------------
+# [2019-07-11] Load the training data, train the model and save the model
+# -----------------------------------------------------------------------------------
+#gs <- 'MEF_NoDox'; window_size <- 320; bin_size <- 5; genome <- 'mm10'
+#gs <- 'MEF_NoDox'; window_size <- 320; bin_size <- 10; genome <- 'mm10'
+gs <- 'MEF_NoDox'; window_size <- 640; bin_size <- 10; genome <- 'mm10'
+source('analysis/seatac/helper.r'); windows <- load_windows(gs, window_size, bin_size)
+latent_dim <- 50; epochs <- 50; mr <- 10; mc <- 5
+train <- mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= mc
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, mr, mc, bin_size)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows[train], latent_dim = latent_dim, epochs = epochs)
+#devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows[train])
 devtools::load_all('analysis/seatac/packages/seatac'); save_model(model, model_dir)
 
 
-# --- load the model
-gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; latent_dim <- 20; window_size <- 320; mr <- 10; mc <- 5; bin_size <- 5
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, window_size, mr, mc, bin_size)
+# -----------------------------------------------------------------------------------
+# [2019-08-23] Load the trained model
+# -----------------------------------------------------------------------------------
+gs <- 'MEF_NoDox'; latent_dim <- 50; window_size <- 640; mr <- 10; mc <- 5; bin_size <- 10
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, mr, mc, bin_size)
 devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
 
 
 # --- testing
-#gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; window_size <- 320; bin_size <- 5; bs <- 256; genome <- BSgenome.Mmusculus.UCSC.mm10
-gs <- 'GM12878_50k_cells'; ps <- 'GM12878_50k_cells'; window_size <- 320; bin_size <- 5; bs <- 256; genome <- 'hg19'
-source('analysis/seatac/helper.r'); windows_test <- prepare_training_windows2(gs, ps, window_size, bin_size, genome = genome)
-mr <- 15; mc <- 10; test<- mcols(windows_test)$num_reads >= mr & mcols(windows_test)$mean_coverage >= mc
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows_test[test])
+#gs <- 'MEF_NoDox'; ps <- 'mouse_TSS'; window_size <- 320; bin_size <- 5; genome <- 'mm10'
+gs <- 'MEF_NoDox'; window_size <- 320; bin_size <- 5; genome <- 'mm10'
+source('analysis/seatac/helper.r'); windows_test <- load_windows(gs, window_size, bin_size)
+mr <- 0; mc <- 0; valid <- mcols(windows_test)$num_reads >= mr & mcols(windows_test)$mean_coverage >= mc
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows_test[valid])
 
 
-par(mfcol = c(7, 6))
+par(mfcol = c(6, 6))
 i <- 1
 
 yy <- c(50, 200, 400, 600, 670)
@@ -67,7 +72,7 @@ plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(mcols(gr)$nucleosome_score[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 plot(1 / (1 + exp(-mcols(gr)$fitted_nucleosome_score[i, ])), type = 'b', lwd = 2, xaxs="i", yaxs="i")
-plot(mcols(gr)$nucleoatac_signal[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+#plot(mcols(gr)$nucleoatac_signal[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 
 
 
@@ -502,7 +507,7 @@ source('analysis/seatac/helper.r')
 gr <- GRanges(seqnames = 'chr3', range = IRanges(start = 137269432, end = 137297091))
 expand <- 10000
 gr <- resize(gr, fix = 'center', width = expand)
-devtools::load_all('analysis/seatac/packages/seatac'); ga <- readBAM(list_files()['MEF_NoDox', 'bam'], gr, genome = BSgenome.Mmusculus.UCSC.mm10, expand = expand + 5000)
+devtools::load_all('analysis/seatac/packages/seatac'); ga <- read_bam(list_files()['MEF_NoDox', 'bam'], gr, genome = BSgenome.Mmusculus.UCSC.mm10, expand = expand + 5000)
 devtools::load_all('analysis/seatac/packages/seatac');  gr <- readFragmentSizeMatrix(ga, gr, window_size = expand)
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(gr, window_size = 400, step_size = 50)
 
@@ -575,10 +580,10 @@ source('analysis/seatac/helper.r')
 gr <- GRanges(seqnames = 'chr3', range = IRanges(start = 137269432, end = 137297091))
 expand <- 10000
 gr <- resize(gr, fix = 'center', width = expand)
-devtools::load_all('analysis/seatac/packages/seatac'); ga <- readBAM(list_files()['MEF_NoDox', 'bam'], gr, genome = BSgenome.Mmusculus.UCSC.mm10, expand = expand + 5000)
+devtools::load_all('analysis/seatac/packages/seatac'); ga <- read_bam(list_files()['MEF_NoDox', 'bam'], gr, genome = BSgenome.Mmusculus.UCSC.mm10, expand = expand + 5000)
 devtools::load_all('analysis/seatac/packages/seatac');  gr <- readFragmentSizeMatrix(ga, gr, window_size = expand)
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(gr, window_size = 400, step_size = 50)
-devtools::load_all('analysis/seatac/packages/seatac'); ga2 <- readBAM(list_files()['MEF_Dox_D1', 'bam'], gr, genome = BSgenome.Mmusculus.UCSC.mm10, expand = expand + 5000)
+devtools::load_all('analysis/seatac/packages/seatac'); ga2 <- read_bam(list_files()['MEF_Dox_D1', 'bam'], gr, genome = BSgenome.Mmusculus.UCSC.mm10, expand = expand + 5000)
 devtools::load_all('analysis/seatac/packages/seatac');  gr2 <- readFragmentSizeMatrix(ga2, gr, window_size = expand)
 devtools::load_all('analysis/seatac/packages/seatac'); gr2 <- model %>% predict(gr2, window_size = 400, step_size = 50)
 
@@ -889,36 +894,19 @@ X <- as(as(cvg[gr[strand(gr) == '+']], 'RleViews'), 'matrix')
 
 
 # -----------------------------------------------------------------------------------
-# [2019-08-12] Predict the NCP score surrounng TSS
-# [2019-08-16] Predict the NCP score surrounng TSS for MEF
+# [2019-08-22] Predict the nucleosome of Etv2 MEF reprogramming ATAC-seq
 # -----------------------------------------------------------------------------------
+gs <- 'MEF_D1_Dox_Etv2'; window_size <- 640; bin_size <- 10
+source('analysis/seatac/helper.r'); windows_test <- load_windows(gs, window_size, bin_size)
 
-# --- load the trained model on mESC
-gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; latent_dim <- 2; expand <- 1000; window_size <- 320; bin_size <- 10; mr <- 10; mc <- 5; ns <- 1
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, ps, latent_dim, expand, window_size, mr, mc, bin_size, ns)
+# --- load the model
+gs <- 'MEF_NoDox'; latent_dim <- 50; mr <- 10; mc <- 5
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, mr, mc, bin_size)
 devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows_test)
 
-library(org.Mm.eg.db)
 library(TxDb.Mmusculus.UCSC.mm10.knownGene)
-devtools::load_all('packages/compbio')
-pmt <- promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene), upstream = 500, downstream = 500)
-pmt <- add.seqinfo(pmt, 'mm10')
-gs <- 'MEF_NoDox'; ps <- 'MEF_NoDox'; step_size <- 10
-source('analysis/seatac/helper.r'); peaks <- read_peaks(ps)
-source('analysis/seatac/helper.r'); ga <- read_bam_files(gs, peaks, genome = BSgenome.Mmusculus.UCSC.mm10)
-devtools::load_all('analysis/seatac/packages/seatac'); windows <- read_windows(ga, peaks, window_size = window_size, step_size = step_size, bin_size = bin_size)
-
-window_dim <- length(windows_test)
-feature_dim <- metadata(windows_test)$n_intervals
-input_dim <- metadata(windows_test)$n_bins_per_window
-
-vplot <- mcols(windows_test)$counts %>%
-  as.matrix() %>%
-  array_reshape(c(window_dim, input_dim, feature_dim, 1))
-
-cvg <- mcols(windows_test)$coverage %>%
-  array_reshape(c(window_dim, input_dim, 1))
-
-mcols(windows_test)$label_pred <- model %>% predict(list(vplot, cvg), batch_size = bs, verbose = 1)
+near_promoter <- windows_test %over% promoters(genes(TxDb.Mmusculus.UCSC.mm10.knownGene), upstream = 1000, downstream = 1000)
+mr <- 5; mc <- 5; valid <- mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= mc
 
 

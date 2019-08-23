@@ -3,7 +3,7 @@
 
 vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples){
 
-	vplot_input <- layer_input(shape = c(input_dim, feature_dim, 1L))
+	vplot_input <- layer_input(shape = c(feature_dim, input_dim, 1L))
 	coverage_input <- layer_input(shape = c(window_size, 1L))
 
 	z_vplot <- vplot_input %>% vplot_encoder_model()
@@ -32,7 +32,7 @@ vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples){
 	vplot_prob <- vplot_decoded %>% 
 		layer_flatten() %>%
 		layer_independent_bernoulli(
-			event_shape = c(input_dim, feature_dim, 1L),
+			event_shape = c(feature_dim, input_dim, 1L),
 			convert_to_tensor_fn = tfp$distributions$Bernoulli$logits,
 			name = 'vplot_output'
 		)
@@ -65,6 +65,8 @@ vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples){
 } # vae
 
 
+#' save_model
+#'
 save_model <- function(x, dir){
 
 	if (missing(dir))
@@ -92,6 +94,7 @@ save_model <- function(x, dir){
 } # save_model
 
 
+#' load_model
 load_model <- function(dir){
 
 	if (missing(dir))
@@ -174,12 +177,12 @@ vplot_decoder_model <- function(
 	y <- x %>% 
 		layer_dense(units = output_dim0, activation = 'relu') %>%
 		layer_dropout(rate = 0.2) %>%
-		layer_reshape(target_shape = c(input_dim0, feature_dim0, filters0)) %>%
+		layer_reshape(target_shape = c(feature_dim0, input_dim0, filters0)) %>%
 
 		layer_conv_2d_transpose(
 			filters = filters[1],
 			kernel_size = kernel_size[1],
-			strides = shape(input_strides[1], feature_strides[1]),
+			strides = shape(feature_strides[1], input_strides[1]),
 			padding = 'same',
 			activation = 'relu'
 		) %>%
@@ -188,7 +191,7 @@ vplot_decoder_model <- function(
 		layer_conv_2d_transpose( 
 			filters = filters[2],
 			kernel_size = kernel_size[2],
-			strides = shape(input_strides[2], feature_strides[2]),
+			strides = shape(feature_strides[2], input_strides[2]),
 			padding = 'same',
 			activation = 'relu'
 		) %>%
@@ -197,7 +200,7 @@ vplot_decoder_model <- function(
 		layer_conv_2d_transpose(
 			filters = filters[3],
 			kernel_size = kernel_size[3],
-			strides = shape(input_strides[3], feature_strides[3]),
+			strides = shape(feature_strides[3], input_strides[3]),
 			padding = 'same',
 			name = 'vplot_decoded'
 		) 

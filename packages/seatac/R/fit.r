@@ -9,7 +9,7 @@ fit.vae <- function(model, gr, epochs = 1, batch_size = 256, learning_rate = 0.0
 
 	x <- mcols(gr)$counts %>%
 		as.matrix() %>%
-		array_reshape(c(window_dim, model$input_dim, model$feature_dim, 1L)) 
+		array_reshape(c(window_dim, model$feature_dim, model$input_dim, 1L)) 
 
 	y <- mcols(gr)$coverage %>%
 		array_reshape(c(window_dim, model$window_size, 1L))

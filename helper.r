@@ -103,13 +103,19 @@ read_peaks <- function(ps){
 			x <- narrow(x, start = 1001, end = 1000 + 800)
 		}
 
-	}else if (ps == 'MEF_active_TSS2'){
+	}else if (ps == 'mouse_TSS'){
 
 		library(TxDb.Mmusculus.UCSC.mm10.knownGene)
-		x <- promoters(TxDb.Mmusculus.UCSC.mm10.knownGene, upstream = 1000, downstream = 1000)
+		x <- promoters(TxDb.Mmusculus.UCSC.mm10.knownGene, upstream = window_size / 2, downstream = window_size / 2)
 		x <- granges(x)
 		names(x) <- NULL
 		x <- unique(x)
+
+	}else if (ps == 'human_TSS'){
+
+		library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+		x <- promoters(TxDb.Hsapiens.UCSC.hg19.knownGene, upstream = window_size / 2, downstream = window_size / 2)
+		x <- granges(x)
 
 	}else
 		stop(sprintf('unknown ps: %s', ps))
@@ -130,7 +136,7 @@ read_bam_files <- function(gs, peaks, genome, expand = 2000){
 
 	ga_file <- sprintf('%s/data/summits/%s_expand=%d_ga.rds', project_dir('seatac'), paste(gs, collapse = '+'), expand)
 	if (!file.exists(ga_file)){
-		x <- readBAM(list_bam_files()[gs], peaks, genome2, expand = expand)
+		x <- read_bam(list_bam_files()[gs], peaks, genome2, expand = expand)
 		flog.info(sprintf('writing %s', ga_file))
 		saveRDS(x, ga_file)
 	}	
@@ -171,8 +177,8 @@ save_seatac_res <- function(gr, gs, window_size, bin_size, latent_dim, n_compone
 	}
 }
 
-model_dir_name <- function(dataset, peakset, latent_dim, window_size, min_reads_per_window, min_reads_coverage, bin_size){
-	 f <- sprintf('analysis/seatac/models/dataset=%s_peakset=%s_latent_dim=%d_window_size=%d_min_reads_per_window=%d_min_reads_coverage=%d_bin_size=%d', dataset, peakset, latent_dim, window_size, min_reads_per_window, min_reads_coverage, bin_size)
+model_dir_name <- function(dataset, latent_dim, window_size, min_reads_per_window, min_reads_coverage, bin_size){
+	f <- sprintf('analysis/seatac/models/dataset=%s_latent_dim=%d_window_size=%d_min_reads_per_window=%d_min_reads_coverage=%d_bin_size=%d', dataset, latent_dim, window_size, min_reads_per_window, min_reads_coverage, bin_size)
 	flog.info(sprintf('model dir: %s', f))
 	f
 }
@@ -284,17 +290,16 @@ read_nucleosome_mESC <- function(){
 
 #' prepare_training_windows2
 #'
-prepare_training_windows2 <- function(gs, ps, window_size = 320, bin_size = 10, genome){
+prepare_training_windows2 <- function(gs, window_size = 320, bin_size = 10, genome){
 
-	peaks <- read_peaks(ps)
-	ga <- read_bam_files(gs, peaks, genome = genome)
-
-	flog.info('removing peaks from chrM')
-	peaks <- peaks[seqnames(peaks) != 'chrM']
-	peaks <- resize(peaks, fix = 'center', width = window_size)
-	peaks <- add.seqinfo(peaks, genome)
-
-	peaks_extend <- resize(peaks, fix = 'center', width = window_size + 73 * 2)
+#	ga <- read_bam_files(gs, peaks, genome = genome)
+	if (genome == 'hg19'){
+		require(BSgenome.Hsapiens.UCSC.hg19)
+		genome2 <- BSgenome.Hsapiens.UCSC.hg19
+	}else if (genome == 'mm10'){
+		require(BSgenome.Mmusculus.UCSC.mm10)
+		genome2 <- BSgenome.Mmusculus.UCSC.mm10
+  }
 
 	if (gs == 'Maza_mESC'){
 
@@ -310,12 +315,12 @@ prepare_training_windows2 <- function(gs, ps, window_size = 320, bin_size = 10, 
 		mcols(peaks)$nucleosome_score <- (mcols(peaks)$nucleosome_score - mcols(peaks)$min_nucleosome_score) / (mcols(peaks)$max_nucleosome_score - mcols(peaks)$min_nucleosome_score)
 		mcols(peaks)$nucleosome_score[is.na(mcols(peaks)$nucleosome_score)] <- 0
 
-#		nuc <- read_nucleosome_mESC()
-#		nuc <- nuc[nuc %over% peaks]
-#		nuc <- resize(nuc, width = 50, fix = 'center')
-#		cvg <- coverage(nuc)
-#		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
-#		mcols(peaks)$nucleosome_score[mcols(peaks)$nucleosome_score > 1] <- 1
+		nuc <- read_nucleosome_mESC()
+		nuc <- nuc[nuc %over% peaks]
+		nuc <- resize(nuc, width = 50, fix = 'center')
+		cvg <- coverage(nuc)
+		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+		mcols(peaks)$nucleosome_score[mcols(peaks)$nucleosome_score > 1] <- 1
 
 		flog.info('reading NucleoATAC smooth signal')
 		dataset <- 'dataset=Maza_version=20170302a'
@@ -329,8 +334,18 @@ prepare_training_windows2 <- function(gs, ps, window_size = 320, bin_size = 10, 
 
 	}else if (gs == 'MEF_NoDox'){
 
-		bw_files <- get_bigwig_files()
-		bw_file <- bw_files['MEF_MNase']
+		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox_summits.bed'
+		peaks <- macs2.read_summits(bed_file)
+		flog.info('removing peaks from chrM')
+		peaks <- peaks[seqnames(peaks) != 'chrM']
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, genome)
+		peaks_extend <- resize(peaks, fix = 'center', width = window_size + 73 * 2)
+
+		bam_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam'
+		ga <- read_bam(bam_file, peaks, genome = genome2, expand = 2000)
+
+		bw_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/MNase_treat_pileup.bw'
 		flog.info(sprintf('reading %s', bw_file))
 		cvg <- rtracklayer::import(bw_file, which = reduce(peaks_extend), as = 'Rle')
 		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
@@ -340,15 +355,39 @@ prepare_training_windows2 <- function(gs, ps, window_size = 320, bin_size = 10, 
 		mcols(peaks)$nucleosome_score <- (mcols(peaks)$nucleosome_score - mcols(peaks)$min_nucleosome_score) / (mcols(peaks)$max_nucleosome_score - mcols(peaks)$min_nucleosome_score)
 		mcols(peaks)$nucleosome_score[is.na(mcols(peaks)$nucleosome_score)] <- 0
 
-		flog.info('reading NucleoATAC smooth signal')
-		dataset <- 'dataset=Etv2ATAC_version=20190228a'
-		base.name <- sprintf('%s/MEF_NoDox', dataset_dir(dataset))
-		fs <- sprintf('%s.nucleoatac_%s.nucleoatac_signal.smooth.bedgraph.gz', base.name, sprintf('chr%s', c(1:19, 'X', 'Y')))
-		na <- do.call('rbind', lapply(fs, function(f) read.table(gzfile(f), header = FALSE, sep = '\t')))
-		na <- GRanges(seqnames = na[, 1], range = IRanges(na[, 2], na[, 3]), score = na[, 4])
-		na <- add.seqinfo(na, 'mm10')
-		cvg_nucleoatac <- coverage(na, weight = as.numeric(mcols(na)$score))
-		mcols(peaks)$nucleoatac_signal <- as(as(cvg_nucleoatac[peaks], 'RleViews'), 'matrix')
+#		flog.info('reading NucleoATAC smooth signal')
+#		dataset <- 'dataset=Etv2ATAC_version=20190228a'
+#		base.name <- sprintf('%s/MEF_NoDox', dataset_dir(dataset))
+#		fs <- sprintf('%s.nucleoatac_%s.nucleoatac_signal.smooth.bedgraph.gz', base.name, sprintf('chr%s', c(1:19, 'X', 'Y')))
+#		na <- do.call('rbind', lapply(fs, function(f) read.table(gzfile(f), header = FALSE, sep = '\t')))
+#		na <- GRanges(seqnames = na[, 1], range = IRanges(na[, 2], na[, 3]), score = na[, 4])
+#		na <- add.seqinfo(na, 'mm10')
+#		cvg_nucleoatac <- coverage(na, weight = as.numeric(mcols(na)$score))
+#		mcols(peaks)$nucleoatac_signal <- as(as(cvg_nucleoatac[peaks], 'RleViews'), 'matrix')
+
+	}else if (gs == 'MEF_D1_Dox_Etv2'){
+
+		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D1_Etv2_summits.bed'
+		peaks <- macs2.read_summits(bed_file)
+		flog.info('removing peaks from chrM')
+		peaks <- peaks[seqnames(peaks) != 'chrM']
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, genome)
+		peaks_extend <- resize(peaks, fix = 'center', width = window_size + 73 * 2)
+
+		bam_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam'
+		ga <- read_bam(bam_file, peaks, genome = genome2, expand = 2000)
+
+		bw_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/MNase_treat_pileup.bw'
+#		bw_file <- '/home/garrydj/gongx030/rlib/analysis/etv2_pioneer/data/Teif/MEF_Coverage_pileup.bw'
+		flog.info(sprintf('reading %s', bw_file))
+		cvg <- rtracklayer::import(bw_file, which = reduce(peaks_extend), as = 'Rle')
+		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+		mcols(peaks)$min_nucleosome_score <- rowMins(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$max_nucleosome_score <- rowMaxs(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$mean_nucleosome_score <- rowMeans(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$nucleosome_score <- (mcols(peaks)$nucleosome_score - mcols(peaks)$min_nucleosome_score) / (mcols(peaks)$max_nucleosome_score - mcols(peaks)$min_nucleosome_score)
+		mcols(peaks)$nucleosome_score[is.na(mcols(peaks)$nucleosome_score)] <- 0
 	
 	}else if (gs == 'GM12878_50k_cells'){
 
@@ -382,3 +421,18 @@ prepare_training_windows2 <- function(gs, ps, window_size = 320, bin_size = 10, 
 
 	peaks
 }
+
+save_windows <- function(windows, gs, window_size, bin_size){
+	f <- sprintf('%s/windows/dataset=%s_window_size=%d_bin_size=%d.rds', project_dir('seatac'), gs, window_size, bin_size)
+	flog.info(sprintf('writing %s', f))
+	saveRDS(windows, f)
+}
+
+load_windows <- function(gs, window_size, bin_size){
+	f <- sprintf('%s/windows/dataset=%s_window_size=%d_bin_size=%d.rds', project_dir('seatac'), gs, window_size, bin_size)
+	if (!file.exists(f))
+		stop(sprintf('%s does not exist', f))
+	flog.info(sprintf('reading %s', f))
+	windows <- readRDS(f)
+	windows
+} # load_windows

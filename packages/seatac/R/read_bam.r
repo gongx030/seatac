@@ -1,6 +1,6 @@
-#' readBAM
+#' read_bam
 #'
-readBAM <- function(
+read_bam <- function(
 	filenames, 
 	peaks, 
 	genome, 
