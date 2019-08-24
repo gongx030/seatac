@@ -1,5 +1,7 @@
 #' read_bam
 #'
+#' Read the aligned paired-end reads over the given peaks. 
+#'  
 read_bam <- function(
 	filenames, 
 	peaks, 
@@ -46,6 +48,6 @@ read_bam <- function(
 	metadata(x)$num_samples <- num_samples
 	x
 
-} # readBAM
+} # read_bam
 
 

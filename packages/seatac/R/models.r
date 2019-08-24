@@ -19,15 +19,6 @@ vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples){
 			),
 		weight = 1)
 
-	nucleosome_score <- z %>% nucleosome_score_model(window_size = window_size)
-	nucleosome_score_prob <- nucleosome_score %>% 
-		layer_flatten() %>%
-		layer_independent_bernoulli(
-			event_shape = window_size,
-			convert_to_tensor_fn = tfp$distributions$Bernoulli$logits,
-			name = 'nucleosome_score_output'
-		)
-
 	vplot_decoded <- z %>% vplot_decoder_model(input_dim = input_dim, feature_dim = feature_dim)
 	vplot_prob <- vplot_decoded %>% 
 		layer_flatten() %>%
@@ -49,11 +40,15 @@ vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples){
 	structure(list(
 		vae = keras_model(
 			inputs = list(vplot_input, coverage_input),
-			outputs = list(vplot_prob, coverage_prob, nucleosome_score_prob)
+			outputs = list(vplot_prob, coverage_prob)
 		),
-		nucleosome = keras_model(
+		decoded = keras_model(
 			inputs = list(vplot_input, coverage_input),
-			outputs = list(vplot_decoded, coverage_decoded, nucleosome_score)
+			outputs = list(vplot_decoded, coverage_decoded)
+		),
+		latent = keras_model(
+			inputs = list(vplot_input, coverage_input),
+			outputs = z
 		),
 		num_samples = num_samples,
 		input_dim = input_dim,
@@ -79,13 +74,19 @@ save_model <- function(x, dir){
 	flog.info(sprintf('writing %s', vae_file))
 	x$vae$save_weights(vae_file)
 	x$vae_file <- vae_file
+	x$vae <- NULL
 
-	nucleosome_file <- sprintf('%s/nucleosome.h5', dir)
-	flog.info(sprintf('writing %s', nucleosome_file))
-	x$nucleosome$save_weights(nucleosome_file)
-	x$nucleosome_file <- nucleosome_file
+	latent_file <- sprintf('%s/latent.h5', dir)
+	flog.info(sprintf('writing %s', latent_file))
+	x$latent$save_weights(latent_file)
+	x$latent_file <- latent_file
+	x$latent <- NULL
 
-	x$encoder$vae <- NULL
+	decoded_file <- sprintf('%s/decoded.h5', dir)
+	flog.info(sprintf('writing %s', decoded_file))
+	x$decoded$save_weights(decoded_file)
+	x$decoded_file <- decoded_file
+	x$decoded <- NULL
 
 	model_file <- sprintf('%s/model.rds', dir)
 	flog.info(sprintf('writing %s', model_file))
@@ -119,36 +120,16 @@ load_model <- function(dir){
 	flog.info(sprintf('reading %s', x$vae_file))
 	model$vae$load_weights(x$vae_file)
 
-	flog.info(sprintf('reading %s', x$nucleosome_file))
-	model$nucleosome$load_weights(x$nucleosome_file)
+	flog.info(sprintf('reading %s', x$latent_file))
+	model$latent$load_weights(x$latent_file)
+
+	flog.info(sprintf('reading %s', x$decoded_file))
+	model$decoded$load_weights(x$decoded_file)
 
 	model
 
 } # load_model
 
-
-#' encoding model for the coverage data
-#
-coverage_encoder <- function(x, latent_dim, filters = c(8L), kernel_size = c(3L), strides = c(2L), name = NULL){
-
-	keras_model_custom(name = name, function(self){
-
-
-		function(x, mask = NULL){
-
-			y <- x %>% 
-				self$conv_1() %>%
-				self$bn_1() %>%
-				self$flatten_1() %>%
-				self$dense_1()
-
-			tfd_multivariate_normal_diag(
-				loc = y[, 1:latent_dim],
-				scale_diag = tf$nn$softplus(y[, (latent_dim + 1):(2 * latent_dim)] + 1e-5)
-			)
-		}
-	})
-}
 
 
 #' vplot_decoder_model
@@ -163,11 +144,11 @@ vplot_decoder_model <- function(
 	x,
 	input_dim, 
 	feature_dim, 
-	filters0 = 32L, 
+	filters0 = 64L, 
 	filters = c(32L, 32L, 1L), 
 	kernel_size = c(3L, 3L, 3L), 
 	input_strides = c(2L, 2L, 2L), 
-	feature_strides = c(2L, 2L, 1L)
+	feature_strides = c(2L, 2L, 2L)
 ){
 
 	input_dim0 <- input_dim / prod(input_strides)
@@ -211,7 +192,7 @@ vplot_decoder_model <- function(
 coverage_decoder_model <- function(
 	x,
 	window_size,
-	filters0 = 8L, 
+	filters0 = 16L, 
 	filters = c(8L, 1L), 
 	kernel_size = c(3L, 3L), 
 	strides = c(4L, 1L))
@@ -246,58 +227,6 @@ coverage_decoder_model <- function(
 		)
 	y			
 } # coverage_decoder_model
-
-
-nucleosome_score_model <- function(
-	x,
-	window_size,
-	filters0 = 32L, 
-	filters = c(32L, 32L, 1L), 
-	kernel_size = c(3L, 3L, 3L), 
-	strides = c(2L, 2L, 2L))
-{
-
-	window_size0 <- window_size / prod(strides)
-	output_dim0 <- window_size0 * 1 * filters0
-
-	y <- x %>%
-
-		layer_dense(units = output_dim0, activation = 'relu') %>%
-		layer_dropout(rate = 0.2) %>%
-		layer_reshape(target_shape = c(window_size0, 1L, filters0)) %>%
-
-		layer_conv_2d_transpose(
-			filters = filters[1],
-			kernel_size = shape(kernel_size[1], 1L),
-			strides = shape(strides[1], 1L),
-			padding = 'same',
-			activation = 'relu'
-		) %>%
-		layer_batch_normalization() %>%
-
-		layer_conv_2d_transpose(
-			filters = filters[2],
-			kernel_size = shape(kernel_size[2], 1L),
-			strides = shape(strides[2], 1L),
-			padding = 'same'
-		) %>% 
-		layer_batch_normalization() %>%
-
-		layer_conv_2d_transpose(
-			filters = filters[3],
-			kernel_size = shape(kernel_size[3], 1L),
-			strides = shape(strides[3], 1L),
-			padding = 'same'
-		) %>% 
-
-		layer_reshape(
-			target_shape = window_size,
-			name = 'nucleosome_score'
-		)
-
-	y
-
-} # nucleosome_score_model
 
 
 #' vplot_encoder_model

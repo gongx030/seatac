@@ -14,10 +14,10 @@ readFragmentSizeMatrix <- function(
 	windows, 
 	window_size = 320,
 	bin_size = 5,
-#	fragment_size_range = c(50, 690), 
-#	fragment_size_interval = 10
-	fragment_size_range = c(60, 700), 
-	fragment_size_interval = 20
+	fragment_size_range = c(50, 690), 
+	fragment_size_interval = 10
+#	fragment_size_range = c(60, 700), 
+#	fragment_size_interval = 20
 ){
 
 	windows <- resize(windows, fix = 'center', width = window_size)

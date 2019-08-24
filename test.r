@@ -21,33 +21,45 @@ library(BSgenome.Hsapiens.UCSC.hg19)
 #gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; window_size <- 320; bin_size <- 5; bs <- 256; genome <- 'mm10'
 #gs <- 'MEF_NoDox'; window_size <- 320; bin_size <- 5; genome <- 'mm10'
 #gs <- 'MEF_NoDox'; window_size <- 640; bin_size <- 10; genome <- 'mm10'
-#gs <- 'MEF_NoDox'; window_size <- 320; bin_size <- 10; genome <- 'mm10'
-gs <- 'MEF_D1_Dox_Etv2'; window_size <- 640; bin_size <- 10; genome <- 'mm10'
-source('analysis/seatac/helper.r'); windows <- prepare_training_windows2(gs, window_size, bin_size, genome = genome)
+#gs <- 'MEF_NoDox'; window_size <- 640; bin_size <- 5; genome <- 'mm10'
+#gs <- 'D1_Dox_Etv2_on_MEF'; window_size <- 640; bin_size <- 5; genome <- 'mm10'
+#gs <- 'D1_Dox_Etv2_on_MEF'; window_size <- 480; bin_size <- 5; genome <- 'mm10'
+#gs <- 'D1_Dox_Etv2_on_MEF'; window_size <- 1280; bin_size <- 10; genome <- 'mm10'
+gs <- 'D1_Dox_Etv2_on_D0+D1_MEF'; window_size <- 640; bin_size <- 5; genome <- 'mm10'
+source('analysis/seatac/helper.r'); windows <- prepare_windows(gs, window_size, bin_size, genome = genome)
 source('analysis/seatac/helper.r'); save_windows(windows, gs, window_size, bin_size)
 
 
 # -----------------------------------------------------------------------------------
 # [2019-07-11] Load the training data, train the model and save the model
 # -----------------------------------------------------------------------------------
-#gs <- 'MEF_NoDox'; window_size <- 320; bin_size <- 5; genome <- 'mm10'
-#gs <- 'MEF_NoDox'; window_size <- 320; bin_size <- 10; genome <- 'mm10'
-gs <- 'MEF_NoDox'; window_size <- 640; bin_size <- 10; genome <- 'mm10'
+latent_dim <- 10; epochs <- 20
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = epochs)
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size)
+source('analysis/seatac/helper.r'); save_model(model, model_dir)
+devtools::load_all('analysis/seatac/packages/seatac'); windows <- seatac(windows, latent_dim = latent_dim, epochs = epochs)
+
+
+# -----------------------------------------------------------------------------------
+# [2019-08-23] Load the data and the trained model
+# -----------------------------------------------------------------------------------
 source('analysis/seatac/helper.r'); windows <- load_windows(gs, window_size, bin_size)
-latent_dim <- 50; epochs <- 50; mr <- 10; mc <- 5
-train <- mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= mc
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, mr, mc, bin_size)
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows[train], latent_dim = latent_dim, epochs = epochs)
-#devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows[train])
-devtools::load_all('analysis/seatac/packages/seatac'); save_model(model, model_dir)
-
-
-# -----------------------------------------------------------------------------------
-# [2019-08-23] Load the trained model
-# -----------------------------------------------------------------------------------
-gs <- 'MEF_NoDox'; latent_dim <- 50; window_size <- 640; mr <- 10; mc <- 5; bin_size <- 10
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, mr, mc, bin_size)
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size)
 devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
+devtools::load_all('analysis/seatac/packages/seatac'); windows <- model %>% predict(windows)
+
+par(mfcol = c(4, 6))
+k <- 3
+set.seed(1); cls <- kmeans(mcols(windows)$latent, k)$cluster
+yy <- c(50, 200, 400, 600, 670)
+lapply(1:k, function(h){
+	i <- cls == h
+	image(matrix(as.matrix(colMeans(mcols(windows)$counts[i, ])), metadata(windows)$n_bins_per_window, metadata(windows)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE, main = sprintf('C%d(%d)', h, sum(i)))
+	axis(2, at = (yy - 50) / (670 - 50), label = yy)
+	axis(1, at = c(0, 0.5, 1))
+	plot(colMeans(mcols(windows)$coverage[i,]), type = 'b', lwd = 2, xaxs="i", yaxs="i", main = sprintf('C%d', h))
+})
+
 
 
 # --- testing
@@ -58,21 +70,18 @@ mr <- 0; mc <- 0; valid <- mcols(windows_test)$num_reads >= mr & mcols(windows_t
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows_test[valid])
 
 
-par(mfcol = c(6, 6))
+par(mfcol = c(4, 2))
 i <- 1
 
 yy <- c(50, 200, 400, 600, 670)
-image(matrix(as.matrix(mcols(gr)$counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+image(matrix(as.matrix(mcols(windows)$counts[i, ]), metadata(windows)$n_bins_per_window, metadata(windows)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 axis(2, at = (yy - 50) / (670 - 50), label = yy)
 axis(1, at = c(0, 0.5, 1))
-image(matrix(as.matrix(mcols(gr)$fitted_counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+image(matrix(as.matrix(mcols(windows)$fitted_counts[i, ]), metadata(windows)$n_bins_per_window, metadata(windows)$n_intervals), breaks = c(-1000, quantile(mcols(windows)$fitted_counts[i, ], seq(0, 1, length.out = 99)), 1000), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 axis(2, at = (yy - 50) / (670 - 50), label = yy)
 axis(1, at = c(0, 0.5, 1))
-plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
-plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
-plot(mcols(gr)$nucleosome_score[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
-plot(1 / (1 + exp(-mcols(gr)$fitted_nucleosome_score[i, ])), type = 'b', lwd = 2, xaxs="i", yaxs="i")
-#plot(mcols(gr)$nucleoatac_signal[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(mcols(windows)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(mcols(windows)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 
 
 
