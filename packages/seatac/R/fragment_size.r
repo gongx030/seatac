@@ -16,8 +16,6 @@ readFragmentSizeMatrix <- function(
 	bin_size = 5,
 	fragment_size_range = c(50, 690), 
 	fragment_size_interval = 10
-#	fragment_size_range = c(60, 700), 
-#	fragment_size_interval = 20
 ){
 
 	windows <- resize(windows, fix = 'center', width = window_size)
@@ -26,9 +24,14 @@ readFragmentSizeMatrix <- function(
 
   n_bins_per_window <- window_size / bin_size
 
+
 	breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
 
 	n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval
+
+	flog.info(sprintf('fragment size range(fragment_size_range):%d-%d', fragment_size_range[1], fragment_size_range[2]))
+	flog.info(sprintf('fragment size interval(fragment_size_interval):%d', fragment_size_interval))
+	flog.info(sprintf('# intervals:%d', n_intervals))
 
 	wb <- cbind(rep(1:length(windows), n_bins_per_window), 1:(length(windows)* n_bins_per_window))	# windows ~ bins, sorted by window
 

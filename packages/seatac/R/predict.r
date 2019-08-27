@@ -1,6 +1,6 @@
 #' predict.vae
 #' 
-predict.vae <- function(model, gr, type = 'nucleosome', batch_size = 256){
+predict.vae <- function(model, gr, type = 'nucleosome', chunk_size = 2^17, batch_size = 256){
 
 	window_dim <- length(gr)
 	num_samples <- metadata(gr)$num_samples
@@ -8,18 +8,29 @@ predict.vae <- function(model, gr, type = 'nucleosome', batch_size = 256){
 
 	flog.info(sprintf('# input peaks: %d', window_dim))
 
-	x <- mcols(gr)$counts %>%
-		as.matrix() %>%
-		array_reshape(c(window_dim, model$feature_dim, model$input_dim, 1L))
-	
-	y <- mcols(gr)$coverage %>%
-		array_reshape(c(window_dim, model$window_size, 1L))
+	starts <- seq(1, window_dim, by = chunk_size)
+	ends <- starts + chunk_size - 1
+	ends[ends > window_dim] <- window_dim
+	n_chunk <- length(starts)
 
-#	r <- model$decoded %>% predict(list(x, y), batch_size = batch_size, verbose = 1)
-#	mcols(gr)$fitted_counts <- r[[1]] %>% array_reshape(dim = c(window_dim, model$input_dim *  model$feature_dim), 'C')
-#	mcols(gr)$fitted_coverage <- r[[2]][, , 1]
+	Z <- matrix(NA, window_dim, model$latent_dim)
 
-	mcols(gr)$latent  <- model$latent %>% predict(list(x, y), batch_size = batch_size, verbose = 1)
+	for (b in 1:n_chunk){
+
+		flog.info(sprintf('%d/%d', b, n_chunk))
+		i <- starts[b]:ends[b]
+		window_dim2 <- length(i)
+		x <- mcols(gr[i])$counts %>%
+			as.matrix() %>%
+			array_reshape(c(window_dim2, model$feature_dim, model$input_dim, 1L))
+
+		y <- mcols(gr[i])$coverage %>%
+			array_reshape(c(window_dim2, model$window_size, 1L))
+
+		Z[i, ]  <- model$latent %>% predict(list(x, y), batch_size = batch_size, verbose = 1)
+	}
+
+	mcols(gr)$latent <- Z
 
 	gr
 

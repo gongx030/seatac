@@ -18,48 +18,168 @@ library(BSgenome.Hsapiens.UCSC.hg19)
 # -----------------------------------------------------------------------------------
 # [2019-07-11] Preparing windows
 # -----------------------------------------------------------------------------------
-#gs <- 'Maza_mESC'; ps <- 'Maza_mESC'; window_size <- 320; bin_size <- 5; bs <- 256; genome <- 'mm10'
 #gs <- 'MEF_NoDox'; window_size <- 320; bin_size <- 5; genome <- 'mm10'
 #gs <- 'MEF_NoDox'; window_size <- 640; bin_size <- 10; genome <- 'mm10'
 #gs <- 'MEF_NoDox'; window_size <- 640; bin_size <- 5; genome <- 'mm10'
 #gs <- 'D1_Dox_Etv2_on_MEF'; window_size <- 640; bin_size <- 5; genome <- 'mm10'
 #gs <- 'D1_Dox_Etv2_on_MEF'; window_size <- 480; bin_size <- 5; genome <- 'mm10'
 #gs <- 'D1_Dox_Etv2_on_MEF'; window_size <- 1280; bin_size <- 10; genome <- 'mm10'
-gs <- 'D1_Dox_Etv2_on_D0+D1_MEF'; window_size <- 640; bin_size <- 5; genome <- 'mm10'
+#gs <- 'D1_Dox_Etv2_on_D0+D1_MEF'; window_size <- 640; bin_size <- 5; genome <- 'mm10'
+#gs <- 'Etv2_MEF_reprogramming'; window_size <- 640; bin_size <- 5; genome <- 'mm10'
+#gs <- 'Etv2_MEF_reprogramming'; window_size <- 480; bin_size <- 5; genome <- 'mm10'
+#gs <- 'Maza_mESC'; window_size <- 480; bin_size <- 5; genome <- 'mm10'
+gs <- 'Maza_mESC'; window_size <- 640; bin_size <- 10; genome <- 'mm10'
+
 source('analysis/seatac/helper.r'); windows <- prepare_windows(gs, window_size, bin_size, genome = genome)
 source('analysis/seatac/helper.r'); save_windows(windows, gs, window_size, bin_size)
 
+source('analysis/seatac/helper.r'); windows <- load_windows(gs, window_size, bin_size)
 
 # -----------------------------------------------------------------------------------
 # [2019-07-11] Load the training data, train the model and save the model
 # -----------------------------------------------------------------------------------
-latent_dim <- 10; epochs <- 20
+latent_dim <- 2; epochs <- 20
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, epochs = epochs)
 devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = epochs)
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size)
 source('analysis/seatac/helper.r'); save_model(model, model_dir)
-devtools::load_all('analysis/seatac/packages/seatac'); windows <- seatac(windows, latent_dim = latent_dim, epochs = epochs)
 
 
 # -----------------------------------------------------------------------------------
-# [2019-08-23] Load the data and the trained model
+# [2019-08-23] Load the data and the trained model, and encode all the windows
 # -----------------------------------------------------------------------------------
 source('analysis/seatac/helper.r'); windows <- load_windows(gs, window_size, bin_size)
-source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size)
+source('analysis/seatac/helper.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, epochs = epochs)
 devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
 devtools::load_all('analysis/seatac/packages/seatac'); windows <- model %>% predict(windows)
 
-par(mfcol = c(4, 6))
-k <- 3
-set.seed(1); cls <- kmeans(mcols(windows)$latent, k)$cluster
+gr <- windows
+library(irlba); u <- svd(mcols(gr)$latent, nu = 2, nv = 1)$u
+set.seed(3); cls <- kmeans(u, 2)$cluster
+mcols(gr)$cluster <- cls
+
+gr <- gr[mcols(gr)$group == 1]
+bw_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/MNase_treat_pileup.bw'
+cvg <- rtracklayer::import(bw_file, which = trim(reduce(gr)), as = 'RleList')
+X <- as(as(cvg[gr], 'RleViews'), 'matrix')
+#X <- Diagonal(x = 1 / rowSums(X)) %*% X
+#bw_file <- '/home/garrydj/gongx030/rlib/analysis/etv2_pioneer/data/Teif/MEF_Coverage_pileup.bw'
+#bw_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/H3.3_treat_pileup.bw'
+#bw_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/H3_treat_pileup.bw'
+#cvg <- rtracklayer::import(bw_file, which = trim(reduce(gr)), as = 'RleList')
+#X2 <- as(as(cvg[gr], 'RleViews'), 'matrix')
+#X2 <- Diagonal(x = 1 / rowSums(X2)) %*% X2
+#X2[is.na(X2)] <- 0
+#bw_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox_treat_pileup.bw'
+#cvg <- rtracklayer::import(bw_file, which = trim(reduce(gr)), as = 'RleList')
+#X3 <- as(as(cvg[gr], 'RleViews'), 'matrix')
+#X3 <- Diagonal(x = 1 / rowSums(X3)) %*% X3
+#X3[is.na(X3)] <- 0
+
+
+par(mfcol = c(5, 7))
+k <- max(cls)
 yy <- c(50, 200, 400, 600, 670)
 lapply(1:k, function(h){
-	i <- cls == h
-	image(matrix(as.matrix(colMeans(mcols(windows)$counts[i, ])), metadata(windows)$n_bins_per_window, metadata(windows)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE, main = sprintf('C%d(%d)', h, sum(i)))
+	i <- mcols(gr)$cluster == h
+	image(matrix(as.matrix(colMeans(mcols(gr)$counts[i, ])), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE, main = sprintf('C%d(%d)', h, sum(i)))
 	axis(2, at = (yy - 50) / (670 - 50), label = yy)
+	abline(v = c(0.5 - 180/ 640, 0.5, 180/ 640 + 0.5), col = 'yellow', lty = 2)
 	axis(1, at = c(0, 0.5, 1))
-	plot(colMeans(mcols(windows)$coverage[i,]), type = 'b', lwd = 2, xaxs="i", yaxs="i", main = sprintf('C%d', h))
+	plot(colMeans(mcols(gr)$coverage[i,]), type = 'b', lwd = 2, xaxs="i", yaxs="i", main = sprintf('C%d', h))
+	plot(colMeans(X[i & mcols(gr)$num_reads > 10 & rowSums(X) < 2000, ]))
+	plot(colMeans(X2[i, ]))
+	plot(colMeans(X3[i, ]))
 })
 
+# --- V-plot cluster
+mcols(windows)$cluster <- cls
+mcols(windows)$peak_group2 <- sprintf('%d%d%d', mcols(windows)$peak_group[, 1], mcols(windows)$peak_group[, 2], mcols(windows)$peak_group[, 3])
+
+# --- Statistics on the distributions of V-plot members at each stage
+library(ggplot2)
+G <- matrix(cls, length(windows) / metadata(windows)$num_samples, metadata(windows)$num_samples)
+x <- table(mcols(windows)$cluster, mcols(windows)$group)
+x <- x / rowSums(x)
+gs <- sprintf('C%d', 1:3)
+stages <- c('MEF', 'D1', 'D2', 'D7', 'D7_Flk1+')
+x <- data.frame(
+	value = c(x), 
+	cluster = factor(rep(gs, ncol(x)), gs),
+	stage = factor(rep(stages, 3), stages)
+)
+x <- x[x$stage %in% c('MEF', 'D2', 'D7_Flk1+'), ]
+ggplot(data = x, aes(x = cluster, y = value, fill = stage)) + geom_bar(stat = "identity", color = "black", position  = position_dodge())
+
+# --- Etv2 motifs that are enriched at the center of each V-plot cluster
+# --- these command will run on isub
+win <- windows[mcols(windows)$group == 1]
+
+k <- 3
+gr <- win[mcols(win)$cluster == k]
+peak_file <- sprintf('%s/etv2_peaks_C%d.bed', project_dir('seatac'), k)
+fasta_file <- gsub('.bed', '.fa', peak_file)
+output_dir <- gsub('.bed', '.meme', peak_file)
+centrimo_output_dir <- gsub('.bed', '.centrimo', peak_file)
+motif_file <- gsub('.bed', '.meme/dreme.txt', peak_file)
+s <- getSeq(BSgenome.Mmusculus.UCSC.mm10, resize(gr, fix = 'center', width = 50))
+names(s) <- 1:length(s)
+writeXStringSet(s, fasta_file)
+command <- sprintf('dreme -p %s -oc %s -png -mink 6 -maxk 7 -m 10', fasta_file, output_dir)
+command
+
+
+command <- sprintf('centrimo %s %s --oc %s', fasta_file, motif_file, centrimo_output_dir)
+command
+
+
+# --- Annotating different clusters
+gr <- windows[mcols(windows)$group == 1]
+library(annotatr)
+annots <- c('mm10_basicgenes', 'mm10_genes_intergenic')
+annotations <- build_annotations(genome = 'mm10', annotations = annots)
+gr2 <- annotate_regions(regions = gr, annotations = annotations,ignore.strand = TRUE,quiet = FALSE)
+x <-  table(mcols(gr2)$cluster, mcols(mcols(gr2)$annot)$type)
+x <- x / rowSums(x)
+gs <- sprintf('C%d', 1:3)
+types <- c('1to5kb', '3UTRs', '5UTRs', 'Exons', 'Intergenic', 'Introns', 'Promoters')
+x <- data.frame(
+	value = c(x),
+	cluster = factor(rep(gs, ncol(x)), gs),
+	types = factor(rep(types, each = length(gs)))
+)
+ggplot(data = x, aes(x = cluster, y = value, fill = types)) + geom_bar(stat = "identity", color = "black", position  = position_dodge())
+
+																						    
+# --- switching between C2 and C3 during the reprogramming
+G <- matrix(cls, length(windows) / metadata(windows)$num_samples, metadata(windows)$num_samples)
+P <- mcols(windows)$peak_group[mcols(windows)$group == 1, ]
+
+# --- Average MNase signal of C1/C2/C3 in MEF
+gr <- windows[mcols(windows)$group == 1]
+bw_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/MNase_treat_pileup.bw'
+#bw_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/MNase.smooth.bw'
+#bw_file <- '/home/garrydj/gongx030/rlib/analysis/etv2_pioneer/data/Teif/MEF_Coverage_pileup.bw'
+cvg <- rtracklayer::import(bw_file, which = trim(reduce(gr)), as = 'RleList')
+X <- as(as(cvg[gr], 'RleViews'), 'matrix')
+plot(colMeans(X[mcols(gr)$cluster == 2 & mcols(gr)$mean_coverage > 5, ]))
+
+
+
+
+# --- Look at the Etv2 binding sites at D1 and how V-plot change from MEF to D1
+G <- matrix(cls, length(windows) / metadata(windows)$num_samples, metadata(windows)$num_samples)
+P <- mcols(windows)$peak_group[mcols(windows)$group == 1, ]
+
+barplot(t(table(mcols(windows)$cluster, mcols(windows)$group)), beside = TRUE)
+
+
+#code <- sprintf('%d%d%d%d%d', G[, 1], G[, 2], G[, 3], G[, 4], G[, 5])
+code <- sprintf('%d%d%d', G[, 1], G[, 3], G[, 5])
+
+
+
+
+# --- Look at the enriched Ets motifs in each Vplot cluster
 
 
 # --- testing
@@ -74,14 +194,14 @@ par(mfcol = c(4, 2))
 i <- 1
 
 yy <- c(50, 200, 400, 600, 670)
-image(matrix(as.matrix(mcols(windows)$counts[i, ]), metadata(windows)$n_bins_per_window, metadata(windows)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+image(matrix(as.matrix(mcols(gr)$counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 axis(2, at = (yy - 50) / (670 - 50), label = yy)
 axis(1, at = c(0, 0.5, 1))
-image(matrix(as.matrix(mcols(windows)$fitted_counts[i, ]), metadata(windows)$n_bins_per_window, metadata(windows)$n_intervals), breaks = c(-1000, quantile(mcols(windows)$fitted_counts[i, ], seq(0, 1, length.out = 99)), 1000), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
+image(matrix(as.matrix(mcols(gr)$fitted_counts[i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), breaks = c(-1000, quantile(mcols(gr)$fitted_counts[i, ], seq(0, 1, length.out = 99)), 1000), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE)
 axis(2, at = (yy - 50) / (670 - 50), label = yy)
 axis(1, at = c(0, 0.5, 1))
-plot(mcols(windows)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
-plot(mcols(windows)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(mcols(gr)$coverage[i,], type = 'b', lwd = 2, xaxs="i", yaxs="i")
+plot(mcols(gr)$fitted_coverage[i, ], type = 'b', lwd = 2, xaxs="i", yaxs="i")
 
 
 
