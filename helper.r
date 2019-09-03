@@ -128,6 +128,17 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 	peaks <- peaks[seqnames(peaks) != 'chrM']
 	peaks <- resize(peaks, fix = 'center', width = window_size)
 	peaks <- add.seqinfo(peaks, genome)
+
+	if (genome == 'mm10'){
+		blacklist <- read.table(gzfile('/panfs/roc/scratch/gongx030/datasets/datasets=blacklists_version=20190827a/mm10.blacklist.bed.gz'), sep = '\t')
+	}
+
+	blacklist <- GRanges(seqnames = blacklist[, 1], range = IRanges(blacklist[, 2], blacklist[, 3]))
+	i <- peaks %over% blacklist
+	peaks <- peaks[!i]
+
+	flog.info(sprintf('removing %d peaks overlaping with the blacklist', sum(i)))
+
 	ga <- read_bam(bam_files, peaks, genome = genome2, expand = 2000)
 	peaks <- readFragmentSizeMatrix(ga, peaks, window_size = window_size, bin_size = bin_size, fragment_size_range = fragment_size_range, fragment_size_interval = fragment_size_interval)
 

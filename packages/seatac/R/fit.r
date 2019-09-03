@@ -11,8 +11,7 @@ fit.vae <- function(model, gr, epochs = 1, batch_size = 256, learning_rate = 0.0
 		as.matrix() %>%
 		array_reshape(c(window_dim, model$feature_dim, model$input_dim, 1L)) 
 
-	y <- mcols(gr)$coverage %>%
-		array_reshape(c(window_dim, model$window_size, 1L))
+	batch <- mcols(gr)$group - 1
 
 	vae_loss <- function (y_true, y_pred) - (y_pred %>% tfd_log_prob(y_true))
 
@@ -21,7 +20,7 @@ fit.vae <- function(model, gr, epochs = 1, batch_size = 256, learning_rate = 0.0
 		optimizer = optimizer_adam(lr = learning_rate)
 	)
 
-	model$vae %>% fit(list(x, y), list(x, y), epochs = epochs, batch_size = batch_size)
+	model$vae %>% fit(x, x, epochs = epochs, batch_size = batch_size)
 
 	model
 

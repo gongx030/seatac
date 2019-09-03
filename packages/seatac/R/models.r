@@ -1,15 +1,21 @@
 #' vae
 #'
 
-vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples){
+vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples, beta = 1){
 
 	vplot_input <- layer_input(shape = c(feature_dim, input_dim, 1L))
-	coverage_input <- layer_input(shape = c(window_size, 1L))
+
+#	batch_input <- layer_input(shape = 1L)
+
+	# baseline at at the feature dim
+#	feature0 <- batch_input %>%
+#		layer_embedding(input_dim = num_samples, output_dim = feature_dim, input_length = 1L) %>%
+#		layer_flatten() %>%
+#		layer_reshape(target_shape = c(feature_dim, 1L, 1L))
 
 	z_vplot <- vplot_input %>% vplot_encoder_model()
-	z_coverage <- coverage_input %>% coverage_encoder_model()
 
-	z <- layer_concatenate(list(z_vplot, z_coverage)) %>%
+	z <- z_vplot %>% 
 	  layer_dense(units = params_size_multivariate_normal_tri_l(latent_dim)) %>%
 	  layer_multivariate_normal_tri_l(event_size = latent_dim) %>%
 		layer_kl_divergence_add_loss(
@@ -17,9 +23,10 @@ vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples){
 				tfd_normal(loc = rep(0, latent_dim), scale = 1),
 				reinterpreted_batch_ndims = 1
 			),
-		weight = 1)
+		weight = beta)
 
 	vplot_decoded <- z %>% vplot_decoder_model(input_dim = input_dim, feature_dim = feature_dim)
+
 	vplot_prob <- vplot_decoded %>% 
 		layer_flatten() %>%
 		layer_independent_bernoulli(
@@ -28,26 +35,17 @@ vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples){
 			name = 'vplot_output'
 		)
 
-	coverage_decoded <- z %>% coverage_decoder_model(window_size = window_size)
-	coverage_prob <- coverage_decoded %>%
-		layer_flatten() %>%
-		layer_independent_bernoulli(
-			event_shape = c(window_size, 1L),
-			convert_to_tensor_fn = tfp$distributions$Bernoulli$logits,
-			name = 'coverage_output'
-		)
-
 	structure(list(
 		vae = keras_model(
-			inputs = list(vplot_input, coverage_input),
-			outputs = list(vplot_prob, coverage_prob)
+			inputs = vplot_input,
+			outputs = vplot_prob
 		),
 		decoded = keras_model(
-			inputs = list(vplot_input, coverage_input),
-			outputs = list(vplot_decoded, coverage_decoded)
+			inputs = vplot_input,
+			outputs = vplot_decoded
 		),
 		latent = keras_model(
-			inputs = list(vplot_input, coverage_input),
+			inputs = vplot_input,
 			outputs = z
 		),
 		num_samples = num_samples,

@@ -20,14 +20,12 @@ predict.vae <- function(model, gr, type = 'nucleosome', chunk_size = 2^17, batch
 		flog.info(sprintf('%d/%d', b, n_chunk))
 		i <- starts[b]:ends[b]
 		window_dim2 <- length(i)
+
 		x <- mcols(gr[i])$counts %>%
 			as.matrix() %>%
 			array_reshape(c(window_dim2, model$feature_dim, model$input_dim, 1L))
 
-		y <- mcols(gr[i])$coverage %>%
-			array_reshape(c(window_dim2, model$window_size, 1L))
-
-		Z[i, ]  <- model$latent %>% predict(list(x, y), batch_size = batch_size, verbose = 1)
+		Z[i, ]  <- model$latent %>% predict(x, batch_size = batch_size, verbose = 1)
 	}
 
 	mcols(gr)$latent <- Z
