@@ -17,8 +17,6 @@ NULL
 
 #' seatac 
 #'
-#' Integrating multiple sources of temporal scRNA-seq data by neighborhood component analysis
-#'
 #' @export
 #'
 #' @author Wuming Gong
@@ -57,7 +55,7 @@ seatac <- function(
 		num_samples = metadata(x)$num_samples
 	)
 
-	train <- mcols(windows)$num_reads >= min_reads_per_window & mcols(windows)$mean_coverage >= min_reads_coverage
+	train <- mcols(x)$num_reads >= min_reads_per_window & mcols(x)$mean_coverage >= min_reads_coverage
 	model %>% fit(x[train], epochs = epochs)
 	model
 

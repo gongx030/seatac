@@ -1,3 +1,4 @@
+devtools::load_all('packages/compbio')
 
 save_windows <- function(windows, gs, window_size, bin_size, fragment_size_range, fragment_size_interval){
 	f <- sprintf('%s/windows/dataset=%s_window_size=%d_bin_size=%d_fragment_size_range=%d+%d_fragment_size_interval=%d.rds', project_dir('seatac'), gs, window_size, bin_size, fragment_size_range[1], fragment_size_range[2], fragment_size_interval)

@@ -3,6 +3,7 @@
 predict.vae <- function(model, gr, type = 'nucleosome', chunk_size = 2^17, batch_size = 256){
 
 	window_dim <- length(gr)
+	window_size <- metadata(gr)$window_size
 	num_samples <- metadata(gr)$num_samples
 	n_bins_per_window <- metadata(gr)$window_size / metadata(gr)$bin_size
 

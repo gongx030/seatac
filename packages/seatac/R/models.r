@@ -3,15 +3,8 @@
 
 vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples, beta = 1){
 
+	flog.info(sprintf('beta:%d', beta))
 	vplot_input <- layer_input(shape = c(feature_dim, input_dim, 1L))
-
-#	batch_input <- layer_input(shape = 1L)
-
-	# baseline at at the feature dim
-#	feature0 <- batch_input %>%
-#		layer_embedding(input_dim = num_samples, output_dim = feature_dim, input_length = 1L) %>%
-#		layer_flatten() %>%
-#		layer_reshape(target_shape = c(feature_dim, 1L, 1L))
 
 	z_vplot <- vplot_input %>% vplot_encoder_model()
 
@@ -187,7 +180,7 @@ vplot_decoder_model <- function(
 } # vplot_decoder_model
 
 
-coverage_decoder_model <- function(
+nucleosome_score_model <- function(
 	x,
 	window_size,
 	filters0 = 16L, 
@@ -221,10 +214,10 @@ coverage_decoder_model <- function(
 		) %>% 
 		layer_reshape(
 			target_shape = c(window_size, 1L),
-			name = 'coverage_decoded'
+			name = 'nucleosome_score'
 		)
 	y			
-} # coverage_decoder_model
+} # nucleosome_score_model
 
 
 #' vplot_encoder_model
@@ -257,35 +250,4 @@ vplot_encoder_model <- function(x, output_dim = 16L){
 		layer_dense(units = output_dim, activation = 'relu')
 
 } # vplot_encoder_model
-
-
-coverage_encoder_model <- function(x, output_dim = 8L){
-
-	y <- x %>%
-		layer_conv_1d(
-			filters = 8L,
-			kernel_size = 3L,
-			strides = 2L,
-			activation = 'relu'
-		) %>%
-		layer_batch_normalization() %>%
-		layer_conv_1d(
-			filters = 8L,
-			kernel_size = 3L,
-			strides = 2L,
-			activation = 'relu'
-		) %>%
-		layer_batch_normalization() %>%
-		layer_conv_1d(
-			filters = 8L,
-			kernel_size = 3L,
-			strides = 2L,
-			activation = 'relu'
-		) %>%
-		layer_batch_normalization() %>%
-		layer_flatten() %>%
-		layer_dense(units = output_dim, activation = 'relu')
-
-} # coverage_encoder_model
-
 

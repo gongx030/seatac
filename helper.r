@@ -47,6 +47,15 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 
 		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox_summits.bed'
 		peaks <- macs2.read_summits(bed_file)
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, 'mm10')
+
+		mnase_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/MNase_treat_pileup.bw'
+		flog.info(sprintf('reading %s', mnase_file))
+		mnase <- rtracklayer::import(mnase_file, format = 'BigWig', which = reduce(peaks))
+		mnase <- add.seqinfo(mnase, 'mm10')
+		cvg <- coverage(mnase, weight = as.numeric(mcols(mnase)$score))
+		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
 
 		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam'
 
@@ -100,26 +109,39 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 		peaks <- add.seqinfo(peaks, 'mm10')
 		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC.bam'
 
-#		peaks_extend <- resize(peaks, fix = 'center', width = window_size + 73 * 2)
-#		ncp <- read_ncp_mESC(which = reduce(peaks_extend))
-#		cvg_ncp <- coverage(ncp, weight = 'name')
-#		X <- as(as(cvg_ncp[peaks_extend], 'RleViews'), 'matrix')
-#		w <- exp(-((-73:73) / 20)^2 / 2)
-#		js <- (73 + 1):(73 + window_size)
-#		mcols(peaks)$nucleosome_score <- do.call('cbind', lapply(js, function(j) rowSums(X[, (j - 73):(j + 73)] %*% diag(w))))
-#		mcols(peaks)$min_nucleosome_score <- rowMins(mcols(peaks)$nucleosome_score)
-#		mcols(peaks)$max_nucleosome_score <- rowMaxs(mcols(peaks)$nucleosome_score)
-#		mcols(peaks)$mean_nucleosome_score <- rowMeans(mcols(peaks)$nucleosome_score)
-#		mcols(peaks)$nucleosome_score <- (mcols(peaks)$nucleosome_score - mcols(peaks)$min_nucleosome_score) / (mcols(peaks)$max_nucleosome_score - mcols(peaks)$min_nucleosome_score)
-#		mcols(peaks)$nucleosome_score[is.na(mcols(peaks)$nucleosome_score)] <- 0
+		nucleoatac_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Maza_version=20170302a/mESC_ATAC.nucleoatac.nucleoatac_signal.smooth.bedgraph.gz'
+		flog.info(sprintf('reading %s', nucleoatac_file))
+		nuc <- rtracklayer::import(nucleoatac_file, format = 'BED', which = reduce(peaks))
+		nuc <- resize(nuc, width = 1, fix = 'center')
+		nuc <- add.seqinfo(nuc, 'mm10')
+		cvg <- coverage(nuc, weight = as.numeric(mcols(nuc)$name))
+		mcols(peaks)$nucleoatac_signal <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+
+		peaks_extend <- resize(peaks, fix = 'center', width = window_size + 73 * 2)
 
 		ncp_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Voong_version=20190805a/GSM2183909_Chemical_NCPscore_mm10.sorted_merged.txt.gz'
 		flog.info(sprintf('reading %s', ncp_file))
-		ncp <- rtracklayer::import(ncp_file, format = 'BED', which = reduce(resize(peaks, width = window_size + 10, fix = 'center')))
+		ncp <- rtracklayer::import(ncp_file, format = 'BED', which = reduce(peaks_extend))
 		ncp <- resize(ncp, width = 1, fix = 'center')
 		ncp <- add.seqinfo(ncp, 'mm10')
+
 		cvg <- coverage(ncp, weight = as.numeric(mcols(ncp)$name))
+		X <- as(as(cvg[peaks_extend], 'RleViews'), 'matrix')
+		w <- exp(-((-73:73) / 20)^2 / 2)
+		js <- (73 + 1):(73 + window_size)
+		mcols(peaks)$weighted_nucleosome_score <- do.call('cbind', lapply(js, function(j) rowSums(X[, (j - 73):(j + 73)] %*% diag(w))))
+		mcols(peaks)$min_weighted_nucleosome_score <- rowMins(mcols(peaks)$weighted_nucleosome_score)
+		mcols(peaks)$max_weighted_nucleosome_score <- rowMaxs(mcols(peaks)$weighted_nucleosome_score)
+		mcols(peaks)$mean_weighted_nucleosome_score <- rowMeans(mcols(peaks)$weighted_nucleosome_score)
+		mcols(peaks)$weighted_nucleosome_score <- (mcols(peaks)$weighted_nucleosome_score - mcols(peaks)$min_weighted_nucleosome_score) / (mcols(peaks)$max_weighted_nucleosome_score - mcols(peaks)$min_weighted_nucleosome_score)
+		mcols(peaks)$weighted_nucleosome_score[is.na(mcols(peaks)$weighted_nucleosome_score)] <- 0
+
 		mcols(peaks)$nucleosome_score  <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+		mcols(peaks)$min_nucleosome_score <- rowMins(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$max_nucleosome_score <- rowMaxs(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$mean_nucleosome_score <- rowMeans(mcols(peaks)$nucleosome_score)
+		mcols(peaks)$nucleosome_score <- (mcols(peaks)$nucleosome_score - mcols(peaks)$min_nucleosome_score) / (mcols(peaks)$max_nucleosome_score - mcols(peaks)$min_nucleosome_score)
+		mcols(peaks)$nucleosome_score[is.na(mcols(peaks)$nucleosome_score)] <- 0
 
 	}else
 		stop(sprintf('unknown gs: %s', gs))
