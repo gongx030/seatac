@@ -4,9 +4,12 @@
 vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples, beta = 1){
 
 	flog.info(sprintf('beta:%d', beta))
-	vplot_input <- layer_input(shape = c(feature_dim, input_dim, 1L))
 
-	z_vplot <- vplot_input %>% vplot_encoder_model()
+	vplot_input <- layer_input(shape = c(feature_dim, input_dim, 1L))
+	sequence_input <- layer_input(shape = window_size)
+
+	h_vplot <- vplot_input %>% vplot_encoder_model()
+	h_sequence <- sequence_input %>% sequence_model()
 
 	z <- z_vplot %>% 
 	  layer_dense(units = params_size_multivariate_normal_tri_l(latent_dim)) %>%
@@ -180,46 +183,6 @@ vplot_decoder_model <- function(
 } # vplot_decoder_model
 
 
-nucleosome_score_model <- function(
-	x,
-	window_size,
-	filters0 = 16L, 
-	filters = c(8L, 1L), 
-	kernel_size = c(3L, 3L), 
-	strides = c(4L, 1L))
-{
-
-	window_size0<- window_size / prod(strides)
-	output_dim0 <- window_size0 * 1 * filters0
-
-	y <- x %>%
-		layer_dense(units = output_dim0, activation = 'relu') %>%
-		layer_dropout(rate = 0.2) %>%
-		layer_reshape(target_shape = c(window_size0, 1L, filters0)) %>%
-
-		layer_conv_2d_transpose(
-			filters = filters[1],
-			kernel_size = shape(kernel_size[1], 1L),
-			strides = shape(strides[1], 1L),
-			padding = 'same',
-			activation = 'relu'
-		) %>%
-		layer_batch_normalization() %>%
-
-		layer_conv_2d_transpose(
-			filters = filters[2],
-			kernel_size = shape(kernel_size[2], 1L),
-			strides = shape(strides[2], 1L),
-			padding = 'same'
-		) %>% 
-		layer_reshape(
-			target_shape = c(window_size, 1L),
-			name = 'nucleosome_score'
-		)
-	y			
-} # nucleosome_score_model
-
-
 #' vplot_encoder_model
 #'
 vplot_encoder_model <- function(x, output_dim = 16L){
@@ -250,4 +213,21 @@ vplot_encoder_model <- function(x, output_dim = 16L){
 		layer_dense(units = output_dim, activation = 'relu')
 
 } # vplot_encoder_model
+
+#' sequence_model
+#'
+sequence_model <- function(x, output_dim = 16L){
+
+	browser()
+	y <- x %>%
+		layer_embedding(input_dim = 4L, output_dim = 4L) %>%
+		layer_conv_2d(
+			filters = 32L,
+			kernel_size = 3L,
+			strides = 2L,
+			activation = 'relu'
+		)
+		
+
+} # sequence_model
 

@@ -10,9 +10,9 @@ library(BSgenome.Mmusculus.UCSC.mm10)
 # ------------------------------------------------------------------------------------
 #gs <- 'Maza_mESC'; window_size <- 640; bin_size <- 10; fs <- c(50, 690, 10); genome <- 'mm10'; mr <- 30
 #gs <- 'Maza_mESC'; window_size <- 480; bin_size <- 5; fs <- c(50, 690, 10); genome <- 'mm10'; mr <- 30
-gs <- 'Maza_mESC'; window_size <- 480; bin_size <- 5; fs <- c(50, 370, 10); genome <- 'mm10'; mr <- 30
+#gs <- 'Maza_mESC'; window_size <- 480; bin_size <- 5; fs <- c(50, 370, 10); genome <- 'mm10'; mr <- 30
 #gs <- 'Maza_mESC'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'; mr <- 30
-#gs <- 'Maza_mESC'; window_size <- 320; bin_size <- 5; fs <- c(50, 370, 10); genome <- 'mm10'; mr <- 30
+gs <- 'Maza_mESC'; window_size <- 320; bin_size <- 5; fs <- c(50, 370, 10); genome <- 'mm10'; mr <- 30
 #gs <- 'Maza_mESC'; window_size <- 320; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'; mr <- 30
 #gs <- 'Maza_mESC'; window_size <- 200; bin_size <- 1; fs <- c(50, 370, 5); genome <- 'mm10'; mr <- 10
 
@@ -137,9 +137,5 @@ lapply(1:k, function(h){
 	lo <- loess(y3~x, span = 0.1)
 	lines(predict(lo), col='red', lwd=2)
 })
-
-
-
-
 
 
