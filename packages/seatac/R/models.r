@@ -1,54 +1,56 @@
 #' vae
 #'
 
-vae <- function(input_dim, feature_dim, latent_dim, window_size, num_samples, beta = 1){
+vae <- function(input_dim, feature_dim, latent_dim, num_samples){
 
-	flog.info(sprintf('beta:%d', beta))
+	vplot_input_list <- lapply(1:num_samples, function(i) layer_input(shape = c(feature_dim, input_dim, 1L)))
 
-	vplot_input <- layer_input(shape = c(feature_dim, input_dim, 1L))
-	sequence_input <- layer_input(shape = window_size)
+	h_list <- lapply(1:num_samples, function(i) vplot_input_list[[i]] %>% vplot_encoder_model())
 
-	h_vplot <- vplot_input %>% vplot_encoder_model()
-	h_sequence <- sequence_input %>% sequence_model()
+	if (num_samples == 1){
+		z <- h_list[[1]]
+	}else{
+		z <- h_list %>%
+	    layer_concatenate()
+	}
 
-	z <- z_vplot %>% 
-	  layer_dense(units = params_size_multivariate_normal_tri_l(latent_dim)) %>%
-	  layer_multivariate_normal_tri_l(event_size = latent_dim) %>%
+	z <- z %>%
+		layer_dense(units = params_size_multivariate_normal_tri_l(latent_dim)) %>%
+		layer_multivariate_normal_tri_l(event_size = latent_dim) %>%
 		layer_kl_divergence_add_loss(
 			distribution = tfd_independent(
-				tfd_normal(loc = rep(0, latent_dim), scale = 1),
-				reinterpreted_batch_ndims = 1
-			),
-		weight = beta)
+			tfd_normal(loc = rep(0, latent_dim), scale = 1),
+			reinterpreted_batch_ndims = 1
+			)
+		)
 
-	vplot_decoded <- z %>% vplot_decoder_model(input_dim = input_dim, feature_dim = feature_dim)
+	vplot_decoded_list <- lapply(1:num_samples, function(i) z %>% vplot_decoder_model(input_dim = input_dim, feature_dim = feature_dim))
 
-	vplot_prob <- vplot_decoded %>% 
+	vplot_prob_list <- lapply(1:num_samples, function(i) vplot_decoded_list[[i]] %>% 
 		layer_flatten() %>%
 		layer_independent_bernoulli(
 			event_shape = c(feature_dim, input_dim, 1L),
-			convert_to_tensor_fn = tfp$distributions$Bernoulli$logits,
-			name = 'vplot_output'
+			convert_to_tensor_fn = tfp$distributions$Bernoulli$logits
 		)
+	)
 
 	structure(list(
 		vae = keras_model(
-			inputs = vplot_input,
-			outputs = vplot_prob
+			inputs = vplot_input_list,
+			outputs = vplot_prob_list
 		),
 		decoded = keras_model(
-			inputs = vplot_input,
-			outputs = vplot_decoded
+			inputs = vplot_input_list,
+			outputs = vplot_decoded_list
 		),
 		latent = keras_model(
-			inputs = vplot_input,
+			inputs = vplot_input_list,
 			outputs = z
 		),
 		num_samples = num_samples,
 		input_dim = input_dim,
 		feature_dim = feature_dim,
-		latent_dim = latent_dim,
-		window_size = window_size
+		latent_dim = latent_dim
 	), class = 'vae')
 
 } # vae
@@ -176,8 +178,7 @@ vplot_decoder_model <- function(
 			filters = filters[3],
 			kernel_size = kernel_size[3],
 			strides = shape(feature_strides[3], input_strides[3]),
-			padding = 'same',
-			name = 'vplot_decoded'
+			padding = 'same'
 		) 
 	y
 } # vplot_decoder_model
@@ -213,21 +214,4 @@ vplot_encoder_model <- function(x, output_dim = 16L){
 		layer_dense(units = output_dim, activation = 'relu')
 
 } # vplot_encoder_model
-
-#' sequence_model
-#'
-sequence_model <- function(x, output_dim = 16L){
-
-	browser()
-	y <- x %>%
-		layer_embedding(input_dim = 4L, output_dim = 4L) %>%
-		layer_conv_2d(
-			filters = 32L,
-			kernel_size = 3L,
-			strides = 2L,
-			activation = 'relu'
-		)
-		
-
-} # sequence_model
 

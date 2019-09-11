@@ -4,6 +4,7 @@ library(keras)
 library(tfprobability)
 library(futile.logger); flog.threshold(TRACE)
 library(BSgenome.Mmusculus.UCSC.mm10)
+library(tfestimators)
 
 # -----------------------------------------------------------------------------------
 # [2019-08-27] mESC data
@@ -12,7 +13,7 @@ library(BSgenome.Mmusculus.UCSC.mm10)
 #gs <- 'Maza_mESC'; window_size <- 480; bin_size <- 5; fs <- c(50, 690, 10); genome <- 'mm10'; mr <- 30
 #gs <- 'Maza_mESC'; window_size <- 480; bin_size <- 5; fs <- c(50, 370, 10); genome <- 'mm10'; mr <- 30
 #gs <- 'Maza_mESC'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'; mr <- 30
-gs <- 'Maza_mESC'; window_size <- 320; bin_size <- 5; fs <- c(50, 370, 10); genome <- 'mm10'; mr <- 30
+gs <- 'Maza_mESC'; window_size <- 320; bin_size <- 5; fs <- c(50, 370, 10); genome <- 'mm10'; mr <- 20
 #gs <- 'Maza_mESC'; window_size <- 320; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'; mr <- 30
 #gs <- 'Maza_mESC'; window_size <- 200; bin_size <- 1; fs <- c(50, 370, 5); genome <- 'mm10'; mr <- 10
 
@@ -23,19 +24,19 @@ source('analysis/seatac/windows.r'); save_windows(windows, gs, window_size, bin_
 # --- train the model
 latent_dim <- 2; epochs <- 20
 source('analysis/seatac/windows.r'); windows <- load_windows(gs, window_size, bin_size, fs[1:2], fs[3])
+devtools::load_all('analysis/seatac/packages/seatac'); windows <- filter_windows(windows, min_reads_per_window = mr)
 source('analysis/seatac/model_dir_name.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, fs[1:2], fs[3], epochs)
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = epochs, min_reads_per_window = mr)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = epochs)
 source('analysis/seatac/helper.r'); save_model(model, model_dir)
 
 # --- load the windows and the trained model
 source('analysis/seatac/windows.r'); windows <- load_windows(gs, window_size, bin_size, fs[1:2], fs[3])
+devtools::load_all('analysis/seatac/packages/seatac'); windows <- filter_windows(windows, min_reads_per_window = mr)
 source('analysis/seatac/model_dir_name.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, fs[1:2], fs[3], epochs)
 devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
 
 # --- make the prediction
-devtools::load_all('analysis/seatac/packages/seatac'); windows <- model %>% predict(windows)
-train <- mcols(windows)$num_reads >= mr & mcols(windows)$mean_coverage >= 5 
-gr <- windows[train]
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows)
 
 library(irlba); u <- svd(mcols(gr)$latent)$u
 set.seed(1); cls <- kmeans(u, 4)$cluster

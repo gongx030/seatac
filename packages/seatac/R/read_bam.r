@@ -6,7 +6,7 @@ read_bam <- function(
 	filenames, 
 	peaks, 
 	genome, 
-	expand = 2000
+	expand = 5000
 ){
 
 	validate_bam(filenames)
