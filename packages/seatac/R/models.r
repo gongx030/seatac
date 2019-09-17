@@ -3,18 +3,10 @@
 
 vae <- function(input_dim, feature_dim, latent_dim, num_samples){
 
-	vplot_input_list <- lapply(1:num_samples, function(i) layer_input(shape = c(feature_dim, input_dim, 1L)))
+	vplot_input <- layer_input(shape = c(feature_dim, input_dim, 1L))
 
-	h_list <- lapply(1:num_samples, function(i) vplot_input_list[[i]] %>% vplot_encoder_model())
-
-	if (num_samples == 1){
-		z <- h_list[[1]]
-	}else{
-		z <- h_list %>%
-	    layer_concatenate()
-	}
-
-	z <- z %>%
+	z <- vplot_input %>%
+		vplot_encoder_model() %>%
 		layer_dense(units = params_size_multivariate_normal_tri_l(latent_dim)) %>%
 		layer_multivariate_normal_tri_l(event_size = latent_dim) %>%
 		layer_kl_divergence_add_loss(
@@ -24,27 +16,26 @@ vae <- function(input_dim, feature_dim, latent_dim, num_samples){
 			)
 		)
 
-	vplot_decoded_list <- lapply(1:num_samples, function(i) z %>% vplot_decoder_model(input_dim = input_dim, feature_dim = feature_dim))
+	vplot_decoded <- z %>% vplot_decoder_model(input_dim = input_dim, feature_dim = feature_dim)
 
-	vplot_prob_list <- lapply(1:num_samples, function(i) vplot_decoded_list[[i]] %>% 
+	vplot_prob <- vplot_decoded %>% 
 		layer_flatten() %>%
 		layer_independent_bernoulli(
 			event_shape = c(feature_dim, input_dim, 1L),
 			convert_to_tensor_fn = tfp$distributions$Bernoulli$logits
 		)
-	)
 
 	structure(list(
 		vae = keras_model(
-			inputs = vplot_input_list,
-			outputs = vplot_prob_list
+			inputs = vplot_input,
+			outputs = vplot_prob
 		),
 		decoded = keras_model(
-			inputs = vplot_input_list,
-			outputs = vplot_decoded_list
+			inputs = vplot_input,
+			outputs = vplot_decoded
 		),
 		latent = keras_model(
-			inputs = vplot_input_list,
+			inputs = vplot_input,
 			outputs = z
 		),
 		num_samples = num_samples,
@@ -109,7 +100,6 @@ load_model <- function(dir){
 		input_dim = x$input_dim,
 		feature_dim = x$feature_dim,
 		latent_dim = x$latent_dim,
-		window_size = x$window_size,
 		num_samples = x$num_samples
 	)
 

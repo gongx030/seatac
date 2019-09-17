@@ -66,25 +66,46 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 
 		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam'
 
-	}else if (gs == 'D1_Dox_Etv2_on_D0+D1_MEF'){
+	}else if (gs == 'D1_Dox_Etv2_all_ATAC'){
 
 	  library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 
-		# D1 Etv2
+		# D1 Etv2 ChIP-seq peaks
 		peak_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D1_Etv2_summits.bed'
-		flog.info(sprintf('reading %s', peak_file))
 		peaks <- macs2.read_summits(peak_file)
 		peaks <- add.seqinfo(peaks, genome = 'mm10')
-
-		ex <- exons(TxDb.Mmusculus.UCSC.mm10.knownGene)
-		peaks <- peaks[!peaks %over% ex]
-		gr <- gr[!gr %over% ex]
+		peaks <- peaks[!peaks %over% exons(TxDb.Mmusculus.UCSC.mm10.knownGene)]
+		peaks <- peaks[!peaks %over% promoters(TxDb.Mmusculus.UCSC.mm10.knownGene)]
+		peaks <- resize(peaks, fix = 'center', width = 1)
 		flog.info(sprintf('get %d intervals after removing exon region', length(peaks)))
 
 		bam_files <- c(
 			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam',
-			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D1.bam'
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D1.bam',
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D2.bam',
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7.bam',
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7_Flk1pos.bam'
 		)
+
+	}else if (gs == 'D1_Etv2_on_MEF_D1_D7Flk1pos_ATAC'){
+
+	  library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+
+		# D1 Etv2 ChIP-seq peaks
+		peak_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D1_Etv2_summits.bed'
+		peaks <- macs2.read_summits(peak_file)
+		peaks <- add.seqinfo(peaks, genome = 'mm10')
+		peaks <- peaks[!peaks %over% exons(TxDb.Mmusculus.UCSC.mm10.knownGene)]
+#		peaks <- peaks[!peaks %over% promoters(TxDb.Mmusculus.UCSC.mm10.knownGene)]
+		peaks <- resize(peaks, fix = 'center', width = 1)
+		flog.info(sprintf('get %d intervals after removing exon region', length(peaks)))
+
+		bam_files <- c(
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam',
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D1.bam',
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7_Flk1pos.bam'
+		)
+
 
 	}else if (gs == 'D2_Dox_Etv2_on_D0+D2_MEF'){
 
@@ -106,20 +127,20 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 
 
 	}else if (gs == 'Etv2_MEF_reprogramming'){
+
 		bed_files <- c(
-			'NoDox' = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox_summits.bed',
-			'Dox_D1' = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D1_summits.bed',
-			'Dox_D2' = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D2_summits.bed',
-			'Dox_D7' = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7_summits.bed',
-			'Dox_F7_Flk1pos' = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7_Flk1pos_summits.bed'
+			D1 = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D1_Etv2_summits.bed',
+			D2 = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D2_Etv2_summits.bed',
+			D7 = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D7_Etv2_summits.bed'
 		)
+
 		grs <- lapply(bed_files, function(bed_file){
 			gr <- macs2.read_summits(bed_file)
 			gr <- gr[mcols(gr)$score > 3] # q-value < 0.001
 		})
 		grs <- lapply(grs, function(gr) resize(gr, width = 20, fix = 'center'))
 		names(grs) <- names(bed_files)
-		ol <- findOverlapsOfPeaks(grs[['NoDox']], grs[['Dox_D1']], grs[['Dox_D2']], grs[['Dox_D7']], grs[['Dox_F7_Flk1pos']])
+		ol <- findOverlapsOfPeaks(grs[['D1']], grs[['D2']], grs[['D7']])
 		peaks <- Reduce('c', ol$peaklist)
 		G <- do.call('cbind', lapply(grs, function(gr) peaks %over% gr))
 		mcols(peaks)$peak_group <- G
@@ -131,6 +152,52 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7.bam',
 			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7_Flk1pos.bam'
 		)
+
+	}else if (gs == 'MEF_NoDox+MEF_Dox_D7_Flk1pos+EB_Dox_D25_Flk1pos'){
+
+		library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+
+		bed_files <- c(
+			MEF_NoDox = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox_summits.bed',
+			MEF_Dox_D7_Flk1pos = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7_Flk1pos_summits.bed',
+			EB_Dox_D25_Flk1pos = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/EB_Dox_D25_Flk1pos_summits.bed'
+		)
+
+		grs <- lapply(bed_files, function(bed_file) gr <- macs2.read_summits(bed_file))
+		grs <- lapply(grs, function(gr) resize(gr, width = 20, fix = 'center'))
+		names(grs) <- names(bed_files)
+		ol <- findOverlapsOfPeaks(grs[['MEF_NoDox']], grs[['MEF_Dox_D7_Flk1pos']], grs[['EB_Dox_D25_Flk1pos']])
+		peaks <- Reduce('c', ol$peaklist)
+		G <- do.call('cbind', lapply(grs, function(gr) peaks %over% gr))
+		mcols(peaks)$peak_group <- G
+
+		peaks <- peaks[!peaks %over% exons(TxDb.Mmusculus.UCSC.mm10.knownGene)]
+#		peaks <- peaks[!peaks %over% promoters(TxDb.Mmusculus.UCSC.mm10.knownGene)]
+
+		bam_files <- c(
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam',
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7_Flk1pos.bam',
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/EB_Dox_D25_Flk1pos.bam'
+		)
+
+	}else if (gs == 'D1_Etv2_on_MEF_D7Flk1pos_ATAC'){
+
+	  library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+
+		# D1 Etv2 ChIP-seq peaks
+		peak_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D1_Etv2_summits.bed'
+		peaks <- macs2.read_summits(peak_file)
+		peaks <- add.seqinfo(peaks, genome = 'mm10')
+		peaks <- peaks[!peaks %over% exons(TxDb.Mmusculus.UCSC.mm10.knownGene)]
+#		peaks <- peaks[!peaks %over% promoters(TxDb.Mmusculus.UCSC.mm10.knownGene)]
+		peaks <- resize(peaks, fix = 'center', width = 1)
+		flog.info(sprintf('get %d intervals after removing exon region', length(peaks)))
+
+		bam_files <- c(
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam',
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7_Flk1pos.bam'
+		)
+
 
 	}else if (gs == 'Maza_mESC'){
 
