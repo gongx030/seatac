@@ -150,7 +150,7 @@ cvg <- rtracklayer::import(bw_file, which = trim(reduce(gr2)), as = 'RleList')
 X <- as(as(cvg[gr2], 'RleViews'), 'matrix')
 
 xx <- seq(0, 1, length.out = metadata(gr2)$window_size)
-plot(xx, colMeans(X[gg == '12', ]), xaxs="i", type = 'l', lwd = 4, xaxt = 'n', ylim = c(4, 5.5), col = 'black')
+plot(xx, colMeans(X[gg == '12', ]), xaxs="i", type = 'l', lwd = 4, xaxt = 'n', ylim = c(0, 10), col = 'black')
 lines(xx, colMeans(X[gg == '11', ]), lwd = 4, col = 'gray')
 lines(xx, colMeans(X[gg == '21', ]), lwd = 4, col = 'red')
 lines(xx, colMeans(X[gg == '22', ]), lwd = 4, col = 'gold')
