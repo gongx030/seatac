@@ -28,12 +28,11 @@ source('analysis/seatac/helper.r'); windows <- prepare_windows(gs, window_size, 
 source('analysis/seatac/windows.r'); save_windows(windows, gs, window_size, bin_size, fs[1:2], fs[3])
 
 # --- train the model
-latent_dim <- 2; epochs <- 20
-#latent_dim <- 10; epochs <- 20
-source('analysis/seatac/windows.r'); windows <- load_windows(gs, window_size, bin_size, fs[1:2], fs[3])
-source('analysis/seatac/model_dir_name.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, fs[1:2], fs[3], epochs)
-devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = epochs, min_reads_per_window = mr)
-source('analysis/seatac/helper.r'); save_model(model, model_dir)
+latent_dim <- 2; epochs <- 20; type <- 'cvae'
+#source('analysis/seatac/windows.r'); windows <- load_windows(gs, window_size, bin_size, fs[1:2], fs[3])
+#source('analysis/seatac/model_dir_name.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, fs[1:2], fs[3], epochs)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = epochs, min_reads_per_window = mr, type = type)
+#source('analysis/seatac/helper.r'); save_model(model, model_dir)
 
 # --- load the windows and the trained model
 source('analysis/seatac/windows.r'); windows <- load_windows(gs, window_size, bin_size, fs[1:2], fs[3])
