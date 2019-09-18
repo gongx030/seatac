@@ -55,8 +55,9 @@ predict.cvae <- function(model, gr, chunk_size = 2^17, batch_size = 256){
 	n_chunk <- length(starts)
 
 	# latent representation of each unique window
-	Z <- matrix(NA, window_dim, model$latent_dim)
-#	C <- matrix(NA, window_dim, model$sequence_dim)
+	z <- matrix(NA, window_dim, model$latent_dim) 	# z
+	z_cond <- matrix(NA, window_dim, model$latent_dim)		# z_cond
+	cond <- matrix(NA, window_dim, model$sequence_dim)		# cond
 
 	for (b in 1:n_chunk){
 
@@ -75,12 +76,16 @@ predict.cvae <- function(model, gr, chunk_size = 2^17, batch_size = 256){
 		sequence <- sequence - 1
 
 		h <- model$latent %>% predict(list(x, sequence), batch_size = batch_size, verbose = 1)
-		Z[i, ] <- h[[1]]
-#		C[i, ] <- h[[2]]
+		browser()
+
+		z[i, ] <- h[[1]]
+		cond[i, ] <- h[[2]]
+		z_cond[i, ] <- h[[3]]
 	}
 
-	mcols(gr)$latent <- Z
-#	mcols(gr)$sequence_embedding <- C
+	mcols(gr)$latent <- z
+	mcols(gr)$cond <- cond
+	mcols(gr)$z_cond<- z_cond
 
 	gr
 

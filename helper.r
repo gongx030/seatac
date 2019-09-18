@@ -63,6 +63,15 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 
 		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D1_Etv2_summits.bed'
 		peaks <- macs2.read_summits(bed_file)
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, 'mm10')
+
+		mnase_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/MNase_treat_pileup.bw'
+		flog.info(sprintf('reading %s', mnase_file))
+		mnase <- rtracklayer::import(mnase_file, format = 'BigWig', which = reduce(peaks))
+		mnase <- add.seqinfo(mnase, 'mm10')
+		cvg <- coverage(mnase, weight = as.numeric(mcols(mnase)$score))
+		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
 
 		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam'
 
