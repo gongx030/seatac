@@ -13,6 +13,8 @@
 #' @import tensorflow
 #' @import keras
 #' @importFrom reticulate array_reshape
+#' @importFrom DECIPHER AlignSeqs
+#' @importFrom TFBSTools consensusMatrix seqLogo
 NULL
 
 #' seatac 
@@ -28,7 +30,7 @@ seatac <- function(
 	batch_size = 256,
 	min_reads_per_window = 10,
 	sequence_dim = 16L,
-	type = 'vae'
+	type = 'cvae'
 ){
 
 	flog.info(sprintf('window size: %d', metadata(x)$window_size))

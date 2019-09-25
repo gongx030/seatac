@@ -52,4 +52,3 @@ vplot_decoder_model <- function(
 		) 
 	y
 } # vplot_decoder_model
-

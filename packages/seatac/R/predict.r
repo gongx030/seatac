@@ -5,7 +5,6 @@ predict.vae <- function(model, gr, chunk_size = 2^17, batch_size = 256){
 	window_dim <- length(gr)
 	window_size <- metadata(gr)$window_size
 	num_samples <- metadata(gr)$num_samples
-	window_dim2 <- window_dim / num_samples
 	n_bins_per_window <- metadata(gr)$window_size / metadata(gr)$bin_size
 
 	flog.info(sprintf('# input peaks: %d', window_dim))
@@ -56,8 +55,6 @@ predict.cvae <- function(model, gr, chunk_size = 2^17, batch_size = 256){
 
 	# latent representation of each unique window
 	z <- matrix(NA, window_dim, model$latent_dim) 	# z
-	z_cond <- matrix(NA, window_dim, model$latent_dim)		# z_cond
-	cond <- matrix(NA, window_dim, model$sequence_dim)		# cond
 
 	for (b in 1:n_chunk){
 
@@ -75,17 +72,10 @@ predict.cvae <- function(model, gr, chunk_size = 2^17, batch_size = 256){
 
 		sequence <- sequence - 1
 
-		h <- model$latent %>% predict(list(x, sequence), batch_size = batch_size, verbose = 1)
-		browser()
-
-		z[i, ] <- h[[1]]
-		cond[i, ] <- h[[2]]
-		z_cond[i, ] <- h[[3]]
+		z[i, ] <- model$latent %>% predict(list(x, sequence), batch_size = batch_size, verbose = 1)
 	}
 
 	mcols(gr)$latent <- z
-	mcols(gr)$cond <- cond
-	mcols(gr)$z_cond<- z_cond
 
 	gr
 

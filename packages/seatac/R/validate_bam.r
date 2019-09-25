@@ -7,6 +7,14 @@ validate_bam <- function(filenames){
   if (any(!existed))
     stop(sprintf('%s do not exist', paste(filenames[!existed], collapse = ', ')))
 
+	# check if the BAM index file exists
+	index_files <- sprintf('%s.bai', filenames)
+  existed <- file.exists(index_files)
+  if (any(!existed)){
+		flog.info(sprintf('indexing bam files: %s', paste(filenames[!existed], collapse = ',')))
+		indexBam(filenames[!existed])
+	}
+
   is_pe <- sapply(filenames, testPairedEndBam)
   if(any(!is_pe)){
     stop(paste(filenames[!s_pe], collapse = ', '),"are not paired-end files.")

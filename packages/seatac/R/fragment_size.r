@@ -83,6 +83,7 @@ readFragmentSizeMatrix <- function(
     BF
   }))
 
+	browser()
   mcols(gr)$counts <- X
 	mcols(gr)$num_reads <- rowSums(X)
 	mcols(gr)$window_id <- rep(1:length(windows), num_samples)
