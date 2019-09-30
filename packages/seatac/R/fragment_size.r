@@ -24,8 +24,8 @@ readFragmentSizeMatrix <- function(
 
   n_bins_per_window <- window_size / bin_size
 
-
 	breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
+	centers <- (breaks[-1] + breaks[-length(breaks)]) / 2
 
 	n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval
 
@@ -83,10 +83,12 @@ readFragmentSizeMatrix <- function(
     BF
   }))
 
-	browser()
   mcols(gr)$counts <- X
-	mcols(gr)$num_reads <- rowSums(X)
+	mcols(gr)$num_reads <- Matrix::rowSums(X)
 	mcols(gr)$window_id <- rep(1:length(windows), num_samples)
+
+	metadata(gr)$nfr <- centers <= 100
+	metadata(gr)$mono_nucleosome <- centers >= 180 & centers <= 247
 
   metadata(gr)$fragment_size_range  <- fragment_size_range
   metadata(gr)$fragment_size_interval <- fragment_size_interval
@@ -95,6 +97,8 @@ readFragmentSizeMatrix <- function(
   metadata(gr)$n_intervals <- n_intervals
   metadata(gr)$num_samples <- num_samples
   metadata(gr)$n_bins_per_window <- n_bins_per_window 
+  metadata(gr)$breaks <- breaks
+  metadata(gr)$centers <- centers
 
 	gr
 

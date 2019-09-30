@@ -1,6 +1,6 @@
 #' cvae
 #'
-cvae <- function(input_dim, feature_dim, latent_dim, num_samples, window_size, sequence_dim){
+cvae <- function(input_dim, feature_dim, latent_dim, num_samples, window_size, sequence_dim, is_nfr, is_mono_nucleosome){
 
 	filter_size <- 300L
 	kernel_size <- 26L
@@ -52,13 +52,22 @@ cvae <- function(input_dim, feature_dim, latent_dim, num_samples, window_size, s
 	vplot_decoded <- layer_add(list(z, z_sequence)) %>% 
 		vplot_decoder_model(input_dim = input_dim, feature_dim = feature_dim)
 
+
 	vplot_prob <- vplot_decoded %>% 
 		layer_flatten() %>%
 		layer_independent_bernoulli(
 			event_shape = c(feature_dim, input_dim, 1L),
 			convert_to_tensor_fn = tfp$distributions$Bernoulli$logits
 		)
+
+	vplot_mean <- vplot_prob$mean()
 	
+	nfr <- vplot_mean[, which(is_nfr), , ] %>%
+		layer_lambda(f = function(x) k_mean(x = x, axis = 2L))
+
+	mono_nucleosome <- vplot_mean[, which(is_mono_nucleosome), , ] %>%
+		layer_lambda(f = function(x) k_mean(x = x, axis = 2L))
+
 	structure(list(
 		vae = keras_model(
 			inputs = list(vplot_input, sequence_input),
@@ -66,7 +75,7 @@ cvae <- function(input_dim, feature_dim, latent_dim, num_samples, window_size, s
 		),
 		latent = keras_model(
 			inputs = list(vplot_input, sequence_input),
-			outputs = z
+			outputs = list(z, nfr, mono_nucleosome)
 		),
 		sequence_motifs = keras_model(
 			inputs = sequence_input,
@@ -81,7 +90,10 @@ cvae <- function(input_dim, feature_dim, latent_dim, num_samples, window_size, s
 		kernel_size = kernel_size,
 		conv_strides = conv_strides,
 		pool_size = pool_size,
-		pool_strides = pool_strides
+		pool_strides = pool_strides,
+		is_nfr = is_nfr,
+		is_mono_nucleosome = is_mono_nucleosome,
+		window_size = window_size
 	), class = 'cvae')
 
 } # vae

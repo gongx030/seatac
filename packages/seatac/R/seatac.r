@@ -28,7 +28,7 @@ seatac <- function(
 	latent_dim = 2, 
 	epochs = 50, 
 	batch_size = 256,
-	min_reads_per_window = 10,
+	min_reads_per_window = 5,
 	sequence_dim = 16L,
 	type = 'cvae'
 ){
@@ -69,7 +69,9 @@ seatac <- function(
 			latent_dim = latent_dim, 
 			num_samples = num_samples,
 			window_size = window_size ,
-			sequence_dim = sequence_dim
+			sequence_dim = sequence_dim,
+			is_nfr = metadata(windows)$nfr,
+			is_mono_nucleosome = metadata(windows)$mono_nucleosome
 		)
 	}
 	model %>% fit(x, epochs = epochs)
