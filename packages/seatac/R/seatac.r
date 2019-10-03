@@ -77,8 +77,6 @@ seatac <- function(
 			latent_dim = latent_dim, 
 			num_samples = num_samples,
 			window_size = window_size ,
-			is_nfr = metadata(windows)$nfr,
-			is_mono_nucleosome = metadata(windows)$mono_nucleosome,
 			...
 		)
 	}

@@ -1,3 +1,5 @@
+#' gmm_prior_model
+#'
 gmm_prior_model <- function(latent_dim, n_components, name = NULL){
 	keras_model_custom(name = name, function(self) {
 

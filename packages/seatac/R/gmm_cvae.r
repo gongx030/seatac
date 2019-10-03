@@ -1,6 +1,6 @@
 #' gmm_cvae
 #'
-gmm_cvae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, window_size, sequence_dim, is_nfr, is_mono_nucleosome){
+gmm_cvae <- function(input_dim, feature_dim, latent_dim, n_components, num_samples, window_size, sequence_dim){
 
 	flog.info(sprintf('num components(n_components):%d', n_components))
 	flog.info(sprintf('sequence dimension(sequence_dim):%d', sequence_dim))
@@ -13,7 +13,9 @@ gmm_cvae <- function(input_dim, feature_dim, latent_dim, n_components, num_sampl
 		feature_dim = feature_dim,
 		latent_dim = latent_dim,
 		n_components = n_components,
-		num_samples = num_samples
+		num_samples = num_samples,
+		window_size = window_size,
+		sequence_dim = sequence_dim
 	), class = c('gmm_cvae'))
 
 } # vae

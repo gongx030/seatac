@@ -25,24 +25,26 @@ source('analysis/seatac/windows.r'); save_windows(windows, gs, window_size, bin_
 
 # --- train model
 source('analysis/seatac/windows.r'); windows <- load_windows(gs, window_size, bin_size, fs[1:2], fs[3])
-latent_dim <- 2; epochs <- 25; sequence_dim <- 32; type <- 'gmm_cvae'; n_components <- 15
+latent_dim <- 2; epochs <- 50; sequence_dim <- 32; type <- 'gmm_cvae'; n_components <- 15
 devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = epochs, sequence_dim = sequence_dim, type = type, n_components = n_components)
-#source('analysis/seatac/model_dir_name.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, fs[1:2], fs[3], sequence_dim)
-#devtools::load_all('analysis/seatac/packages/seatac'); save_model(model, model_dir)
+source('analysis/seatac/model_dir_name.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, fs[1:2], fs[3], sequence_dim, type, n_components)
+devtools::load_all('analysis/seatac/packages/seatac'); save_model(model, model_dir)
 
 # --- load model and make prediction
-#source('analysis/seatac/model_dir_name.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, fs[1:2], fs[3], sequence_dim)
-#devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
+source('analysis/seatac/model_dir_name.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, fs[1:2], fs[3], sequence_dim, type, n_components)
+devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
+
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows)
 
 Z <- gr$latent
-k <- 5
-u <- svd(Z)$u
+k <- 4
+#u <- svd(Z)$u
+u <- prcomp(Z)$x
 set.seed(1); cls <- kmeans(Z, k)$cluster
 mcols(gr)$cluster <- cls
 
 
-par(mfcol = c(4, k))
+par(mfcol = c(4, k + 1))
 yy <- c(50, 100, 180, 247, 315, 473)
 breaks <- seq(fs[1], fs[2], by = fs[3])
 for (h in 1:k){
@@ -69,13 +71,16 @@ for (h in 1:k){
 #	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
 
 	xx <- seq(0, 1, length.out = metadata(gr)$window_size)
-	plot(xx, colMeans(gr$coverage[j, ]))
+	plot(xx, colMeans(gr$coverage[j, ]), col = h)
 	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
 	plot(xx, colMeans(gr$nucleosome_score[j, ]))
 	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
 	plot(xx, colMeans(gr$nucleoatac_signal[j, ]))
 	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
 }
+plot(u, bg = cls, pch = 21)
+#plot(Z, bg = cls, pch = 21)
+
 
 par(mfrow = c(4, 6)); xx <- lapply(1:24, function(i) {plot(gr$chipseq[, 1][i, ], ylim = c(0, 1)); lines(gr$predicted_chipseq[, 1][i, ], col = 'red')})
 
