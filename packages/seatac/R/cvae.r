@@ -34,7 +34,7 @@ cvae <- function(input_dim, feature_dim, latent_dim, num_samples, window_size, s
 		layer_dropout(0.5)
 	
 	h_vplot <- vplot_input %>%
-		vplot_encoder_model(output_dim = sequence_dim)
+		cvae_encoder_model(output_dim = sequence_dim)
 
 	z <- layer_add(list(h_vplot, h_sequence)) %>%
 		layer_dense(units = params_size_multivariate_normal_tri_l(latent_dim)) %>%

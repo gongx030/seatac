@@ -27,17 +27,15 @@ seatac <- function(
 	x,			# GenomicRanges object
 	latent_dim = 2, 
 	epochs = 50, 
-	batch_size = 256,
 	min_reads_per_window = 5,
-	sequence_dim = 16L,
-	type = 'cvae'
+	type = 'cvae',
+	...
 ){
 
 	flog.info(sprintf('window size: %d', metadata(x)$window_size))
 	flog.info(sprintf('step size: %d', metadata(x)$step_size))
 
 	flog.info(sprintf('latent dimension(latent_dim):%d', latent_dim))
-	flog.info(sprintf('batch size(batch_size): %d', batch_size))
 
 	feature_dim <- metadata(x)$n_intervals
 	input_dim <- metadata(x)$n_bins_per_window
@@ -62,16 +60,26 @@ seatac <- function(
 			num_samples = num_samples
 		)
 	}else if (type == 'cvae'){
-		flog.info(sprintf('sequence dimension(sequence_dim):%d', sequence_dim))
 		model <- cvae(
 			input_dim = input_dim, 
 			feature_dim = feature_dim, 
 			latent_dim = latent_dim, 
 			num_samples = num_samples,
 			window_size = window_size ,
-			sequence_dim = sequence_dim,
 			is_nfr = metadata(windows)$nfr,
-			is_mono_nucleosome = metadata(windows)$mono_nucleosome
+			is_mono_nucleosome = metadata(windows)$mono_nucleosome,
+			...
+		)
+	}else if (type == 'gmm_cvae'){
+		model <- gmm_cvae(
+			input_dim = input_dim, 
+			feature_dim = feature_dim, 
+			latent_dim = latent_dim, 
+			num_samples = num_samples,
+			window_size = window_size ,
+			is_nfr = metadata(windows)$nfr,
+			is_mono_nucleosome = metadata(windows)$mono_nucleosome,
+			...
 		)
 	}
 	model %>% fit(x, epochs = epochs)
