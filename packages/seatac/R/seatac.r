@@ -6,7 +6,7 @@
 #' @import futile.logger 
 #' @importFrom GenomicRanges tileGenome resize intersect reduce
 #' @importFrom GenomeInfoDb seqlengths
-#' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam
+#' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam indexBam
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments
 #' @importFrom gplots colorpanel
 #' @importFrom abind abind

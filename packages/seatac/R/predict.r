@@ -129,10 +129,41 @@ predict.gmm_cvae <- function(model, gr, batch_size = 512){
 
 		sequence <- sequence - 1
 
-		z[i, ] <- model$encoder(list(x, sequence))[[1]]$mean() %>% as.matrix()
+		g <- model$encoder(list(x, sequence))
+		z[i, ] <- g[[1]]$mean() %>% as.matrix()
+		h <- g[[2]] %>% as.matrix()
+		zh <- model$decoder(z[i, ] + h)$mean()
+
+		nfr[i, ] <- zh[, which(metadata(gr)$nfr), , ] %>% 
+			tf$reduce_mean(axis = 1L) %>%
+			tf$squeeze() %>%
+			as.matrix()
+
+		mono_nucleosome[i, ] <- zh[, which(metadata(gr)$mono_nucleosome), , ] %>% 
+			tf$reduce_mean(axis = 1L) %>%
+			tf$squeeze() %>%
+			as.matrix()
+		
 	}
 
 	mcols(gr)$latent <- z
+	mcols(gr)$nfr <- nfr
+	mcols(gr)$mono_nucleosome <- mono_nucleosome
+
+	n_bins <- 10
+	core_bins <- 4
+	weight <- exp(-((-n_bins:n_bins) / core_bins)^2 / 2)
+
+	R <- log(mono_nucleosome * mean(nfr) / mean(mono_nucleosome) + 1e-5) - log(nfr + 1e-5)
+	R <- do.call('cbind', lapply(1:n_bins_per_window, function(j){
+		js <- (j - n_bins):(j + n_bins)
+		valid <- js > 0 & js < n_bins_per_window
+		rowSums(R[, js[valid]] %*% diag(weight[valid]))
+	}))
+	Z <- (R - mean(R)) / sd(c(R))
+	mcols(gr)$seatac_nucleosome_ratio <- R
+	mcols(gr)$seatac_nucleosome_score <- Z
+	mcols(gr)$seatac_nucleosome_log10pvalue <- -log10(1 - pnorm(Z) + 1e-20)
 
 	gr
 

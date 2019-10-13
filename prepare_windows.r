@@ -60,11 +60,8 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 		# D1 Etv2 ChIP-seq peaks
 		peak_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D1_Etv2_summits.bed'
 		peaks <- macs2.read_summits(peak_file)
+		peaks <- resize(peaks, fix = 'center', width = window_size)
 		peaks <- add.seqinfo(peaks, genome = 'mm10')
-		peaks <- peaks[!peaks %over% exons(TxDb.Mmusculus.UCSC.mm10.knownGene)]
-		peaks <- peaks[!peaks %over% promoters(TxDb.Mmusculus.UCSC.mm10.knownGene)]
-		peaks <- resize(peaks, fix = 'center', width = 1)
-		flog.info(sprintf('get %d intervals after removing exon region', length(peaks)))
 
 		bam_files <- c(
 			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam',
@@ -293,6 +290,99 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 
 		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Buenrostro_version=20170721a/GM12878_50k_cells.bam'
 
+	}else if (gs == 'D1_Dox_Etv2_D1_ATAC'){
+
+		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D1_Etv2_summits.bed'
+		peaks <- macs2.read_summits(bed_file)
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, 'mm10')
+
+		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D1.bam'
+
+	}else if (gs == 'D2_Dox_Etv2_D2_ATAC'){
+
+		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D2_Etv2_summits.bed'
+		peaks <- macs2.read_summits(bed_file)
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, 'mm10')
+
+		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D2.bam'
+
+	}else if (gs == 'D7_Dox_Etv2_D7_ATAC'){
+
+		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D7_Etv2_summits.bed'
+		peaks <- macs2.read_summits(bed_file)
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, 'mm10')
+
+		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7.bam'
+
+	}else if (gs == 'D7_Dox_Etv2_D7Flk1pos_ATAC'){
+
+		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D7_Etv2_summits.bed'
+		peaks <- macs2.read_summits(bed_file)
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, 'mm10')
+
+		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7_Flk1pos.bam'
+
+	}else if (gs == 'EB25_Etv2_Flk1pos_ATAC'){
+
+		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=ChoiEtv2ChIP-seq_version=20190909a/etv2_chipseq_polyab_mm10.sorted.bed'
+		peaks <- macs2.read_summits(bed_file)
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, 'mm10')
+
+		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/EB_Dox_D25_Flk1pos.bam'
+
+	}else if (gs == 'GM12878_STAT3'){
+
+		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=GM12878_version=20191007a/ENCFF014RBU.bed'
+		peaks <- macs2.read_summits(bed_file)
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, genome)
+
+		mnase_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Kundajie_version=20190802a/GSM920558_hg19_wgEncodeSydhNsomeGm12878Sig.bw'
+		flog.info(sprintf('reading %s', mnase_file))
+		mnase <- rtracklayer::import(mnase_file, format = 'BigWig', which = reduce(peaks))
+		mnase <- add.seqinfo(mnase, genome)
+		cvg <- coverage(mnase, weight = as.numeric(mcols(mnase)$score))
+		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+
+		nucleoatac_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=GM12878_version=20191007a/GM12878_20170314c.nucleoatac_signal.smooth.bw'
+		flog.info(sprintf('reading %s', nucleoatac_file))
+		nuc <- rtracklayer::import(nucleoatac_file, format = 'BigWig', which = reduce(peaks))
+		nuc <- add.seqinfo(nuc, genome)
+		cvg <- coverage(nuc, weight = as.numeric(mcols(nuc)$score))
+		mcols(peaks)$nucleoatac_signal <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+
+		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Buenrostro_version=20170721a/GM12878_50k_cells.bam'
+
+	}else if (gs == 'GM12878_ETV6'){
+
+		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=GM12878_version=20191007a/ENCFF692GBM.bed.gz'
+		flog.info(sprintf('reading %s', bed_file))
+		peaks <- read.table(gzfile(bed_file), header = FALSE, sep = '\t')
+		peaks <- GRanges(seqnames = peaks[, 1], range = IRanges(peaks[, 2], peaks[, 3]))
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, genome)
+
+		mnase_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Kundajie_version=20190802a/GSM920558_hg19_wgEncodeSydhNsomeGm12878Sig.bw'
+		flog.info(sprintf('reading %s', mnase_file))
+		mnase <- rtracklayer::import(mnase_file, format = 'BigWig', which = reduce(peaks))
+		mnase <- add.seqinfo(mnase, genome)
+		cvg <- coverage(mnase, weight = as.numeric(mcols(mnase)$score))
+		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+
+		nucleoatac_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=GM12878_version=20191007a/GM12878_20170314c.nucleoatac_signal.smooth.bw'
+		flog.info(sprintf('reading %s', nucleoatac_file))
+		nuc <- rtracklayer::import(nucleoatac_file, format = 'BigWig', which = reduce(peaks))
+		nuc <- add.seqinfo(nuc, genome)
+		cvg <- coverage(nuc, weight = as.numeric(mcols(nuc)$score))
+		mcols(peaks)$nucleoatac_signal <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+
+		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Buenrostro_version=20170721a/GM12878_50k_cells.bam'
+
 	}else
 		stop(sprintf('unknown gs: %s', gs))
 
@@ -304,7 +394,7 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 	if (genome == 'mm10'){
 		blacklist_file <- '/panfs/roc/scratch/gongx030/datasets/datasets=blacklists_version=20190827a/mm10.blacklist.bed.gz'
 	}else if (genome == 'hg19'){
-		blacklist_file <- '/panfs/roc/scratch/gongx030/datasets/datasets=blacklists_version=20190827a/hg38.blacklist.bed.gz'
+		blacklist_file <- '/panfs/roc/scratch/gongx030/datasets/datasets=blacklists_version=20190827a/hg19.blacklist.bed.gz'
 	}
 
 	blacklist <- read.table(gzfile(blacklist_file), sep = '\t')

@@ -1,4 +1,6 @@
 
+#' save_model
+#'
 save_model <- function(x, dir){
 
 	if (missing(dir))
