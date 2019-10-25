@@ -14,12 +14,13 @@ library(BSgenome.Mmusculus.UCSC.mm10)
 #gs <- 'MEF_NoDox'; window_size <- 64; bin_size <- 2; fs <- c(50, 370, 5); genome <- 'mm10'
 #gs <- 'D1_Dox_Etv2_on_MEF'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
 #gs <- 'D1_Dox_Etv2_on_MEF'; window_size <- 320; bin_size <- 10; fs <- c(50, 370, 5); genome <- 'mm10'
-gs <- 'D1_Dox_Etv2_on_MEF'; window_size <- 640; bin_size <- 10; fs <- c(50, 370, 10); genome <- 'mm10'
+#gs <- 'D1_Dox_Etv2_on_MEF'; window_size <- 640; bin_size <- 10; fs <- c(50, 370, 10); genome <- 'mm10'
 #gs <- 'Maza_mESC'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
 #gs <- 'Maza_mESC'; window_size <- 320; bin_size <- 2; fs <- c(50, 370, 5); genome <- 'mm10'
 #gs <- 'GM12878'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'hg19'
 #gs <- 'D1_Dox_Etv2'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
 #gs <- 'D1_Dox_Etv2_all_ATAC'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
+#gs <- 'Etv2_MEF_reprogramming'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
 #gs <- 'D1_Dox_Etv2_D1_ATAC'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
 #gs <- 'D2_Dox_Etv2_D2_ATAC'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
 #gs <- 'D7_Dox_Etv2_D7_ATAC'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
@@ -28,6 +29,7 @@ gs <- 'D1_Dox_Etv2_on_MEF'; window_size <- 640; bin_size <- 10; fs <- c(50, 370,
 #gs <- 'GM12878_STAT3'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'hg19'
 #gs <- 'GM12878_ETV6'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'hg19'
 #gs <- 'GM12878_STAT3'; window_size <- 640; bin_size <- 10; fs <- c(50, 370, 10); genome <- 'hg19'
+gs <- 'PHF7_MEF'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
 
 # --- prepare windows
 source('analysis/seatac/prepare_windows.r'); windows <- prepare_windows(gs, window_size, bin_size, genome = genome, fragment_size_range = fs[1:2], fragment_size_interval = fs[3])
@@ -35,66 +37,68 @@ source('analysis/seatac/windows.r'); save_windows(windows, gs, window_size, bin_
 
 # --- train model
 source('analysis/seatac/windows.r'); windows <- load_windows(gs, window_size, bin_size, fs[1:2], fs[3])
-latent_dim <- 5; epochs <- 50; sequence_dim <- 32; type <- 'gmm_cvae'; n_components <- 4; mr <- 20
-#latent_dim <- 2; epochs <- 50; sequence_dim <- 32; type <- 'gmm_cvae'; n_components <- 15; mr <- 20
-par(mfrow = c(4, 6)); devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = epochs, sequence_dim = sequence_dim, type = type, n_components = n_components, min_reads_per_window = mr)
+latent_dim <- 5; epochs <- 50; sequence_dim <- 32; type <- 'gmm_cvae'; n_components <- 15; mr <- 20; bs <- 64
+devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(windows, latent_dim = latent_dim, epochs = epochs, sequence_dim = sequence_dim, type = type, n_components = n_components, min_reads_per_window = mr, batch_size = bs)
 source('analysis/seatac/model_dir_name.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, fs[1:2], fs[3], sequence_dim, type, n_components, mr)
 devtools::load_all('analysis/seatac/packages/seatac'); save_model(model, model_dir)
 
 # --- load model and make prediction
 source('analysis/seatac/model_dir_name.r'); model_dir <- model_dir_name(gs, latent_dim, window_size, bin_size, fs[1:2], fs[3], sequence_dim, type, n_components, mr)
 devtools::load_all('analysis/seatac/packages/seatac'); model <- load_model(model_dir)
+devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows, batch_size = 512)
 
-devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(windows[windows$num_reads > 10])
+#source('analysis/seatac/windows.r'); save_windows(gr, gs, window_size, bin_size, fs[1:2], fs[3])
+#source('analysis/seatac/windows.r'); gr <- load_windows(gs, window_size, bin_size, fs[1:2], fs[3])
+
 
 Z <- gr$latent
 k <- 4
 u <- prcomp(Z)$x
-set.seed(1); cls <- kmeans(u, k)$cluster; mcols(gr)$cluster <- cls
+set.seed(1); cls <- kmeans(Z, k)$cluster; mcols(gr)$cluster <- cls
 
 
-par(mfcol = c(5, k + 1))
+par(mfcol = c(3, k + 1))
 yy <- c(50, 100, 180, 247, 315, 473)
 breaks <- seq(fs[1], fs[2], by = fs[3])
-bg_counts <- colMeans(matrix(colMeans(mcols(gr)$counts), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals))
 for (h in 1:k){
 
 	j <- mcols(gr)$cluster == h 
 	x <- as.matrix(colMeans(mcols(gr)$counts[j, ]))
+	bg_counts <- matrix(colMeans(mcols(gr)$counts), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals)
 	X <- matrix(x, metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals)
-	X <- t(t(X) - bg_counts)
+	X <- X - bg_counts
 
 	image(X, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), axes = FALSE, main = sprintf('cluster=%d; n=%d', h, sum(j)),  breaks = c(-10, seq(quantile(X, 0.01),quantile(X, 0.99), length.out = 99), 10))
 	axis(2, at = (yy - fs[1]) / (fs[2] - fs[1]), label = yy)
 	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'yellow', lty = 2)
 
 	xx <- seq(0, 1, length.out = metadata(gr)$n_bins_per_window)
-#	d <- data.frame(x = xx, y = log(rowMeans(X[, metadata(gr)$mono_nucleosome]) + 0.1) - log(rowMeans(X[, metadata(gr)$nfr]) + 0.1))
-#	m <- loess(y ~ x, data = d, span = 0.4)
-#	plot(xx, predict(m), lwd = 3, col = 'blue', type = 'l', xaxt = 'n', xaxs = 'i', ylim = c(-0.2, 0.2))
-#	abline(h = 0, lwd = 1, lty = 2)
-#	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
+	d <- data.frame(x = xx, y = log(rowMeans(X[, metadata(gr)$mono_nucleosome]) + 0.1) - log(rowMeans(X[, metadata(gr)$nfr]) + 0.1))
+	m <- loess(y ~ x, data = d, span = 0.4)
+	plot(xx, predict(m), lwd = 3, col = 'blue', type = 'l', xaxt = 'n', xaxs = 'i', ylim = c(-0.15, 0.15), xlab = '', ylab = 'Likelihood ratio')
+	abline(h = 0, lwd = 1, lty = 2)
+	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
 
 #	plot(xx, colMeans(gr$seatac_nucleosome_ratio[j, ]), type = 'l', xaxt = 'n', xaxs = 'i', lwd = 3, col = 'darkblue', ylab = '')
 #	abline(h = 0, lwd = 1, lty = 2)
 #	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
 
-	plot(xx, colMeans(gr$mono_nucleosome[j, ]) - colMeans(gr$mono_nucleosome), type = 'l', xaxt = 'n', xaxs = 'i', lwd = 3, col = 'darkblue', ylab = '')
-	abline(h = 0, lwd = 1, lty = 2)
-	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
+#	plot(xx, colMeans(gr$mono_nucleosome[j, ]) - colMeans(gr$mono_nucleosome), type = 'l', xaxt = 'n', xaxs = 'i', lwd = 3, col = 'darkblue', ylab = '')
+#	abline(h = 0, lwd = 1, lty = 2)
+#	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
 
-	plot(xx, colMeans(gr$seatac_nucleosome_log10pvalue[j, ]), type = 'l', xaxt = 'n', xaxs = 'i', lwd = 3, col = 'darkblue', ylab = '')
-	abline(h = 0, lwd = 1, lty = 2)
-	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
+#	plot(xx, colMeans(gr$seatac_nucleosome_log10pvalue[j, ]), type = 'l', xaxt = 'n', xaxs = 'i', lwd = 3, col = 'darkblue', ylab = '')
+#	abline(h = 0, lwd = 1, lty = 2)
+#	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
 
 	xx <- seq(0, 1, length.out = metadata(gr)$window_size)
 #	plot(xx, colMeans(gr$coverage[j, ]), col = h, xaxt = 'n', xaxs = 'i')
 #	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
-	plot(xx, colMeans(gr$nucleosome_score[j, ]), xaxt = 'n', xaxs = 'i', ylim = range(colMeans(gr$nucleosome_score)) * c(0.9, 1.1))
+	plot(xx, colMeans(gr$nucleosome_score[j, ]), xaxt = 'n', xaxs = 'i', ylim = range(colMeans(gr$nucleosome_score)) * c(0.9, 1.1), ylab = 'Read density', xlab = '')
 	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
-	plot(xx, colMeans(gr$nucleoatac_signal[j, ]), xaxt = 'n', xaxs = 'i', ylim = c(0.0, 0.5))
+#	plot(xx, colMeans(gr$nucleoatac_signal[j, ]), xaxt = 'n', xaxs = 'i', ylim = c(0.0, 0.5))
 #	plot(xx, colMeans(gr$nucleoatac_signal[j, ]), xaxt = 'n', xaxs = 'i')
-	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
+#	abline(v = c(0.5 - (1:4) * 180 /metadata(gr)$window_size , 0.5, (1:4) * 180/ metadata(gr)$window_size + 0.5), col = 'red', lty = 2)
 }
 plot(u[, 1:2], bg = 21, col = cls)
 
@@ -181,6 +185,31 @@ i <- gr %over% blacklist
 gr <- gr[!i]
 peak_file <- sprintf('%s/all_ChIP-seq_peaks.bed', dataset_dir(dataset))
 write.table(as.data.frame(gr)[, 1:3], peak_file, sep = '\t', quote = FALSE, row.names = FALSE, col.names = FALSE)
+
+
+# -----------------------------------------------------------------------------------
+# [2019-10-07] 
+# -----------------------------------------------------------------------------------
+gs <- 'Etv2_MEF_reprogramming'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
+source('analysis/seatac/windows.r'); gr <- load_windows(gs, window_size, bin_size, fs[1:2], fs[3])
+
+G <- matrix(gr$num_reads, length(gr) / 5, 5)
+i <- rowSums(G > 5) == 5
+gr <- gr[rep(i, 5)]
+
+Z <- gr$latent
+k <- 4
+u <- prcomp(Z)$x
+set.seed(1); cls <- kmeans(Z, k)$cluster; mcols(gr)$cluster <- cls
+
+H <- matrix(cls, length(gr) / 5, 5)
+
+gr2 <- granges(gr[gr$group == 1])
+mcols(gr2)$cluster <- H
+gr_file <- sprintf('%s/Etv2_reprogramming.rds', dataset_dir('etv2_pioneer'))
+saveRDS(gr2, gr_file)
+
+
 
 
 

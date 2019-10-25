@@ -29,6 +29,7 @@ seatac <- function(
 	epochs = 50, 
 	min_reads_per_window = 5,
 	type = 'cvae',
+	batch_size = 256,
 	...
 ){
 
@@ -80,7 +81,7 @@ seatac <- function(
 			...
 		)
 	}
-	model %>% fit(x, epochs = epochs)
+	model %>% fit(x, epochs = epochs, batch_size = batch_size)
 	model
 
 } # seatac

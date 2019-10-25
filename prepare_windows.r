@@ -290,6 +290,20 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 
 		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Buenrostro_version=20170721a/GM12878_50k_cells.bam'
 
+	}else if (gs == 'D1_Dox_Etv2_MEF_D1_ATAC'){
+
+		# D1 Etv2 summits on MEF/D1 ATAC-seq
+
+		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D1_Etv2_summits.bed'
+		peaks <- macs2.read_summits(bed_file)
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+		peaks <- add.seqinfo(peaks, 'mm10')
+
+		bam_files <- c(
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam',
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D1.bam'
+		)
+
 	}else if (gs == 'D1_Dox_Etv2_D1_ATAC'){
 
 		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D1_Etv2_summits.bed'
@@ -382,6 +396,21 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 		mcols(peaks)$nucleoatac_signal <- as(as(cvg[peaks], 'RleViews'), 'matrix')
 
 		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Buenrostro_version=20170721a/GM12878_50k_cells.bam'
+
+	}else if (gs == 'PHF7_MEF'){
+
+		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Phf7ChIPseq_version=20190925a/PHF7_summits.bed'
+		peaks <- macs2.read_summits(bed_file)
+		peaks <- resize(peaks, fix = 'center', width = window_size)
+
+		mnase_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/MNase_treat_pileup.bw'
+		flog.info(sprintf('reading %s', mnase_file))
+		mnase <- rtracklayer::import(mnase_file, format = 'BigWig', which = reduce(peaks))
+		mnase <- add.seqinfo(mnase, 'mm10')
+		cvg <- coverage(mnase, weight = as.numeric(mcols(mnase)$score))
+		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+
+		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam'
 
 	}else
 		stop(sprintf('unknown gs: %s', gs))

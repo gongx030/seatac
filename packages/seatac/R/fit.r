@@ -149,11 +149,11 @@ fit.gmm_cvae <- function(model, gr, epochs = 1, steps_per_epoch = 20, batch_size
 
 		}
 
-		if (epoch == 1 || epoch %% 10 == 0){
-			gr2 <- model %>% predict(gr[sample.int(length(gr), 500)])
-			smoothScatter(gr2$latent, main = epoch)
-			points(prior_model$components_distribution$mean() %>% as.matrix(), bg = 1:4, pch = 21)
-		}
+#		if (epoch == 1 || epoch %% 10 == 0){
+#			gr2 <- model %>% predict(gr[sample.int(length(gr), 500)])
+#			smoothScatter(gr2$latent, main = epoch)
+#			points(prior_model$components_distribution$mean() %>% as.matrix(), bg = 1:4, pch = 21)
+#		}
 
 		flog.info(sprintf('training | epoch=%4.d/%4.d | nll=%7.1f | kl=%7.1f | total=%7.1f', epoch, epochs, total_loss_nll, total_loss_kl, total_loss))
 	}
