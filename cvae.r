@@ -29,7 +29,7 @@ library(BSgenome.Mmusculus.UCSC.mm10)
 #gs <- 'GM12878_STAT3'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'hg19'
 #gs <- 'GM12878_ETV6'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'hg19'
 #gs <- 'GM12878_STAT3'; window_size <- 640; bin_size <- 10; fs <- c(50, 370, 10); genome <- 'hg19'
-gs <- 'PHF7_MEF'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
+#gs <- 'PHF7_MEF'; window_size <- 640; bin_size <- 5; fs <- c(50, 370, 5); genome <- 'mm10'
 
 # --- prepare windows
 source('analysis/seatac/prepare_windows.r'); windows <- prepare_windows(gs, window_size, bin_size, genome = genome, fragment_size_range = fs[1:2], fragment_size_interval = fs[3])
