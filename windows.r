@@ -15,3 +15,5 @@ load_windows <- function(gs, window_size, bin_size, fragment_size_range, fragmen
 	windows <- readRDS(f)
 	windows
 } # load_windows
+
+

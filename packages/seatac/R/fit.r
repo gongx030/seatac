@@ -61,7 +61,11 @@ fit.cvae <- function(model, gr, epochs = 1, batch_size = 256, learning_rate = 0.
 
 #' fit.gmm_cvae
 #'
-fit.gmm_cvae <- function(model, gr, epochs = 1, steps_per_epoch = 20, batch_size = 128, learning_rate = 0.001){
+fit.gmm_cvae <- function(model, gr, learning_rate = 0.001){
+
+	batch_size <- metadata(gr)$training$batch_size
+	steps_per_epoch <- metadata(gr)$training$steps_per_epoch
+	epochs <- metadata(gr)$training$epochs
 
 	flog.info(sprintf('batch size(batch_size): %d', batch_size))
 	flog.info(sprintf('steps per epoch(steps_per_epoch): %d', steps_per_epoch))
@@ -73,11 +77,7 @@ fit.gmm_cvae <- function(model, gr, epochs = 1, steps_per_epoch = 20, batch_size
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
 
-
 	for (epoch in seq_len(epochs)) {
-
-		# randomly sampling windows
-		G <- matrix(sample.int(length(gr), steps_per_epoch * batch_size), steps_per_epoch, batch_size)
 
 		total_loss <- 0
 		total_loss_nll <- 0
@@ -85,7 +85,7 @@ fit.gmm_cvae <- function(model, gr, epochs = 1, steps_per_epoch = 20, batch_size
 
 		for (s in 1:steps_per_epoch){
 
-			b <- G[s, ]	# window index for current batch
+			b <- gr$epoch == epoch & gr$step == s 	# window index for current batch
 
 			x <- mcols(gr[b])$counts %>%
 				as.matrix() %>%

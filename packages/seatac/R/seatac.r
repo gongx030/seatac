@@ -26,15 +26,14 @@ NULL
 seatac <- function(
 	x,			# GenomicRanges object
 	latent_dim = 2, 
-	epochs = 50, 
-	min_reads_per_window = 5,
-	type = 'cvae',
-	batch_size = 256,
+	window_size = 640,
+	min_reads_per_window = 20,
+	epochs = 50,
+	batch_size = 128,
+	steps_per_epoch = 20,
+	genome,
 	...
 ){
-
-	flog.info(sprintf('window size: %d', metadata(x)$window_size))
-	flog.info(sprintf('step size: %d', metadata(x)$step_size))
 
 	flog.info(sprintf('latent dimension(latent_dim):%d', latent_dim))
 
@@ -47,41 +46,20 @@ seatac <- function(
 	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
 	flog.info(sprintf('# features per bin(feature_dim): %d', feature_dim))
 
-	flog.info(sprintf('min PE reads per window(min_reads_per_window): %d', min_reads_per_window))
-	x <- x[mcols(x)$num_reads >= min_reads_per_window]
-	flog.info(sprintf('total number of training windows: %d', length(x)))
+	model <- gmm_cvae(
+		input_dim = input_dim, 
+		feature_dim = feature_dim, 
+		latent_dim = latent_dim, 
+		num_samples = num_samples,
+		window_size = window_size ,
+		...
+	)
 
-	flog.info(sprintf('model(type): %s', type))
+	x <- sample_windows(x, window_size, min_reads_per_window, epochs = epochs, batch_size = batch_size, steps_per_epoch = steps_per_epoch)
 
-	if (type == 'vae'){
-		model <- vae(
-			input_dim = input_dim, 
-			feature_dim = feature_dim, 
-			latent_dim = latent_dim, 
-			num_samples = num_samples
-		)
-	}else if (type == 'cvae'){
-		model <- cvae(
-			input_dim = input_dim, 
-			feature_dim = feature_dim, 
-			latent_dim = latent_dim, 
-			num_samples = num_samples,
-			window_size = window_size ,
-			is_nfr = metadata(windows)$nfr,
-			is_mono_nucleosome = metadata(windows)$mono_nucleosome,
-			...
-		)
-	}else if (type == 'gmm_cvae'){
-		model <- gmm_cvae(
-			input_dim = input_dim, 
-			feature_dim = feature_dim, 
-			latent_dim = latent_dim, 
-			num_samples = num_samples,
-			window_size = window_size ,
-			...
-		)
-	}
-	model %>% fit(x, epochs = epochs, batch_size = batch_size)
+	mcols(peaks)$sequence <- getSeq(genome, peaks)
+
+	model %>% fit(x)
 	model
 
 } # seatac

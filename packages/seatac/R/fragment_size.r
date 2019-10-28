@@ -42,15 +42,15 @@ readFragmentSizeMatrix <- function(
 	gr <- rep(windows, num_samples)
 	mcols(gr)$group <- rep(1:num_samples, each = length(windows))
 
-	mcols(gr)$coverage <- do.call('rbind', lapply(1:num_samples, function(i){
-		cvg <- coverage(x[mcols(x)$group == i])
-		as(as(cvg[windows], 'RleViews'), 'matrix')
-	}))
-	mcols(gr)$min_coverage <- rowMins(mcols(gr)$coverage)
-	mcols(gr)$max_coverage <- rowMaxs(mcols(gr)$coverage)
-	mcols(gr)$mean_coverage <- rowMeans(mcols(gr)$coverage)
-	mcols(gr)$coverage <- (mcols(gr)$coverage - mcols(gr)$min_coverage) / (mcols(gr)$max_coverage - mcols(gr)$min_coverage)
-	mcols(gr)$coverage[is.na(mcols(gr)$coverage)] <- 0
+#	mcols(gr)$coverage <- do.call('rbind', lapply(1:num_samples, function(i){
+#		cvg <- coverage(x[mcols(x)$group == i])
+#		as(as(cvg[windows], 'RleViews'), 'matrix')
+#	}))
+#	mcols(gr)$min_coverage <- rowMins(mcols(gr)$coverage)
+#	mcols(gr)$max_coverage <- rowMaxs(mcols(gr)$coverage)
+#	mcols(gr)$mean_coverage <- rowMeans(mcols(gr)$coverage)
+#	mcols(gr)$coverage <- (mcols(gr)$coverage - mcols(gr)$min_coverage) / (mcols(gr)$max_coverage - mcols(gr)$min_coverage)
+#	mcols(gr)$coverage[is.na(mcols(gr)$coverage)] <- 0
 
 	# compute the center point between PE reads
 	# this is faster than using GAlignmentPairs
