@@ -12,37 +12,6 @@ save_model <- function(x, dir){
 	UseMethod('save_model', x)
 }
 
-#' save_model.cvae
-#'
-save_model.cvae <- function(x, dir){
-
-
-	vae_file <- sprintf('%s/vae.h5', dir)
-	flog.info(sprintf('writing %s', vae_file))
-	x$vae$save_weights(vae_file)
-	x$vae_file <- vae_file
-	x$vae <- NULL
-
-	latent_file <- sprintf('%s/latent.h5', dir)
-	flog.info(sprintf('writing %s', latent_file))
-	x$latent$save_weights(latent_file)
-	x$latent_file <- latent_file
-	x$latent <- NULL
-
-	sequence_motifs_file <- sprintf('%s/sequence_motifs.h5', dir)
-	flog.info(sprintf('writing %s', sequence_motifs_file))
-	x$sequence_motifs$save_weights(sequence_motifs_file)
-	x$sequence_motifs_file <- sequence_motifs_file
-	x$sequence_motifs <- NULL
-
-	model_file <- sprintf('%s/model.rds', dir)
-	flog.info(sprintf('writing %s', model_file))
-	saveRDS(x, model_file)
-
-} # save_model
-
-
-#' save_model.gmm_cvae
 #'
 save_model.gmm_cvae <- function(x, dir){
 
@@ -85,43 +54,14 @@ load_model <- function(dir){
 
 	flog.info(sprintf('reading %s', model_file))
 	x <- readRDS(model_file)
+	model <- initialize_gmm_cvae_model(x)
 
-	if (class(x) == 'cave')
-		initialize_cvae_model(x)
-	else if (class(x) == 'gmm_cvae')
-		initialize_gmm_cvae_model(x)
-	else
-		stop(sprintf('unknown model class: %s', class(x)))
-
-} # load_model
-
-#' initialize_cvae_model
-#'
-initialize_cvae_model <- function(x){
-
-	model <- cvae(
-		input_dim = x$input_dim,
-		feature_dim = x$feature_dim,
-		latent_dim = x$latent_dim,
-		num_samples = x$num_samples,
-		window_size = x$window_size ,
-		sequence_dim = x$sequence_dim,
-		is_nfr = x$is_nfr,
-		is_mono_nucleosome = x$is_mono_nucleosome
-	)
-
-	flog.info(sprintf('reading %s', x$vae_file))
-	model$vae$load_weights(x$vae_file)
-
-	flog.info(sprintf('reading %s', x$latent_file))
-	model$latent$load_weights(x$latent_file)
-
-	flog.info(sprintf('reading %s', x$sequence_motifs_file))
-	model$sequence_motifs$load_weights(x$sequence_motifs_file)
-
+	for (s in names(x))
+		if (is.null(model[[s]]))
+			model[[s]] <- x[[s]]
 	model
 
-} # initialize_cvae_model
+} # load_model
 
 
 #' initialize_gmm_cvae_model

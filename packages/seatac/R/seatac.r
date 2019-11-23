@@ -31,6 +31,10 @@ seatac <- function(
 	epochs = 50,
 	batch_size = 128,
 	steps_per_epoch = 20,
+	sequence_dim = 32,
+	n_components = 15,
+	core_width = 100,
+	batch_size_prediction = 64,
 	genome,
 	...
 ){
@@ -38,13 +42,19 @@ seatac <- function(
 	flog.info(sprintf('latent dimension(latent_dim):%d', latent_dim))
 
 	feature_dim <- metadata(x)$n_intervals
-	input_dim <- metadata(x)$n_bins_per_window
 	num_samples <- metadata(x)$num_samples
-	window_size <- metadata(x)$window_size
 
 	flog.info(sprintf('total number of input windows: %d', length(x)))
-	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
 	flog.info(sprintf('# features per bin(feature_dim): %d', feature_dim))
+
+	flog.info(sprintf('input window size:%d', metadata(x)$window_size))
+	flog.info(sprintf('training window size:%d', window_size))
+
+	train <- sample_windows(x, window_size, min_reads_per_window, epochs = epochs, batch_size = batch_size, steps_per_epoch = steps_per_epoch)
+	mcols(train)$sequence <- getSeq(genome, train)
+
+	input_dim <- metadata(train)$n_bins_per_window
+	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
 
 	model <- gmm_cvae(
 		input_dim = input_dim, 
@@ -52,14 +62,14 @@ seatac <- function(
 		latent_dim = latent_dim, 
 		num_samples = num_samples,
 		window_size = window_size ,
-		...
+		sequence_dim = sequence_dim,
+		n_components = n_components
 	)
 
-	x <- sample_windows(x, window_size, min_reads_per_window, epochs = epochs, batch_size = batch_size, steps_per_epoch = steps_per_epoch)
-
-	mcols(peaks)$sequence <- getSeq(genome, peaks)
-
-	model %>% fit(x)
+	model %>% fit(train)
+	train <- model %>% predict(train, batch_size = batch_size_prediction)
+	model$input_data <- x
+	model$train_data <- train
 	model
 
 } # seatac

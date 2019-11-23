@@ -114,6 +114,7 @@ gmm_cvae_encoder_model <- function(
 					layer_dropout(0.5)
 
 				y <- layer_add(list(h_vplot, h_sequence)) %>%
+#				y <- layer_concatenate(list(h_vplot, h_sequence), 1L) %>%
 					self$dense_2()
 
 				z_sequence <- h_sequence %>%

@@ -273,20 +273,20 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 		peaks <- resize(peaks, fix = 'center', width = window_size)
 		peaks <- add.seqinfo(peaks, genome)
 
-		mnase_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Kundajie_version=20190802a/GSM920558_hg19_wgEncodeSydhNsomeGm12878Sig.bw'
-		flog.info(sprintf('reading %s', mnase_file))
-		mnase <- rtracklayer::import(mnase_file, format = 'BigWig', which = reduce(peaks))
-		mnase <- add.seqinfo(mnase, genome)
-		cvg <- coverage(mnase, weight = as.numeric(mcols(mnase)$score))
-		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+#		mnase_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Kundajie_version=20190802a/GSM920558_hg19_wgEncodeSydhNsomeGm12878Sig.bw'
+#		flog.info(sprintf('reading %s', mnase_file))
+#		mnase <- rtracklayer::import(mnase_file, format = 'BigWig', which = reduce(peaks))
+#		mnase <- add.seqinfo(mnase, genome)
+#		cvg <- coverage(mnase, weight = as.numeric(mcols(mnase)$score))
+#		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
 
-		nucleoatac_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Buenrostro_version=20170721a/GM12878_20170314b.nucleoatac_signal.smooth.bedgraph.gz'
-		flog.info(sprintf('reading %s', nucleoatac_file))
-		nuc <- rtracklayer::import(nucleoatac_file, format = 'BED', which = reduce(peaks))
-		nuc <- resize(nuc, width = 1, fix = 'center')
-		nuc <- add.seqinfo(nuc, genome)
-		cvg <- coverage(nuc, weight = as.numeric(mcols(nuc)$name))
-		mcols(peaks)$nucleoatac_signal <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+#		nucleoatac_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Buenrostro_version=20170721a/GM12878_20170314b.nucleoatac_signal.smooth.bedgraph.gz'
+#		flog.info(sprintf('reading %s', nucleoatac_file))
+#		nuc <- rtracklayer::import(nucleoatac_file, format = 'BED', which = reduce(peaks))
+#		nuc <- resize(nuc, width = 1, fix = 'center')
+#		nuc <- add.seqinfo(nuc, genome)
+#		cvg <- coverage(nuc, weight = as.numeric(mcols(nuc)$name))
+#		mcols(peaks)$nucleoatac_signal <- as(as(cvg[peaks], 'RleViews'), 'matrix')
 
 		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Buenrostro_version=20170721a/GM12878_50k_cells.bam'
 
@@ -411,6 +411,33 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
 
 		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam'
+
+
+	}else if (gs == 'MEF_NoDox_Flk1pos_D7'){
+
+		bed_files <- c(
+			MEF_NoDox = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox_summits.bed',
+			MEF_Dox_D7_Flk1pos = '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7_Flk1pos_summits.bed'
+		)
+
+		grs <- lapply(bed_files, function(bed_file) macs2.read_summits(bed_file))
+		grs <- lapply(grs, function(gr) resize(gr, width = 500, fix = 'center'))
+		names(grs) <- names(bed_files)
+		ol <- findOverlapsOfPeaks(grs[['MEF_NoDox']], grs[['MEF_Dox_D7_Flk1pos']])
+		peaks <- Reduce('c', ol$peaklist)
+		G <- do.call('cbind', lapply(grs, function(gr) peaks %over% gr))
+
+		mnase_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/MNase_treat_pileup.bw'
+		flog.info(sprintf('reading %s', mnase_file))
+		mnase <- rtracklayer::import(mnase_file, format = 'BigWig', which = reduce(peaks))
+		mnase <- add.seqinfo(mnase, 'mm10')
+		cvg <- coverage(mnase, weight = as.numeric(mcols(mnase)$score))
+		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+
+		bam_files <- c(
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam',
+			'/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_Dox_D7_Flk1pos.bam'
+		)
 
 	}else
 		stop(sprintf('unknown gs: %s', gs))

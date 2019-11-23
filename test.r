@@ -1,4 +1,4 @@
-library(roxygen2); library(devtools); devtools::create('analysis/seatac/packages/seatac')
+library(roxygen2); library(devtools); devtools::create_package('analysis/seatac/packages/seatac')
 library(roxygen2); library(devtools); devtools::document('analysis/seatac/packages/seatac')
 library(roxygen2); library(devtools); devtools::document('packages/compbio')
     
