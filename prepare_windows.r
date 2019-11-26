@@ -31,25 +31,27 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 
 	}else if (gs == 'D1_Dox_Etv2_on_MEF'){
 
+		# BED: Etv2 ChIP-seq binding sites at 24 hours post induction
+		# BAM: uninduced MEF
+
 		bed_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ChIPseq_version=20190307a/MEF_Dox_D1_Etv2_summits.bed'
 		peaks <- macs2.read_summits(bed_file)
 		peaks <- resize(peaks, fix = 'center', width = window_size)
 		peaks <- add.seqinfo(peaks, 'mm10')
 
-		mnase_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/MNase_treat_pileup.bw'
-		flog.info(sprintf('reading %s', mnase_file))
-		mnase <- rtracklayer::import(mnase_file, format = 'BigWig', which = reduce(peaks))
-		mnase <- add.seqinfo(mnase, 'mm10')
-		cvg <- coverage(mnase, weight = as.numeric(mcols(mnase)$score))
-		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+#		mnase_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Chronis_version=20170519a/MNase_treat_pileup.bw'
+#		flog.info(sprintf('reading %s', mnase_file))
+#		mnase <- rtracklayer::import(mnase_file, format = 'BigWig', which = reduce(peaks))
+#		mnase <- add.seqinfo(mnase, 'mm10')
+#		cvg <- coverage(mnase, weight = as.numeric(mcols(mnase)$score))
+#		mcols(peaks)$nucleosome_score <- as(as(cvg[peaks], 'RleViews'), 'matrix')
 
-		nucleoatac_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_D1_Dox_Etv2_20170314a.nucleoatac_signal.smooth.bedgraph.gz'
-		flog.info(sprintf('reading %s', nucleoatac_file))
-		nuc <- rtracklayer::import(nucleoatac_file, format = 'BED', which = reduce(peaks))
-		nuc <- resize(nuc, width = 1, fix = 'center')
-		nuc <- add.seqinfo(nuc, 'mm10')
-		cvg <- coverage(nuc, weight = as.numeric(mcols(nuc)$name))
-		mcols(peaks)$nucleoatac_signal <- as(as(cvg[peaks], 'RleViews'), 'matrix')
+#		nucleoatac_file <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox_20170314f.nucleoatac_signal.smooth.bw'
+#		flog.info(sprintf('reading %s', nucleoatac_file))
+#		nuc <- rtracklayer::import(nucleoatac_file, format = 'BigWig', which = reduce(peaks))
+#		nuc <- add.seqinfo(nuc, 'mm10')
+#		cvg <- coverage(nuc, weight = as.numeric(mcols(nuc)$score))
+#		mcols(peaks)$nucleoatac_signal <- as(as(cvg[peaks], 'RleViews'), 'matrix')
 
 		bam_files <- '/panfs/roc/scratch/gongx030/datasets/dataset=Etv2ATAC_version=20190228a/MEF_NoDox.bam'
 
@@ -459,8 +461,8 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 	peaks <- peaks[!i]
 
 	flog.info(sprintf('removing %d peaks overlaping with the blacklist', sum(i)))
-	mcols(peaks)$sequence <- getSeq(genome2, peaks)
 
+	mcols(peaks)$sequence <- getSeq(genome2, peaks)
 	ga <- read_bam(bam_files, peaks, genome = genome2, expand = window_size * 2)
 	peaks <- readFragmentSizeMatrix(ga, peaks, window_size = window_size, bin_size = bin_size, fragment_size_range = fragment_size_range, fragment_size_interval = fragment_size_interval)
 

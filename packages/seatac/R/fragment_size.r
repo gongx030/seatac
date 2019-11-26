@@ -4,8 +4,8 @@
 #' @param windows a GRange object that define a set of genomic regions.
 #' @param window_size The size of each genomic window for training the model.
 #' @param bin_size The bin size
-#' @param fragment_size_range
-#' @param fragment_size_interval
+#' @param fragment_size_range fragment_size_range
+#' @param fragment_size_interval fragment_size_interval
 #'
 #' @export
 #'
@@ -74,7 +74,9 @@ readFragmentSizeMatrix <- function(
     BC <- as.matrix(findOverlaps(bins, xi))	# bins ~ read center
     BC <- as(sparseMatrix(BC[, 1], BC[, 2], dims = c(length(bins), length(xi))), 'dgCMatrix') # bins ~ read center
     BF <- BC %*% CF  # bins ~ fragment size
-    BF[BF > 0] <- 1
+#		BF <- summary(BF)[, 1:2]
+#		BF <- sparseMatrix(i = BF[, 1], j = BF[, 2], dims = c(nrow(BC), ncol(CF)))
+#		BF <- as(BF, 'dgCMatrix')
     BF <- as.matrix(BF[wb[, 2], ])
     dim(BF) <- c(n_bins_per_window, length(windows), n_intervals)	# convert BF into an array with n_bins_per_window ~ batch_size ~ n_intervals
     BF <- aperm(BF, c(2, 1, 3)) # batch_size, n_bins_per_window ~ n_intervals

@@ -4,8 +4,10 @@
 \alias{seatac}
 \title{seatac}
 \usage{
-seatac(x, latent_dim = 2, epochs = 50, batch_size = 256,
-  min_reads_per_window = 5, sequence_dim = 16L, type = "cvae")
+seatac(x, latent_dim = 2, window_size = 640,
+  min_reads_per_window = 20, epochs = 50, batch_size = 128,
+  steps_per_epoch = 20, sequence_dim = 32, n_components = 15,
+  core_width = 100, batch_size_prediction = 64, genome, ...)
 }
 \description{
 seatac

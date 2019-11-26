@@ -21,7 +21,6 @@ Imports:
 	tensorflow,
 	keras,
 	reticulate,
-	DECIPHER
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 6.1.1
