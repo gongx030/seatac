@@ -1,5 +1,8 @@
 #' seatac
 #'
+#' @import tensorflow
+#' @import keras
+#' @import tfprobability
 #' @import Matrix
 #' @import SummarizedExperiment
 #' @importFrom matrixStats rowSds rowVars rowMedians rowMins rowMaxs
@@ -10,8 +13,6 @@
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments
 #' @importFrom gplots colorpanel
 #' @importFrom abind abind
-#' @import tensorflow
-#' @import keras
 #' @importFrom reticulate array_reshape
 NULL
 
@@ -50,12 +51,7 @@ seatac <- function(
 		window_size = window_size 
 	)
 
-	browser()
-
-	model %>% fit(train)
-	train <- model %>% predict(train, batch_size = batch_size_prediction)
-	model$input_data <- x
-	model$train_data <- train
+	model %>% fit(x, batch_size = batch_size, epochs = epochs, steps_per_epoch = steps_per_epoch)
 	model
 
 } # seatac
