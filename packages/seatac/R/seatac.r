@@ -43,7 +43,7 @@ seatac <- function(
 	input_dim <- metadata(x)$n_bins_per_window
 	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
 
-	model <- vae(
+	model <- cvae(
 		input_dim = input_dim, 
 		feature_dim = feature_dim, 
 		latent_dim = latent_dim, 

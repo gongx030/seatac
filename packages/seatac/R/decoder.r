@@ -1,4 +1,4 @@
-#' decoder_model
+#' decoder_model_cvae
 #'
 #' @param input_dim input dimension of the v-plot (i.e. the width of the genomic region)
 #' @param feature_dim feature dimension of the v-plot	(i.e. the fragment size dimension)
@@ -6,36 +6,22 @@
 #' @param filters the filter sizes of each deconv layer
 #' @param kernel_size the kernel size of each deconv layer.  The feature and input spaces shared the same kernel size. 
 #'
-decoder_model <- function(
+decoder_model_cvae <- function(
 	input_dim, 
-	feature_dim,
-	filters0 = 64L, 
+	feature_dim, 
+	filters0 = 64, 
 	filters = c(32L, 32L, 1L), 
 	kernel_size = c(3L, 3L, 3L), 
 	input_strides = c(2L, 2L, 2L), 
-	feature_strides = c(2L, 2L, 2L),
+	feature_strides = c(2L, 2L, 2L), 
 	name = NULL
 ){
 
-	input_dim0 <- input_dim / 2 / prod(input_strides)
+	input_dim0 <- input_dim / prod(input_strides)
 	feature_dim0 <- feature_dim / prod(feature_strides)
 	output_dim0 <- input_dim0 * feature_dim0 * filters0
 
 	keras_model_custom(name = name, function(self){
-
-		self$input_background <- tf$Variable(
-			initial_value = array(0, c(1, input_dim, 1)),
-			trainable = TRUE,
-			dtype = tf$float32,
-			name = 'input_background'
-		)
-
-		self$feature_background <- tf$Variable(
-			initial_value = array(0, c(feature_dim, 1, 1)),
-			trainable = TRUE,
-			dtype = tf$float32,
-			name = 'feature_background'
-		)
 
 		self$dense_1 <- layer_dense(units = output_dim0, activation = 'relu')
 		self$dropout_1 <- layer_dropout(rate = 0.2)
@@ -66,36 +52,22 @@ decoder_model <- function(
 			padding = 'same'
 		)
 
-		function(x, mask = NULL, training = TRUE){
+		function(x, mask = NULL){
 
-			y1 <- x[, 1, drop = FALSE] %>%
+			y <- x %>%
 				self$dense_1() %>%
 				self$dropout_1() %>%
 				self$reshape_1() %>%
 				self$deconv_1() %>%
-				self$bn_1(training = training) %>%
+				self$bn_1() %>%
 				self$deconv_2() %>%
-				self$bn_2(training = training) %>%
+				self$bn_2() %>%
 				self$deconv_3()
 
-			y2 <- x[, 2, drop = FALSE] %>%
-				self$dense_1() %>%
-				self$dropout_1() %>%
-				self$reshape_1() %>%
-				self$deconv_1() %>%
-				self$bn_1(training = training) %>%
-				self$deconv_2() %>%
-				self$bn_2(training = training) %>%
-				self$deconv_3()
-
-			y <- layer_concatenate(list(y1, y2), axis = 2L)
-			y <- y + self$input_background + self$feature_background
-
-			tfd_independent(
-				tfd_bernoulli(logits = y), 
-				reinterpreted_batch_ndims = 3L
-			)
+				tfd_independent(
+					tfd_bernoulli(logits = y), 
+					reinterpreted_batch_ndims = 3L
+				)
 		}
 	})
-} # decoder_model
-
+} # decoder_model_cvae

@@ -1,6 +1,6 @@
 #' encoder model for the vplot
 #'
-encoder_model <- function(
+encoder_model_cvae <- function(
 	latent_dim, 
 	window_size,
 	filters = c(32L, 32L, 32L), 
@@ -59,5 +59,6 @@ encoder_model <- function(
 			)
 		}
 	})
-}
+
+} # encoder_model_cvae
 

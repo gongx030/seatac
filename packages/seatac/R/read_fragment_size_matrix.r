@@ -1,4 +1,4 @@
-#' readFragmentSizeMatrix
+#' read_fragment_size_matrix
 #'
 #' @param x a GAlignments object.
 #' @param windows a GRange object that define a set of genomic regions.
@@ -9,7 +9,7 @@
 #'
 #' @export
 #'
-readFragmentSizeMatrix <- function(
+read_fragment_size_matrix <- function(
 	x, 
 	windows, 
 	window_size = 320,
@@ -104,5 +104,5 @@ readFragmentSizeMatrix <- function(
 
 	gr
 
-} # readFragmentSizeMatrix
+} # read_fragment_size_matrix
 

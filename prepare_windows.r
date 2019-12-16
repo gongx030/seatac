@@ -462,7 +462,6 @@ prepare_windows <- function(gs, window_size = 320, bin_size = 10, fragment_size_
 
 	flog.info(sprintf('removing %d peaks overlaping with the blacklist', sum(i)))
 
-	mcols(peaks)$sequence <- getSeq(genome2, peaks)
 	ga <- read_bam(bam_files, peaks, genome = genome2, expand = window_size * 2)
 	peaks <- readFragmentSizeMatrix(ga, peaks, window_size = window_size, bin_size = bin_size, fragment_size_range = fragment_size_range, fragment_size_interval = fragment_size_interval)
 

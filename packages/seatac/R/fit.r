@@ -58,9 +58,6 @@ fit.vae <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs =
 
 		}
 
-#		browser()
-#		plot(posterior_sample$mean())
-
 		flog.info(sprintf('training | epoch=%4.d/%4.d | nll=%7.1f | kl=%7.1f | total=%7.1f', epoch, epochs, total_loss_nll, total_loss_kl, total_loss))
 	}
 } # fit.gmm_cvae
