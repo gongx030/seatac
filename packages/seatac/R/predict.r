@@ -332,3 +332,9 @@ predict.vae_20191216e <- function(model, gr, batch_size = 512){
 	predict_vae_vplot_input(model = model, gr = gr, batch_size = batch_size)
 }
 
+#' predict.vae_imputation
+#' 
+predict.vae_imputation <- function(model, gr, batch_size = 512){
+	predict_vae_vplot_input(model = model, gr = gr, batch_size = batch_size)
+}
+

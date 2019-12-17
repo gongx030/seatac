@@ -1,21 +1,31 @@
-build_model <- function(type, ...){
+#' build_model
+#'
+build_model <- function(type, input_dim, feature_dim, latent_dim, num_samples, window_size, ...){
 
 	if (type == 'cvae'){
-		model <- build_model_cvae(...)
 	}else if(type == 'vae'){
-		model <- build_model_vae(...)
 	}else if(type == 'vae_baseline'){
-		model <- build_model_vae_baseline(...)
 	}else if(type == 'vae_20191216a'){
-		model <- build_model_vae_20191216a(...)
 	}else if(type == 'vae_20191216b'){
-		model <- build_model_vae_20191216b(...)
 	}else if(type == 'vae_20191216c'){
-		model <- build_model_vae_20191216c(...)
 	}else if(type == 'vae_20191216d'){
-		model <- build_model_vae_20191216d(...)
 	}else if(type == 'vae_20191216e'){
-		model <- build_model_vae_20191216e(...)
+
+	}else if(type == 'vae_imputation'){
+
+		#' This model attemps to impute the zero entries in the V-plot during the training
+		model <- structure(list(
+			encoder = encoder_model_vae_baseline(latent_dim, window_size),
+			decoder = decoder_model_vae_baseline(input_dim, feature_dim),
+			imputer = imputer_model_baseline(input_dim, feature_dim),
+			latent_prior_model = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size
+		), class = type)
+
 	}else
 		stop(sprintf('unknown model type: %s', type))
 
@@ -180,4 +190,6 @@ build_model_vae_20191216e <- function(input_dim, feature_dim, latent_dim, num_sa
 	), class = c('vae_20191216e'))
 
 } # build_model_vae_20191216e
+
+
 

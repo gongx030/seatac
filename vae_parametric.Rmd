@@ -39,15 +39,15 @@ saveRDS(windows, file = sprintf('%s/MEF_Dox_d1_Etv2_on_MEF_ATAC.rds', project_di
 ```{r}
 windows <- readRDS(sprintf('%s/MEF_Dox_d1_Etv2_on_MEF_ATAC.rds', project_dir('seatac')))
 set.seed(1); gr <- sample(windows[windows$num_reads >= 20], 5000)
-latent_dim <- 2; epochs <- 50
-set.seed(1); devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(gr, type = 'vae_20191216c', latent_dim = latent_dim, epochs = epochs)
+latent_dim <- 2; epochs <- 20
+set.seed(1); devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(gr, type = 'vae_baseline, latent_dim = latent_dim, epochs = epochs)
 
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(gr)
 
 
-k <- 2
-#cls <- kmeans(gr$latent, k)$cluster
-cls <- kmeans(model$data$fragment_size, k)$cluster
+k <- 3
+cls <- kmeans(gr$latent, k)$cluster
+#cls <- kmeans(model$data$fragment_size, k)$cluster
 #cls2 <- kmeans(model$data$position, k)$cluster
 
 par(mfrow = c(4 + 1, k))
