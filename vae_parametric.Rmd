@@ -45,9 +45,9 @@ set.seed(1); devtools::load_all('analysis/seatac/packages/seatac'); model <- sea
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(gr)
 
 
-k <- 4
-cls <- kmeans(gr$latent, k)$cluster
-#cls1 <- kmeans(model$data$fragment_size, k)$cluster
+k <- 2
+#cls <- kmeans(gr$latent, k)$cluster
+cls <- kmeans(model$data$fragment_size, k)$cluster
 #cls2 <- kmeans(model$data$position, k)$cluster
 
 par(mfrow = c(4 + 1, k))
@@ -56,7 +56,7 @@ lapply(1:k, function(i) image(matrix(colMeans(mcols(gr)$counts[cls == i, ]), met
 lapply(1:k, function(i) plot(colMeans(model$data$fragment_size[cls == i, ])))
 lapply(1:k, function(i) plot(colMeans(model$data$position[cls == i, ])))
 smoothScatter(gr$latent, main = 'v-plot')
-image(matrix(colMeans(mcols(gr)$counts), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red')))
+image(matrix(colMeans(mcols(gr)$counts), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'))
 
 
 plot(y, main = 'v-plot')
