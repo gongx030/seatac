@@ -5,7 +5,7 @@
 \title{seatac}
 \usage{
 seatac(x, type = "vae", latent_dim = 2L, hidden_dim = 8L,
-  epochs = 50, batch_size = 256, steps_per_epoch = 10)
+  epochs = 50, batch_size = 256, steps_per_epoch = 10, ...)
 }
 \description{
 seatac

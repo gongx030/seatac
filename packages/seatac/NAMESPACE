@@ -2,6 +2,7 @@
 
 export(read_fragment_size_matrix)
 export(seatac)
+import(FNN)
 import(Matrix)
 import(SummarizedExperiment)
 import(futile.logger)

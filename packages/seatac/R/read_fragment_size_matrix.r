@@ -102,6 +102,21 @@ read_fragment_size_matrix <- function(
   metadata(gr)$breaks <- breaks
   metadata(gr)$centers <- centers
 
+	flog.info('computing fragment size vectors')
+	H <- metadata(gr)$n_intervals * metadata(gr)$n_bins_per_window
+	A <- sparseMatrix(i = 1:H, j = rep(1:metadata(gr)$n_bins_per_window, each = metadata(gr)$n_intervals), dims = c(H, metadata(gr)$n_bins_per_window))
+	fragment_size <- mcols(gr)$counts %*% A %>% as.matrix()
+	mcols(gr)$fragment_size <- (fragment_size - rowMins(fragment_size)) / (rowMaxs(fragment_size) - rowMins(fragment_size))
+	mcols(gr)$fragment_size[is.na(mcols(gr)$fragment_size)] <- 0
+	mcols(gr)$fragment_size <- mcols(gr)$fragment_size %>% as('dgCMatrix')
+
+	flog.info('computing position vectors')
+	A <- sparseMatrix(i = 1:H, j = rep(1:metadata(gr)$n_intervals, metadata(gr)$n_bins_per_window), dims = c(H, metadata(gr)$n_bins_per_window))
+	position <- mcols(gr)$counts %*% A %>% as.matrix()
+	mcols(gr)$position <- (position - rowMins(position)) / (rowMaxs(position) - rowMins(position))
+	mcols(gr)$position[is.na(mcols(gr)$position)] <- 0
+	mcols(gr)$position <- mcols(gr)$position %>% as('dgCMatrix')
+
 	gr
 
 } # read_fragment_size_matrix

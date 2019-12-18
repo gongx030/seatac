@@ -12,7 +12,7 @@ fit.cvae <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs 
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
 
-	prior_model <- model$latent_prior_model(NULL)
+	prior_model <- model$prior(NULL)
 
 	# compute the average vector at the fragment size dimension
 	H <- metadata(gr)$n_bins_per_window *  metadata(gr)$n_intervals
@@ -97,7 +97,7 @@ fit.vae <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs =
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
 
-	prior_model <- model$latent_prior_model(NULL)
+	prior_model <- model$prior(NULL)
 
 	for (epoch in seq_len(epochs)) {
 
@@ -166,7 +166,7 @@ fit.vae_baseline <- function(model, gr, learning_rate = 0.001, batch_size = 128,
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
 
-	prior_model <- model$latent_prior_model(NULL)
+	prior_model <- model$prior(NULL)
 
 	for (epoch in seq_len(epochs)) {
 
@@ -212,6 +212,9 @@ fit.vae_baseline <- function(model, gr, learning_rate = 0.001, batch_size = 128,
 
 		}
 
+		tf$reduce_sum(x, axis = 0L) %>% tf$squeeze() %>% as.matrix() %>% t() %>% image(main = 'input data')
+		tf$reduce_sum(likelihood$mean(), axis = 0L) %>% tf$squeeze() %>% as.matrix() %>% t() %>% image(main = 'decoded data')
+
 		flog.info(sprintf('training | epoch=%4.d/%4.d | nll=%7.1f | kl=%7.1f | total=%7.1f', epoch, epochs, total_loss_nll, total_loss_kl, total_loss))
 	}
 
@@ -235,7 +238,7 @@ fit.vae_20191216a <- function(model, gr, learning_rate = 0.001, batch_size = 128
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
 
-	prior_model <- model$latent_prior_model(NULL)
+	prior_model <- model$prior(NULL)
 
 	for (epoch in seq_len(epochs)) {
 
@@ -306,7 +309,7 @@ fit.vae_20191216b <- function(model, gr, learning_rate = 0.001, batch_size = 128
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
 
-	prior_model <- model$latent_prior_model(NULL)
+	prior_model <- model$prior(NULL)
 
 	for (epoch in seq_len(epochs)) {
 
@@ -387,7 +390,7 @@ fit.vae_20191216c <- function(model, gr, learning_rate = 0.001, batch_size = 128
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
 
-	prior_model <- model$latent_prior_model(NULL)
+	prior_model <- model$prior(NULL)
 
 
 	for (epoch in seq_len(epochs)) {
@@ -470,7 +473,7 @@ fit.vae_20191216d <- function(model, gr, learning_rate = 0.001, batch_size = 128
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
 
-	prior_model <- model$latent_prior_model(NULL)
+	prior_model <- model$prior(NULL)
 
 
 	for (epoch in seq_len(epochs)) {
@@ -533,9 +536,9 @@ fit.vae_20191216d <- function(model, gr, learning_rate = 0.001, batch_size = 128
 } # fit.vae_20191216d
 
 
-#' fit.vae_20191216e
+#' fit.vae_output_fragment_size_position
 #'
-fit.vae_20191216e <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs = 50, steps_per_epoch = 10, beta = 10){
+fit.vae_output_fragment_size_position <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs = 50, steps_per_epoch = 10){
 
 	flog.info(sprintf('batch size(batch_size): %d', batch_size))
 	flog.info(sprintf('steps per epoch(steps_per_epoch): %d', steps_per_epoch))
@@ -547,18 +550,7 @@ fit.vae_20191216e <- function(model, gr, learning_rate = 0.001, batch_size = 128
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
 
-	flog.info('computing fragment size vectors')
-	H <- metadata(gr)$n_intervals * metadata(gr)$n_bins_per_window
-	A <- sparseMatrix(i = 1:H, j = rep(1:metadata(gr)$n_bins_per_window, each = metadata(gr)$n_intervals), dims = c(H, metadata(gr)$n_bins_per_window))
-	fragment_size <- mcols(gr)$counts %*% A %>% as.matrix()
-	mcols(x)$fragment_size <- (fragment_size - rowMins(fragment_size)) / (rowMaxs(fragment_size) - rowMins(fragment_size))
-
-	flog.info('computing position vectors')
-	A <- sparseMatrix(i = 1:H, j = rep(1:metadata(gr)$n_intervals, metadata(gr)$n_bins_per_window), dims = c(H, metadata(gr)$n_bins_per_window))
-	position <- mcols(gr)$counts %*% A %>% as.matrix()
-	mcols(x)$position <- (position - rowMins(position)) / (rowMaxs(position) - rowMins(position))
-
-	prior_model <- model$latent_prior_model(NULL)
+	prior_model <- model$prior(NULL)
 
 	for (epoch in seq_len(epochs)) {
 
@@ -577,8 +569,13 @@ fit.vae_20191216e <- function(model, gr, learning_rate = 0.001, batch_size = 128
 				tf$cast(tf$float32)
 			x <- x + 1e-5
 
-			fragment_size <- mcols(gr[b])$fragment_size %>% tf$cast(tf$float32) + 1e-5
-			position <- mcols(gr[b])$position %>% tf$cast(tf$float32) + 1e-5
+			fragment_size <- mcols(gr[b])$fragment_size %>% 
+				as.matrix() %>% 
+				tf$cast(tf$float32)
+
+			position <- mcols(gr[b])$position %>% 
+				as.matrix() %>% 
+				tf$cast(tf$float32)
 
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
@@ -591,8 +588,8 @@ fit.vae_20191216e <- function(model, gr, learning_rate = 0.001, batch_size = 128
 				nll_fragment_size <- -likelihood[[1]]$log_prob(fragment_size)
 				nll_position <- -likelihood[[2]]$log_prob(position)
 
-				avg_nll_fragment_size <- beta * tf$reduce_mean(nll_fragment_size)
-				avg_nll_position <- beta * tf$reduce_mean(nll_position)
+				avg_nll_fragment_size <- tf$reduce_mean(nll_fragment_size)
+				avg_nll_position <- tf$reduce_mean(nll_position)
 
 				kl_div <- posterior$log_prob(posterior_sample) - prior_model$log_prob(posterior_sample)
 				kl_div <- tf$reduce_mean(kl_div)
@@ -618,12 +615,13 @@ fit.vae_20191216e <- function(model, gr, learning_rate = 0.001, batch_size = 128
 
 	model$data <- gr
 	model
-}
+
+} # vae_output_fragment_size_position
 
 
 #' fit.vae_imputation
 #'
-fit.vae_imputation <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs = 50, steps_per_epoch = 10){
+fit.vae_imputation <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs = 50, steps_per_epoch = 10, zero_weight = 1e-3){
 
 	flog.info(sprintf('batch size(batch_size): %d', batch_size))
 	flog.info(sprintf('steps per epoch(steps_per_epoch): %d', steps_per_epoch))
@@ -634,19 +632,8 @@ fit.vae_imputation <- function(model, gr, learning_rate = 0.001, batch_size = 12
 	optimizer <- tf$keras$optimizers$Adam(learning_rate)
 	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
+	flog.info(sprintf('setting weight for non-zero entries to 1 and zero entries to %.3e', zero_weight))
 
-	flog.info('computing fragment size vectors')
-	H <- metadata(gr)$n_intervals * metadata(gr)$n_bins_per_window
-	A <- sparseMatrix(i = 1:H, j = rep(1:metadata(gr)$n_bins_per_window, each = metadata(gr)$n_intervals), dims = c(H, metadata(gr)$n_bins_per_window))
-	fragment_size <- mcols(gr)$counts %*% A %>% as.matrix()
-	mcols(gr)$fragment_size <- (fragment_size - rowMins(fragment_size)) / (rowMaxs(fragment_size) - rowMins(fragment_size))
-
-	flog.info('computing position vectors')
-	A <- sparseMatrix(i = 1:H, j = rep(1:metadata(gr)$n_intervals, metadata(gr)$n_bins_per_window), dims = c(H, metadata(gr)$n_bins_per_window))
-	position <- mcols(gr)$counts %*% A %>% as.matrix()
-	mcols(gr)$position <- (position - rowMins(position)) / (rowMaxs(position) - rowMins(position))
-
-	prior_model <- model$latent_prior_model(NULL)
 
 	for (epoch in seq_len(epochs)) {
 
@@ -663,17 +650,114 @@ fit.vae_imputation <- function(model, gr, learning_rate = 0.001, batch_size = 12
 				array_reshape(c(batch_size, model$feature_dim, model$input_dim, 1L)) %>%
 				tf$cast(tf$float32)
 
-			g <- (x == 0) %>% tf$dtypes$cast(tf$float32)	# dropout indicator
+			zero_entry <- (x == 0) %>% tf$cast(tf$float32)
+
+			# it is likely that too sparse will cause NA during the training
+			weight <- (x > 0) %>% tf$dtypes$cast(tf$float32) + zero_weight # dropout indicator
+
+			with(tf$GradientTape(persistent = TRUE) %as% tape, {
+
+				if (epoch < 10){
+					posterior <- x %>% model$encoder()
+					posterior_sample <- posterior$sample()
+					likelihood  <- posterior_sample %>% model$decoder()
+					nll <- -likelihood$log_prob(x)
+				}else{
+					status <- 'imputation'
+					z <- x %>% model$encoder()
+					y <- z$sample() %>% model$decoder()	
+					v <- y$sample() %>% model$imputer()
+					xi <- x + v * zero_entry	# inputed v-plot
+					posterior <- xi %>% model$encoder()
+					posterior_sample <- posterior$sample()
+					likelihood  <- posterior_sample %>% model$decoder()
+					nll <- -likelihood$log_prob(x)
+				}
+
+				avg_nll <- tf$reduce_mean(nll)
+
+				prior_model <- model$prior(NULL)
+				kl_div <- posterior$log_prob(posterior_sample) - prior_model$log_prob(posterior_sample)
+				kl_div <- tf$reduce_mean(kl_div)
+
+				loss <- kl_div + avg_nll 
+
+			})
+
+			total_loss <- total_loss + loss
+			total_loss_nll <- total_loss_nll + avg_nll
+			total_loss_kl <- total_loss_kl + kl_div
+
+			encoder_gradients <- tape$gradient(loss, model$encoder$trainable_variables)
+			decoder_gradients <- tape$gradient(loss, model$decoder$trainable_variables)
+
+			optimizer$apply_gradients(purrr::transpose(list(encoder_gradients, model$encoder$trainable_variables)))
+			optimizer$apply_gradients(purrr::transpose(list(decoder_gradients, model$decoder$trainable_variables)))
+
+		}
+
+		tf$reduce_sum(x, axis = 0L) %>% tf$squeeze() %>% as.matrix() %>% t() %>% image(main = 'input data')
+		tf$reduce_sum(likelihood$mean(), axis = 0L) %>% tf$squeeze() %>% as.matrix() %>% t() %>% image(main = 'decoded data')
+
+		if (status == 'imputation'){
+			tf$reduce_sum(xi, axis = 0L) %>% tf$squeeze() %>% as.matrix() %>% t() %>% image(main = 'imputed data')
+		}
+
+		flog.info(sprintf('%s | epoch=%4.d/%4.d | nll=%7.1f | kl=%7.1f | total=%7.1f', status, epoch, epochs, total_loss_nll, total_loss_kl, total_loss))
+	}
+
+	model$data <- gr
+	model
+
+} # vae_imputation
+
+
+#' fit.vae_imputation_gmm
+#'
+fit.vae_imputation_gmm <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs = 50, steps_per_epoch = 10, zero_weight = 1e-3){
+
+	flog.info(sprintf('batch size(batch_size): %d', batch_size))
+	flog.info(sprintf('steps per epoch(steps_per_epoch): %d', steps_per_epoch))
+
+	window_size <- metadata(gr)$window_size
+	window_dim <- length(gr)	# number of samples
+
+	optimizer <- tf$keras$optimizers$Adam(learning_rate)
+	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
+	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
+	flog.info(sprintf('setting weight for non-zero entries to 1 and zero entries to %.3e', zero_weight))
+
+	for (epoch in seq_len(epochs)) {
+
+		total_loss <- 0
+		total_loss_nll <- 0
+		total_loss_kl <- 0
+
+		for (s in 1:steps_per_epoch){
+
+			b <- sample.int(window_dim, batch_size)
+
+			x <- mcols(gr[b])$counts %>%
+				as.matrix() %>%
+				array_reshape(c(batch_size, model$feature_dim, model$input_dim, 1L)) %>%
+				tf$cast(tf$float32)
+
+			zero_entry <- (x == 0) %>% tf$dtypes$cast(tf$float32)	# dropout indicator
+
+			# it is likely that too sparse will cause NA during the training
+			weight <- (x > 0) %>% tf$dtypes$cast(tf$float32) + zero_weight	# dropout indicator
 
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
 				if (epoch == 1){
+					status <- 'warming up'
 					posterior <- x %>% model$encoder()
 				}else{
+					status <- 'imputation'
 					z <- x %>% model$encoder()
 					y <- z$mean() %>% model$decoder()	# decoded v-plot
 					v <- y$mean() %>% model$imputer()
-					xi <- x + v * g	# inputed v-plot
+					xi <- x + v * zero_entry	# inputed v-plot
 					posterior <- xi %>% model$encoder()
 				}
 
@@ -681,8 +765,95 @@ fit.vae_imputation <- function(model, gr, learning_rate = 0.001, batch_size = 12
 
 				likelihood  <- posterior_sample %>% model$decoder()
 
-				nll <- -likelihood$log_prob(x)
+				nll <- -likelihood$log_prob(x) * weight 
 				avg_nll <- tf$reduce_mean(nll)
+
+				prior_model <- model$prior(NULL)
+
+				kl_div <- posterior$log_prob(posterior_sample) - prior_model$log_prob(posterior_sample)
+				kl_div <- tf$reduce_mean(kl_div)
+
+				loss <- kl_div + avg_nll 
+
+			})
+
+			total_loss <- total_loss + loss
+			total_loss_nll <- total_loss_nll + avg_nll
+			total_loss_kl <- total_loss_kl + kl_div
+
+			encoder_gradients <- tape$gradient(loss, model$encoder$trainable_variables)
+			decoder_gradients <- tape$gradient(loss, model$decoder$trainable_variables)
+			prior_gradients <- tape$gradient(loss, model$prior$trainable_variables)
+
+			optimizer$apply_gradients(purrr::transpose(list(encoder_gradients, model$encoder$trainable_variables)))
+			optimizer$apply_gradients(purrr::transpose(list(decoder_gradients, model$decoder$trainable_variables)))
+			optimizer$apply_gradients(purrr::transpose(list(prior_gradients, model$prior$trainable_variables)))
+
+		}
+
+		flog.info(sprintf('%s | epoch=%4.d/%4.d | nll=%7.1f | kl=%7.1f | total=%7.1f', status, epoch, epochs, total_loss_nll, total_loss_kl, total_loss))
+	}
+
+	model$data <- gr
+	model
+
+} # vae_imputation_gmm
+
+
+#' fit.vae_knn
+#'
+fit.vae_knn <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs = 50, steps_per_epoch = 10){
+
+	flog.info(sprintf('batch size(batch_size): %d', batch_size))
+	flog.info(sprintf('steps per epoch(steps_per_epoch): %d', steps_per_epoch))
+	
+	window_size <- metadata(gr)$window_size
+	window_dim <- length(gr)	# number of samples
+
+	optimizer <- tf$keras$optimizers$Adam(learning_rate)
+	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
+	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
+
+	for (epoch in seq_len(epochs)) {
+
+		total_loss <- 0
+		total_loss_nll <- 0
+		total_loss_kl <- 0
+
+		for (s in 1:steps_per_epoch){
+
+			b <- sample.int(window_dim, batch_size)
+
+			c <- mcols(gr[b])$counts 
+
+			x <- c %>% 
+				as.matrix() %>%
+				array_reshape(c(batch_size, model$feature_dim, model$input_dim, 1L)) %>%
+				tf$cast(tf$float32)
+
+			with(tf$GradientTape(persistent = TRUE) %as% tape, {
+
+				posterior <- x %>% model$encoder()
+
+				nn <- posterior$sample() %>% 
+					as.matrix() %>% 
+					knn.index(k = model$k)
+				A <- sparseMatrix(i = rep(1:batch_size, model$k), j = c(nn), dims = c(batch_size, batch_size))
+
+				xi <- A %*% c %>%
+					as.matrix() %>%
+					array_reshape(c(batch_size, model$feature_dim, model$input_dim, 1L)) %>%
+					tf$cast(tf$float32) 
+					
+				posterior <- xi %>% model$encoder()
+				posterior_sample <- posterior$sample()
+
+				likelihood  <- posterior_sample %>% model$decoder()
+
+				nll <- -likelihood$log_prob(xi)
+				avg_nll <- tf$reduce_mean(nll)
+
+				prior_model <- model$prior(NULL)
 
 				kl_div <- posterior$log_prob(posterior_sample) - prior_model$log_prob(posterior_sample)
 				kl_div <- tf$reduce_mean(kl_div)
@@ -709,4 +880,180 @@ fit.vae_imputation <- function(model, gr, learning_rate = 0.001, batch_size = 12
 	model$data <- gr
 	model
 
-} # vae_imputation
+} # vae_knn
+
+
+
+#' fit.vae_output_fragment_size_position_with_imputation
+#'
+fit.vae_output_fragment_size_position_with_imputation <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs = 50, steps_per_epoch = 10){
+
+	flog.info(sprintf('batch size(batch_size): %d', batch_size))
+	flog.info(sprintf('steps per epoch(steps_per_epoch): %d', steps_per_epoch))
+
+	window_size <- metadata(gr)$window_size
+	window_dim <- length(gr)	# number of samples
+
+	optimizer <- tf$keras$optimizers$Adam(learning_rate)
+	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
+	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
+
+	prior_model <- model$prior(NULL)
+
+	for (epoch in seq_len(epochs)) {
+
+		total_loss <- 0
+		total_loss_nll_fragment_size <- 0
+		total_loss_nll_position <- 0
+		total_loss_kl <- 0
+
+		for (s in 1:steps_per_epoch){
+
+			b <- sample.int(window_dim, batch_size)
+
+			x <- mcols(gr[b])$counts %>%
+				as.matrix() %>%
+				array_reshape(c(batch_size, model$feature_dim, model$input_dim, 1L)) %>%
+				tf$cast(tf$float32)
+
+			zero_entry <- (x == 0) %>% tf$cast(tf$float32)
+
+			fragment_size <- mcols(gr[b])$fragment_size %>% tf$cast(tf$float32) + 1e-5
+			position <- mcols(gr[b])$position %>% tf$cast(tf$float32) + 1e-5
+
+			with(tf$GradientTape(persistent = TRUE) %as% tape, {
+
+				z <- x %>% model$encoder()
+				y <- z$sample() %>% model$decoder()	
+				v <- list(y[[1]]$sample(), y[[2]]$sample()) %>% model$imputer()
+				xi <- x + 0.1 * v * zero_entry	# inputed v-plot
+				posterior <- xi %>% model$encoder()
+				posterior_sample <- posterior$sample()
+				likelihood  <- posterior_sample %>% model$decoder()
+
+				nll_fragment_size <- -likelihood[[1]]$log_prob(fragment_size)
+				nll_position <- -likelihood[[2]]$log_prob(position)
+
+				avg_nll_fragment_size <- tf$reduce_mean(nll_fragment_size)
+				avg_nll_position <- tf$reduce_mean(nll_position)
+
+				kl_div <- posterior$log_prob(posterior_sample) - prior_model$log_prob(posterior_sample)
+				kl_div <- tf$reduce_mean(kl_div)
+
+				loss <- kl_div + avg_nll_fragment_size + avg_nll_position
+			})
+
+			total_loss <- total_loss + loss
+			total_loss_nll_fragment_size <- total_loss_nll_fragment_size + avg_nll_fragment_size
+			total_loss_nll_position <- total_loss_nll_position + avg_nll_position
+			total_loss_kl <- total_loss_kl + kl_div
+
+			encoder_gradients <- tape$gradient(loss, model$encoder$trainable_variables)
+			decoder_gradients <- tape$gradient(loss, model$decoder$trainable_variables)
+
+			optimizer$apply_gradients(purrr::transpose(list(encoder_gradients, model$encoder$trainable_variables)))
+			optimizer$apply_gradients(purrr::transpose(list(decoder_gradients, model$decoder$trainable_variables)))
+
+		}
+
+		tf$reduce_sum(x, axis = 0L) %>% tf$squeeze() %>% as.matrix() %>% t() %>% image(main = 'input data')
+		tf$reduce_sum(xi, axis = 0L) %>% tf$squeeze() %>% as.matrix() %>% t() %>% image(main = 'imputed data')
+
+		flog.info(sprintf('training | epoch=%4.d/%4.d | nll(fragment_size)=%7.1f | nll(position)=%7.1f | kl=%7.1f | total=%7.1f', epoch, epochs, avg_nll_fragment_size, avg_nll_position, total_loss_kl, total_loss))
+	}
+
+	model$data <- gr
+	model
+
+} # fit.vae_output_fragment_size_position_with_imputation
+
+
+#' fit_fragment_size_position_input_fragment_size_position_output
+#'
+fit_fragment_size_position_input_fragment_size_position_output <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs = 50, steps_per_epoch = 10){
+
+	flog.info(sprintf('batch size(batch_size): %d', batch_size))
+	flog.info(sprintf('steps per epoch(steps_per_epoch): %d', steps_per_epoch))
+
+	window_size <- metadata(gr)$window_size
+	window_dim <- length(gr)	# number of samples
+
+	optimizer <- tf$keras$optimizers$Adam(learning_rate)
+	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
+	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
+
+	prior_model <- model$prior(NULL)
+
+	for (epoch in seq_len(epochs)) {
+
+		total_loss <- 0
+		total_loss_nll_fragment_size <- 0
+		total_loss_nll_position <- 0
+		total_loss_kl <- 0
+
+		for (s in 1:steps_per_epoch){
+
+			b <- sample.int(window_dim, batch_size)
+
+			fragment_size <- mcols(gr[b])$fragment_size %>% 
+				as.matrix() %>%
+				tf$cast(tf$float32)
+
+			position <- mcols(gr[b])$position %>% 
+				as.matrix() %>%
+				tf$cast(tf$float32)
+
+			with(tf$GradientTape(persistent = TRUE) %as% tape, {
+
+				posterior <- list(fragment_size, position) %>% model$encoder()
+
+				posterior_sample <- posterior$sample()
+
+				likelihood  <- posterior_sample %>% model$decoder()
+
+				nll_fragment_size <- -likelihood[[1]]$log_prob(fragment_size)
+				nll_position <- -likelihood[[2]]$log_prob(position)
+
+				avg_nll_fragment_size <- tf$reduce_mean(nll_fragment_size)
+				avg_nll_position <- tf$reduce_mean(nll_position)
+
+				kl_div <- posterior$log_prob(posterior_sample) - prior_model$log_prob(posterior_sample)
+				kl_div <- tf$reduce_mean(kl_div)
+
+				loss <- kl_div + avg_nll_fragment_size + avg_nll_position
+			})
+
+			total_loss <- total_loss + loss
+			total_loss_nll_fragment_size <- total_loss_nll_fragment_size + avg_nll_fragment_size
+			total_loss_nll_position <- total_loss_nll_position + avg_nll_position
+			total_loss_kl <- total_loss_kl + kl_div
+
+			# check if the prior has trainable variables
+
+			encoder_gradients <- tape$gradient(loss, model$encoder$trainable_variables)
+			decoder_gradients <- tape$gradient(loss, model$decoder$trainable_variables)
+
+			optimizer$apply_gradients(purrr::transpose(list(encoder_gradients, model$encoder$trainable_variables)))
+			optimizer$apply_gradients(purrr::transpose(list(decoder_gradients, model$decoder$trainable_variables)))
+
+		}
+
+		flog.info(sprintf('training | epoch=%4.d/%4.d | nll(fragment_size)=%7.1f | nll(position)=%7.1f | kl=%7.1f | total=%7.1f', epoch, epochs, avg_nll_fragment_size, avg_nll_position, total_loss_kl, total_loss))
+	}
+
+	model$data <- gr
+	model
+
+} # fit_fragment_size_position_input_fragment_size_position_output
+
+
+#' fit
+#'
+fit <- function(model, ...){
+
+	if (model$input == 'fragment_size_position' && model$output == 'fragment_size_position'){
+		fit_fragment_size_position_input_fragment_size_position_output(model, ...)
+	}else
+		stop('unknown model input/output')
+
+} # fit

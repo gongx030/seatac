@@ -14,6 +14,7 @@
 #' @importFrom gplots colorpanel
 #' @importFrom abind abind
 #' @importFrom reticulate array_reshape
+#' @import FNN
 NULL
 
 #' seatac 
@@ -28,8 +29,8 @@ seatac <- function(
 	latent_dim = 2L, 
 	hidden_dim = 8L,
 	epochs = 50,
-	batch_size = 256,
-	steps_per_epoch = 10,
+	batch_size = 128,
+	steps_per_epoch = 50,
 	...
 ){
 

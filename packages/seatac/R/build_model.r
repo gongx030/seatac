@@ -3,22 +3,15 @@
 build_model <- function(type, input_dim, feature_dim, latent_dim, num_samples, window_size, ...){
 
 	if (type == 'cvae'){
+
 	}else if(type == 'vae'){
+
 	}else if(type == 'vae_baseline'){
-	}else if(type == 'vae_20191216a'){
-	}else if(type == 'vae_20191216b'){
-	}else if(type == 'vae_20191216c'){
-	}else if(type == 'vae_20191216d'){
-	}else if(type == 'vae_20191216e'){
 
-	}else if(type == 'vae_imputation'){
-
-		#' This model attemps to impute the zero entries in the V-plot during the training
-		model <- structure(list(
+		structure(list(
 			encoder = encoder_model_vae_baseline(latent_dim, window_size),
-			decoder = decoder_model_vae_baseline(input_dim, feature_dim),
-			imputer = imputer_model_baseline(input_dim, feature_dim),
-			latent_prior_model = prior_model(latent_dim),
+			decoder = decoder_model_vae_baseline_dense(input_dim, feature_dim),
+			prior = prior_model(latent_dim),
 			input_dim = input_dim,
 			feature_dim = feature_dim,
 			latent_dim = latent_dim,
@@ -26,10 +19,129 @@ build_model <- function(type, input_dim, feature_dim, latent_dim, num_samples, w
 			window_size = window_size
 		), class = type)
 
+	}else if(type == 'vae_20191216a'){
+	}else if(type == 'vae_20191216b'){
+	}else if(type == 'vae_20191216c'){
+	}else if(type == 'vae_20191216d'){
+	}else if(type == 'vae_output_fragment_size_position'){
+
+		 structure(list(
+			encoder = encoder_model_vae_baseline(latent_dim, window_size),
+			decoder = decoder_model_vae_position_fragment_size(input_dim, feature_dim),
+			prior = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size
+		), class = c('vae_output_fragment_size_position'))
+
+	}else if(type == 'vae_imputation'){
+
+		#' This model attemps to impute the zero entries in the V-plot during the training
+		structure(list(
+			encoder = encoder_model_vae_baseline(latent_dim, window_size),
+			decoder = decoder_model_vae_baseline_conv2(input_dim, feature_dim),
+			imputer = imputer_model_baseline(input_dim, feature_dim),
+			prior = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size
+		), class = type)
+
+	}else if(type == 'vae_imputation_gmm'){
+
+		#' This model attemps to impute the zero entries in the V-plot during the training
+		structure(list(
+			encoder = encoder_model_vae_baseline(latent_dim, window_size),
+			decoder = decoder_model_vae_baseline2(input_dim, feature_dim),
+			imputer = imputer_model_baseline(input_dim, feature_dim),
+			prior = prior_model_gmm(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size
+		), class = type)
+
+	}else if(type == 'vae_knn'){
+
+		#' This model attemps to impute the zero entries in the V-plot during the training
+		structure(list(
+			encoder = encoder_model_vae_baseline(latent_dim, window_size),
+			decoder = decoder_model_vae_baseline(input_dim, feature_dim),
+			prior = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			k = 20
+		), class = type)
+
+	}else if(type == 'vae_output_fragment_size_position_with_imputation'){
+
+		 structure(list(
+			encoder = encoder_model_vae_baseline(latent_dim, window_size),
+			decoder = decoder_model_vae_position_fragment_size(input_dim, feature_dim),
+			imputer = imputer_model_fragment_size_position(input_dim, feature_dim),
+			prior = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_position_baseline'){
+
+		 structure(list(
+			encoder = encoder_model_vae_position_fragment_size(latent_dim, window_size),
+			decoder = decoder_model_vae_position_fragment_size(input_dim, feature_dim),
+			prior = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size_position',
+			output = 'fragment_size_position'
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_position_gmm'){
+
+		 structure(list(
+			encoder = encoder_model_vae_position_fragment_size(latent_dim, window_size),
+			decoder = decoder_model_vae_position_fragment_size(input_dim, feature_dim),
+			prior = prior_model_gmm(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size_position',
+			output = 'fragment_size_position'
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_position_cnn_encoder'){
+
+		 structure(list(
+			encoder = encoder_model_vae_position_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_position_fragment_size(input_dim, feature_dim),
+			prior = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size_position',
+			output = 'fragment_size_position'
+		), class = type)
+
 	}else
 		stop(sprintf('unknown model type: %s', type))
-
-	model
 
 } # build_model
 
@@ -41,7 +153,7 @@ build_model_cvae <- function(input_dim, feature_dim, hidden_dim, latent_dim, num
 	structure(list(
 		encoder = encoder_model_cvae(latent_dim, window_size),
 		decoder = decoder_model_cvae(input_dim, feature_dim),
-		latent_prior_model = prior_model(latent_dim),
+		prior = prior_model(latent_dim),
 		input_dim = input_dim,
 		feature_dim = feature_dim,
 		hidden_dim = hidden_dim,
@@ -60,30 +172,13 @@ build_model_vae <- function(input_dim, feature_dim, latent_dim, num_samples, win
 	structure(list(
 		encoder = encoder_model_vae(latent_dim, window_size),
 		decoder = decoder_model_vae(input_dim, feature_dim),
-		latent_prior_model = prior_model(latent_dim),
+		prior = prior_model(latent_dim),
 		input_dim = input_dim,
 		feature_dim = feature_dim,
 		latent_dim = latent_dim,
 		num_samples = num_samples,
 		window_size = window_size
 	), class = c('vae'))
-
-} # vae
-
-#' vae_baseline
-#'
-build_model_vae_baseline <- function(input_dim, feature_dim, latent_dim, num_samples, window_size){
-
-	structure(list(
-		encoder = encoder_model_vae_baseline(latent_dim, window_size),
-		decoder = decoder_model_vae_baseline(input_dim, feature_dim),
-		latent_prior_model = prior_model(latent_dim),
-		input_dim = input_dim,
-		feature_dim = feature_dim,
-		latent_dim = latent_dim,
-		num_samples = num_samples,
-		window_size = window_size
-	), class = c('vae_baseline'))
 
 } # vae
 
@@ -98,7 +193,7 @@ build_model_vae_20191216a <- function(input_dim, feature_dim, latent_dim, num_sa
 	structure(list(
 		encoder = encoder_model_vae_20191216a(latent_dim, window_size),
 		decoder = decoder_model_vae_baseline(input_dim, feature_dim),
-		latent_prior_model = prior_model(latent_dim),
+		prior = prior_model(latent_dim),
 		input_dim = input_dim,
 		feature_dim = feature_dim,
 		latent_dim = latent_dim,
@@ -119,7 +214,7 @@ build_model_vae_20191216b <- function(input_dim, feature_dim, latent_dim, num_sa
 	structure(list(
 		encoder = encoder_model_vae_20191216b(latent_dim, window_size),
 		decoder = decoder_model_vae_20191216b(input_dim, feature_dim),
-		latent_prior_model = prior_model(latent_dim),
+		prior = prior_model(latent_dim),
 		input_dim = input_dim,
 		feature_dim = feature_dim,
 		latent_dim = latent_dim,
@@ -140,7 +235,7 @@ build_model_vae_20191216c <- function(input_dim, feature_dim, latent_dim, num_sa
 	structure(list(
 		encoder = encoder_model_vae_baseline(latent_dim, window_size),
 		decoder = decoder_model_vae_vplot_position_fragment_size(input_dim, feature_dim),
-		latent_prior_model = prior_model(latent_dim),
+		prior = prior_model(latent_dim),
 		input_dim = input_dim,
 		feature_dim = feature_dim,
 		latent_dim = latent_dim,
@@ -161,7 +256,7 @@ build_model_vae_20191216d <- function(input_dim, feature_dim, latent_dim, num_sa
 	structure(list(
 		encoder = encoder_model_vae_baseline(latent_dim, window_size),
 		decoder = decoder_model_vae_vplot_position(input_dim, feature_dim),
-		latent_prior_model = prior_model(latent_dim),
+		prior = prior_model(latent_dim),
 		input_dim = input_dim,
 		feature_dim = feature_dim,
 		latent_dim = latent_dim,
@@ -181,7 +276,7 @@ build_model_vae_20191216e <- function(input_dim, feature_dim, latent_dim, num_sa
 	structure(list(
 		encoder = encoder_model_vae_baseline(latent_dim, window_size),
 		decoder = decoder_model_vae_position_fragment_size(input_dim, feature_dim),
-		latent_prior_model = prior_model(latent_dim),
+		prior = prior_model(latent_dim),
 		input_dim = input_dim,
 		feature_dim = feature_dim,
 		latent_dim = latent_dim,
