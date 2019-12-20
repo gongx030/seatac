@@ -47,27 +47,42 @@ set.seed(1); gr <- sample(windows[windows$num_reads >= 20], 5000)
 #latent_dim <- 2; epochs <- 10; type <- 'vae_output_fragment_size_position_with_imputation'
 #latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_baseline'
 #latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_gmm'
-latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_cnn_encoder'
+#latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_cnn_encoder'
+#latent_dim <- 5; epochs <- 10; type <- 'vae_fragment_size_position_cnn_encoder_gmm'
+#latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_cnn_encoder_with_imputation'
+#latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_mixture_cnn_gmm'
+#latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_mixture_cnn'
+#latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_cnn_with_imputation'
+#latent_dim <- 10; epochs <- 10; type <- 'vae_fragment_size_gmm'
+#latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_parametric'
+#latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size'
+#latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_cnn'
+latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_cnn_kmeans'
 set.seed(1); devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(gr, type = type, latent_dim = latent_dim, epochs = epochs)
 
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(gr)
 
 
-k <- 4
+k <- 7
 cls <- kmeans(gr$latent, k)$cluster
 #cls <- kmeans(model$data$fragment_size, k)$cluster
 #cls2 <- kmeans(model$data$position, k)$cluster
 
-par(mfrow = c(4 + 1, k))
+par(mfrow = c(7 + 1, k), mar = c(2, 2, 2, 2))
 lapply(1:k, function(i) image(matrix(colMeans(mcols(gr)$counts[cls == i, ]) - colMeans(mcols(gr)$counts), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red')))
 lapply(1:k, function(i) image(matrix(colMeans(mcols(gr)$counts[cls == i, ]), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red')))
-lapply(1:k, function(i) plot(colMeans(model$data$fragment_size[cls == i, ])))
-lapply(1:k, function(i) plot(colMeans(model$data$position[cls == i, ])))
+lapply(1:k, function(i) plot(colMeans(gr$fragment_size[cls == i, ])))
+lapply(1:k, function(i) plot(colMeans(gr$predicted_fragment_size[cls == i, ])))
+lapply(1:k, function(i) plot(colMeans(gr$position[cls == i, ])))
+lapply(1:k, function(i) plot(colMeans(gr$predicted_position[cls == i, ])))
+lapply(1:k, function(i) plot(colMeans(gr$MEF_MNase[cls == i, ])))
 smoothScatter(gr$latent, main = 'v-plot')
+model$prior(NULL)$components_distribution$mean() %>% as.matrix() %>% points(pch =21, bg = 'red')
 image(matrix(colMeans(mcols(gr)$counts), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'))
 
 
-plot(y, main = 'v-plot')
+y <- Rtsne(gr$latent, check_duplicates = FALSE)$Y
+smoothScatter(y, main = 'v-plot')
 
 
 plot(y2, main = 'v-plot + fragment_size')

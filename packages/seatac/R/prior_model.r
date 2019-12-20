@@ -13,16 +13,22 @@ prior_model <- function(latent_dim, name = NULL){
 
 #' primor_model_gmm
 #'
-prior_model_gmm <- function(latent_dim, n_components = 10, name = NULL){
+prior_model_gmm <- function(latent_dim, n_components = 5, name = NULL){
 	keras_model_custom(name = name, function(self) {
 
-		self$loc <- tf$Variable(matrix(0, n_components, latent_dim), dtype = tf$float32)
-		self$raw_scale_diag <- tf$Variable(matrix(0, n_components, latent_dim), dtype = tf$float32)
-		self$mixture_logits <- tf$Variable(rep(0, n_components), dtype = tf$float32)
+		self$loc <- tf$Variable(tf$random$normal(shape(n_components, latent_dim)))
+
+		self$raw_scale_diag <- tf$Variable(tf$random$normal(shape(n_components, latent_dim)))
+
+		self$mixture_logits <- tf$Variable(tf$random$normal(shape(n_components)))
 
 		function (x, mask = NULL) {
+
 			tfd_mixture_same_family(
-				components_distribution = tfd_multivariate_normal_diag(loc = self$loc, scale_diag = tf$nn$softplus(self$raw_scale_diag)),
+				components_distribution = tfd_multivariate_normal_diag(
+					loc = self$loc, 
+					scale_diag = tf$nn$softplus(self$raw_scale_diag)
+				),
 				mixture_distribution = tfd_categorical(logits = self$mixture_logits)
 			)
 		}

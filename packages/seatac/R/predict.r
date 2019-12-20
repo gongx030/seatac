@@ -6,6 +6,10 @@ predict <- function(model, ...){
 
 		predict_vae_fragment_size_position(model, ...)
 
+	}else if (model$input == 'fragment_size'){
+
+		predict_vae_fragment_size(model, ...)
+
   }else
 		stop('unknown model input')
 
@@ -475,7 +479,10 @@ predict_vae_fragment_size_position <- function(model, gr, batch_size = 512){
 	ends[ends > window_dim] <- window_dim
 	n_batch <- length(starts)
 
-	z <- matrix(NA, window_dim, model$latent_dim) 	# z
+	gr$latent <- matrix(NA, window_dim, model$latent_dim) 	# z
+
+	gr$predicted_fragment_size <- matrix(NA, window_dim, model$feature_dim)
+	gr$predicted_position <- matrix(NA, window_dim, model$input_dim)
 
 	for (b in 1:n_batch){
 
@@ -493,14 +500,68 @@ predict_vae_fragment_size_position <- function(model, gr, batch_size = 512){
 			tf$cast(tf$float32)
 
 		g <- list(fragment_size, position) %>% model$encoder()
-		z[i, ] <- g$mean() %>% as.matrix()
+		gr$latent[i, ] <- g$mean() %>% as.matrix()
+
+		h <- gr$latent[i, ] %>% 
+			tf$cast(tf$float32) %>%
+			model$decoder()
+
+		gr$predicted_fragment_size[i, ] <- h$fragment_size$mean() %>% as.matrix()
+		gr$predicted_position[i, ] <- h$position$mean() %>% as.matrix()
 
 	}
-
-	mcols(gr)$latent <- z
 
 	gr
 
 } # predict_vae_fragment_size_position
+
+
+#' predict_vae_fragment_size
+#'
+predict_vae_fragment_size <- function(model, gr, batch_size = 512){
+
+	window_dim <- length(gr)
+	window_size <- metadata(gr)$window_size
+	num_samples <- metadata(gr)$num_samples
+	n_bins_per_window <- metadata(gr)$window_size / metadata(gr)$bin_size
+	bin_size <- metadata(gr)$bin_size
+
+	flog.info(sprintf('# input peaks: %d', window_dim))
+	flog.info(sprintf('batch size(batch_size): %d', batch_size))
+
+	starts <- seq(1, window_dim, by = batch_size)
+	ends <- starts + batch_size - 1
+	ends[ends > window_dim] <- window_dim
+	n_batch <- length(starts)
+
+	gr$latent <- matrix(NA, window_dim, model$latent_dim)   # z
+	gr$predicted_fragment_size <- matrix(NA, window_dim, model$feature_dim)
+
+
+	for (b in 1:n_batch){
+
+		if (b %% 10 == 0)
+			flog.info(sprintf('predicting | batch=%4.d/%4.d', b, n_batch))
+		
+		i <- starts[b]:ends[b]
+
+		fragment_size <- mcols(gr[i])$fragment_size %>% 
+			as.matrix() %>%
+			tf$cast(tf$float32)
+
+		g <- fragment_size %>% model$encoder()
+		gr$latent[i, ] <- g$mean() %>% as.matrix()
+
+		h <- gr$latent[i, ] %>%
+			tf$cast(tf$float32) %>%
+			model$decoder()
+
+		gr$predicted_fragment_size[i, ] <- h$mean() %>% as.matrix()
+
+	}
+
+	gr
+
+} # predict_vae_fragment_size
 
 

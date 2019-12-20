@@ -487,3 +487,75 @@ encoder_model_vae_position_fragment_size_cnn <- function(
 
 } # encoder_model_vae_position_fragment_size_cnn
 
+
+
+#' encoder_model_vae_fragment_size_cnn
+#'
+encoder_model_vae_fragment_size_cnn <- function(
+	latent_dim, 
+	fragment_size_filters = c(32L, 32L, 32L),
+	fragment_size_kernel_sizes = c(3L, 3L, 3L),
+	fragment_size_strides = c(2L, 2L, 2L),
+	hidden_dim = 32L,
+	name = NULL
+){
+
+	keras_model_custom(name = name, function(self){
+
+		self$fragment_size_conv_1 <- layer_conv_1d(
+			filters = fragment_size_filters[1],
+			kernel_size = fragment_size_kernel_sizes[1],
+			strides = fragment_size_kernel_sizes[1],
+			activation = 'relu'
+		)
+
+		self$fragment_size_bn_1 <- layer_batch_normalization()
+
+		self$fragment_size_conv_2 <- layer_conv_1d(
+			filters = fragment_size_filters[2],
+			kernel_size = fragment_size_kernel_sizes[2],
+			strides = fragment_size_strides[2],
+			activation = 'relu'
+		)
+
+		self$fragment_size_bn_2 <- layer_batch_normalization()
+
+		self$fragment_size_conv_3 <- layer_conv_1d(
+			filters = fragment_size_filters[3],
+			kernel_size = fragment_size_kernel_sizes[3],
+			strides = fragment_size_strides[3],
+			activation = 'relu'
+		)
+
+		self$fragment_size_bn_3 <- layer_batch_normalization()
+
+		self$fragment_size_dense_1 <- layer_dense(units = hidden_dim, activation = 'relu')
+
+		self$merge_dense_1 <- layer_dense(units = latent_dim * 2)
+
+		function(x, mask = NULL, training = TRUE){
+
+			y <- x %>% 
+				k_expand_dims() %>% 
+				self$fragment_size_conv_1() %>%
+				self$fragment_size_bn_1(training = training) %>%
+				self$fragment_size_conv_2() %>%
+				self$fragment_size_bn_2(training = training) %>%
+				self$fragment_size_conv_3() %>%
+				self$fragment_size_bn_3(training = training) %>%
+				layer_flatten() %>%
+				self$fragment_size_dense_1() %>%
+				layer_dropout(rate = 0.2) %>%
+				self$merge_dense_1()
+
+			tfd_multivariate_normal_diag(
+				loc = y[, 1:latent_dim],
+				scale_diag = tf$nn$softplus(y[, (latent_dim + 1):(2 * latent_dim)] + 1e-5)
+			)
+		}
+	})
+
+} # encoder_model_vae_fragment_size_cnn
+
+
+

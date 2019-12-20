@@ -367,31 +367,37 @@ decoder_model_vae_position_fragment_size <- function(
 
 	keras_model_custom(name = name, function(self){
 
-		self$dense_2 <- layer_dense(units = 8L, activation = 'relu')
-		self$dense_3 <- layer_dense(units = feature_dim)
+		self$fragment_size_dense_1 <- layer_dense(units = 8L, activation = 'relu')
+		self$fragment_size_dense_2 <- layer_dense(units = 32L, activation = 'relu')
+		self$fragment_size_dense_3 <- layer_dense(units = feature_dim)
 
-		self$dense_4 <- layer_dense(units = 8L, activation = 'relu')
-		self$dense_5 <- layer_dense(units = feature_dim)
+		self$position_dense_1 <- layer_dense(units = 8L, activation = 'relu')
+		self$position_dense_2 <- layer_dense(units = 32L, activation = 'relu')
+		self$position_dense_3 <- layer_dense(units = input_dim)
 
 		function(x, mask = NULL){
 
-			y2 <- x %>%
-				self$dense_2() %>%
+			y1 <- x %>%
+				self$fragment_size_dense_1() %>%
 				layer_dropout(rate = 0.2) %>%
-				self$dense_3()
+				self$fragment_size_dense_2() %>%
+				layer_dropout(rate = 0.2) %>%
+				self$fragment_size_dense_3()
 
-			y3 <- x %>%
-				self$dense_4() %>%
+			y2 <- x %>%
+				self$position_dense_1() %>%
 				layer_dropout(rate = 0.2) %>%
-				self$dense_5()
+				self$position_dense_2() %>%
+				layer_dropout(rate = 0.2) %>%
+				self$position_dense_3()
 
 			list(
 				fragment_size = tfd_independent(
-					tfd_bernoulli(logits = y2),
+					tfd_bernoulli(logits = y1),
 					reinterpreted_batch_ndims = 1L
 				),
 				position = tfd_independent(
-					tfd_bernoulli(logits = y3),
+					tfd_bernoulli(logits = y2),
 					reinterpreted_batch_ndims = 1L
 				)
 			)
@@ -516,3 +522,325 @@ decoder_model_vae_baseline_dense <- function(
 	})
 } # decoder_model_vae_baseline_dense
 
+
+#' decoder_model_vae_vplot_parametric
+#'
+decoder_model_vae_vplot_parametric <- function(
+	input_dim, 
+	feature_dim, 
+	n_components = 2L,
+	name = NULL
+){
+
+	keras_model_custom(name = name, function(self){
+
+		self$lambda <- tf$Variable(tf$random$normal(shape(1L)), name = 'lambda')
+
+		self$dense_1 <- layer_dense(units = n_components, activation = 'softmax', name = 'mixture')
+
+		self$fragment_size_index <- tf$constant(seq(0, 1, length.out = feature_dim))
+
+		self$mono_mean <- tf$Variable(tf$random$normal(shape(1L)), name = 'mono_mean')
+		self$mono_sd <- tf$Variable(tf$random$normal(shape(1L)), name = 'mono_sd')
+
+		function(x, mask = NULL){
+
+			probs <- x %>% self$dense_1()
+
+			mono <- tf$exp(-tf$square(self$fragment_size_index - self$mono_mean) / tf$exp(self$mono_sd))
+
+			nfr <- tf$exp(-tf$exp(self$lambda) * self$fragment_size_index)
+
+			y <- tf$matmul(probs,  tf$stack(list(mono, nfr), axis = 1L), transpose_b = TRUE)
+
+			tfd_independent(
+				tfd_bernoulli(probs = y),
+				reinterpreted_batch_ndims = 1L
+			)
+		}
+	})
+} # decoder_model_vae_vplot_parametric
+
+
+#' decoder_model_vae_position_fragment_size_cnn
+#'
+decoder_model_vae_position_fragment_size_cnn <- function(
+
+	input_dim, 
+	feature_dim, 
+
+	filters0 = 32L, 
+
+	fragment_size_filters = c(32L, 32L, 1L), 
+	fragment_size_kernel_sizes = c(3L, 3L, 3L), 
+	fragment_size_strides = c(2L, 2L, 2L), 
+
+	position_filters = c(32L, 32L, 1L), 
+	position_kernel_sizes = c(3L, 3L, 3L), 
+	position_strides = c(2L, 2L, 2L), 
+
+	reinterpreted_batch_ndims = 1L,
+
+	name = NULL
+){
+
+	fragment_size_dim0 <- feature_dim / prod(fragment_size_strides)
+	position_dim0 <- input_dim / prod(position_strides)
+
+	fragment_size_output_dim0 <- fragment_size_dim0 * filters0
+	position_output_dim0 <- position_dim0 * filters0
+
+	keras_model_custom(name = name, function(self){
+
+		self$fragment_size_dense_1 <- layer_dense(units = fragment_size_output_dim0, activation = 'relu')
+
+		self$fragment_size_deconv_1 <- layer_conv_2d_transpose(
+			filters = fragment_size_filters[1],
+			kernel_size = fragment_size_kernel_sizes[1],
+			strides = shape(fragment_size_strides[1], 1L),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$fragment_size_bn_1 <- layer_batch_normalization()
+
+		self$fragment_size_deconv_2 <- layer_conv_2d_transpose(
+			filters = fragment_size_filters[2],
+			kernel_size = fragment_size_kernel_sizes[2],
+			strides = shape(fragment_size_strides[2], 1L),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$fragment_size_bn_2 <- layer_batch_normalization()
+
+		self$fragment_size_deconv_3 <- layer_conv_2d_transpose(
+			filters = fragment_size_filters[3],
+			kernel_size = fragment_size_kernel_sizes[3],
+			strides = shape(fragment_size_strides[3], 1L),
+			padding = 'same'
+		)
+
+		self$position_dense_1 <- layer_dense(units = position_output_dim0, activation = 'relu')
+
+		self$position_deconv_1 <- layer_conv_2d_transpose(
+			filters = position_filters[1],
+			kernel_size = position_kernel_sizes[1],
+			strides = shape(position_strides[1], 1L),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$position_bn_1 <- layer_batch_normalization()
+
+		self$position_deconv_2 <- layer_conv_2d_transpose(
+			filters = position_filters[2],
+			kernel_size = position_kernel_sizes[2],
+			strides = shape(position_strides[2], 1L),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$position_bn_2 <- layer_batch_normalization()
+
+		self$position_deconv_3 <- layer_conv_2d_transpose(
+			filters = position_filters[3],
+			kernel_size = position_kernel_sizes[3],
+			strides = shape(position_strides[3], 1L),
+			padding = 'same'
+		)
+
+		function(x, mask = NULL){
+
+			y1 <- x %>%
+				self$fragment_size_dense_1() %>%
+				layer_dropout(0.2) %>%
+				layer_reshape(target_shape = c(fragment_size_dim0, 1L, filters0)) %>%
+				self$fragment_size_deconv_1() %>%
+				self$fragment_size_bn_1() %>%
+				self$fragment_size_deconv_2() %>%
+				self$fragment_size_bn_2() %>%
+				self$fragment_size_deconv_3() %>%
+				layer_reshape(target_shape = c(feature_dim))
+
+			y2 <- x %>%
+				self$position_dense_1() %>%
+				layer_dropout(0.2) %>%
+				layer_reshape(target_shape = c(position_dim0, 1L, filters0)) %>%
+				self$position_deconv_1() %>%
+				self$position_bn_1() %>%
+				self$position_deconv_2() %>%
+				self$position_bn_2() %>%
+				self$position_deconv_3() %>%
+				layer_reshape(target_shape = c(input_dim))
+
+			list(
+				fragment_size = tfd_independent(
+					tfd_bernoulli(logits = y1),
+					reinterpreted_batch_ndims = reinterpreted_batch_ndims,
+				),
+				position = tfd_independent(
+					tfd_bernoulli(logits = y2),
+					reinterpreted_batch_ndims = reinterpreted_batch_ndims,
+				)
+			)
+		}
+	})
+} # decoder_model_vae_position_fragment_size_cnn
+
+
+#' decoder_model_vae_position_fragment_size_mixture_cnn
+#'
+decoder_model_vae_position_fragment_size_mixture_cnn <- function(
+
+	input_dim, 
+	feature_dim, 
+
+	filters0 = 32L, 
+
+	fragment_size_filters = c(32L, 32L, 1L), 
+	fragment_size_kernel_sizes = c(3L, 3L, 3L), 
+	fragment_size_strides = c(2L, 2L, 2L), 
+
+	position_filters = c(32L, 32L, 1L), 
+	position_kernel_sizes = c(3L, 3L, 3L), 
+	position_strides = c(2L, 2L, 2L), 
+
+	name = NULL
+){
+
+	position_dim0 <- input_dim / prod(position_strides)
+	position_output_dim0 <- position_dim0 * filters0
+
+	keras_model_custom(name = name, function(self){
+
+		self$fragment_size_dense_1 <- layer_dense(units = 8L, activation = 'relu')
+		self$fragment_size_dense_2 <- layer_dense(units = 32L, activation = 'relu')
+		self$fragment_size_dense_3 <- layer_dense(units = feature_dim)
+
+		self$position_dense_1 <- layer_dense(units = position_output_dim0, activation = 'relu')
+
+		self$position_deconv_1 <- layer_conv_2d_transpose(
+			filters = position_filters[1],
+			kernel_size = position_kernel_sizes[1],
+			strides = shape(position_strides[1], 1L),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$position_bn_1 <- layer_batch_normalization()
+
+		self$position_deconv_2 <- layer_conv_2d_transpose(
+			filters = position_filters[2],
+			kernel_size = position_kernel_sizes[2],
+			strides = shape(position_strides[2], 1L),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$position_bn_2 <- layer_batch_normalization()
+
+		self$position_deconv_3 <- layer_conv_2d_transpose(
+			filters = position_filters[3],
+			kernel_size = position_kernel_sizes[3],
+			strides = shape(position_strides[3], 1L),
+			padding = 'same'
+		)
+
+		function(x, mask = NULL){
+
+			y1 <- x %>%
+				self$fragment_size_dense_1() %>%
+				layer_dropout(rate = 0.2) %>%
+				self$fragment_size_dense_2() %>%
+				layer_dropout(rate = 0.2) %>%
+				self$fragment_size_dense_3()
+
+			y2 <- x %>%
+				self$position_dense_1() %>%
+				layer_dropout(0.2) %>%
+				layer_reshape(target_shape = c(position_dim0, 1L, filters0)) %>%
+				self$position_deconv_1() %>%
+				self$position_bn_1() %>%
+				self$position_deconv_2() %>%
+				self$position_bn_2() %>%
+				self$position_deconv_3() %>%
+				layer_reshape(target_shape = c(input_dim))
+
+			list(
+				fragment_size = tfd_independent(
+					tfd_bernoulli(logits = y1),
+					reinterpreted_batch_ndims = 1L
+				),
+				position = tfd_independent(
+					tfd_bernoulli(logits = y2),
+					reinterpreted_batch_ndims = 1L
+				)
+			)
+		}
+	})
+} # decoder_model_vae_position_fragment_size_mixture_cnn
+
+
+#' decoder_model_vae_fragment_size_cnn
+#'
+decoder_model_vae_fragment_size_cnn <- function(
+
+	feature_dim, 
+
+	filters0 = 32L, 
+
+	fragment_size_filters = c(32L, 32L, 1L), 
+	fragment_size_kernel_sizes = c(3L, 3L, 3L), 
+	fragment_size_strides = c(2L, 2L, 2L),
+
+	name = NULL
+){
+
+	fragment_size_dim0 <- feature_dim / prod(fragment_size_strides)
+
+	fragment_size_output_dim0 <- fragment_size_dim0 * filters0
+
+	keras_model_custom(name = name, function(self){
+
+		self$fragment_size_dense_1 <- layer_dense(units = fragment_size_output_dim0, activation = 'relu')
+
+		self$fragment_size_deconv_1 <- layer_conv_2d_transpose(
+			filters = fragment_size_filters[1],
+			kernel_size = fragment_size_kernel_sizes[1],
+			strides = shape(fragment_size_strides[1], 1L),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$fragment_size_bn_1 <- layer_batch_normalization()
+
+		self$fragment_size_deconv_2 <- layer_conv_2d_transpose(
+			filters = fragment_size_filters[2],
+			kernel_size = fragment_size_kernel_sizes[2],
+			strides = shape(fragment_size_strides[2], 1L),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$fragment_size_bn_2 <- layer_batch_normalization()
+
+		self$fragment_size_deconv_3 <- layer_conv_2d_transpose(
+			filters = fragment_size_filters[3],
+			kernel_size = fragment_size_kernel_sizes[3],
+			strides = shape(fragment_size_strides[3], 1L),
+			padding = 'same'
+		)
+
+		function(x, mask = NULL){
+
+			y <- x %>%
+				self$fragment_size_dense_1() %>%
+				layer_dropout(0.2) %>%
+				layer_reshape(target_shape = c(fragment_size_dim0, 1L, filters0)) %>%
+				self$fragment_size_deconv_1() %>%
+				self$fragment_size_bn_1() %>%
+				self$fragment_size_deconv_2() %>%
+				self$fragment_size_bn_2() %>%
+				self$fragment_size_deconv_3() %>%
+				layer_reshape(target_shape = c(feature_dim))
+
+			fragment_size = tfd_independent(
+				tfd_bernoulli(logits = y),
+				reinterpreted_batch_ndims = 1L
+			)
+		}
+	})
+} # decoder_model_vae_fragment_size_cnn

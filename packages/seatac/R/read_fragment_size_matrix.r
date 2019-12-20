@@ -117,6 +117,8 @@ read_fragment_size_matrix <- function(
 	mcols(gr)$position[is.na(mcols(gr)$position)] <- 0
 	mcols(gr)$position <- mcols(gr)$position %>% as('dgCMatrix')
 
+	browser()
+
 	gr
 
 } # read_fragment_size_matrix

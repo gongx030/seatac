@@ -122,7 +122,8 @@ build_model <- function(type, input_dim, feature_dim, latent_dim, num_samples, w
 			num_samples = num_samples,
 			window_size = window_size,
 			input = 'fragment_size_position',
-			output = 'fragment_size_position'
+			output = 'fragment_size_position',
+			imputation = FALSE
 		), class = type)
 
 	}else if(type == 'vae_fragment_size_position_cnn_encoder'){
@@ -137,7 +138,187 @@ build_model <- function(type, input_dim, feature_dim, latent_dim, num_samples, w
 			num_samples = num_samples,
 			window_size = window_size,
 			input = 'fragment_size_position',
-			output = 'fragment_size_position'
+			output = 'fragment_size_position',
+			imputation = FALSE
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_position_cnn_encoder_with_imputation'){
+
+		 structure(list(
+			encoder = encoder_model_vae_position_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_position_fragment_size(input_dim, feature_dim),
+			imputer = imputer_model_position_fragment_size(input_dim, feature_dim),
+			prior = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size_position',
+			output = 'fragment_size_position',
+			imputation = TRUE
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_position_cnn_encoder_gmm'){
+
+		 structure(list(
+			encoder = encoder_model_vae_position_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_position_fragment_size(input_dim, feature_dim),
+			prior = prior_model_gmm(latent_dim, n_components = 10),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size_position',
+			output = 'fragment_size_position',
+			imputation = FALSE
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_position_cnn_gmm'){
+
+		 structure(list(
+			encoder = encoder_model_vae_position_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_position_fragment_size_cnn(input_dim, feature_dim),
+			prior = prior_model_gmm(latent_dim, n_components = 10),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size_position',
+			output = 'fragment_size_position',
+			imputation = FALSE
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_position_cnn'){
+
+		 structure(list(
+			encoder = encoder_model_vae_position_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_position_fragment_size_cnn(input_dim, feature_dim),
+			prior = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size_position',
+			output = 'fragment_size_position',
+			imputation = FALSE
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_position_cnn_with_imputation'){
+
+		 structure(list(
+			encoder = encoder_model_vae_position_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_position_fragment_size_cnn(input_dim, feature_dim, reinterpreted_batch_ndims = 0L),
+			prior = prior_model(latent_dim),
+			imputer = imputer_model_baseline(input_dim, feature_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size_position',
+			output = 'fragment_size_position',
+			imputation = TRUE 
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_parametric'){
+
+		 structure(list(
+			encoder = encoder_model_vae_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_vplot_parametric(input_dim, feature_dim),
+			prior = prior_model_gmm(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size',
+			output = 'fragment_size',
+			imputation = FALSE
+
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_position_mixture_cnn_gmm'){
+
+		 structure(list(
+			encoder = encoder_model_vae_position_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_position_fragment_size_mixture_cnn(input_dim, feature_dim),
+			prior = prior_model_gmm(latent_dim, n_components = 10),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size_position',
+			output = 'fragment_size_position',
+			imputation = FALSE
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_position_mixture_cnn'){
+
+		 structure(list(
+			encoder = encoder_model_vae_position_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_position_fragment_size_mixture_cnn(input_dim, feature_dim),
+			prior = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size_position',
+			output = 'fragment_size_position',
+			imputation = FALSE
+		), class = type)
+
+	}else if(type == 'vae_fragment_size'){
+
+		 structure(list(
+			encoder = encoder_model_vae_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_fragment_size_cnn(feature_dim),
+			prior = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size',
+			output = 'fragment_size',
+			imputation = FALSE
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_gmm'){
+
+		 structure(list(
+			encoder = encoder_model_vae_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_fragment_size_cnn(feature_dim),
+			prior = prior_model_gmm(latent_dim, n_components = 10),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size',
+			output = 'fragment_size',
+			imputation = FALSE
+		), class = type)
+
+	}else if(type == 'vae_fragment_size_position_cnn'){
+
+		 structure(list(
+			encoder = encoder_model_vae_position_fragment_size_cnn(latent_dim),
+			decoder = decoder_model_vae_position_fragment_size_cnn(input_dim, feature_dim),
+			prior = prior_model(latent_dim),
+			input_dim = input_dim,
+			feature_dim = feature_dim,
+			latent_dim = latent_dim,
+			num_samples = num_samples,
+			window_size = window_size,
+			input = 'fragment_size_position',
+			output = 'fragment_size_position',
+			imputation = FALSE
 		), class = type)
 
 	}else
