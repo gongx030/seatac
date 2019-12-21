@@ -39,7 +39,6 @@ saveRDS(windows, file = sprintf('%s/MEF_Dox_d1_Etv2_on_MEF_ATAC.rds', project_di
 ```{r}
 windows <- readRDS(sprintf('%s/MEF_Dox_d1_Etv2_on_MEF_ATAC.rds', project_dir('seatac')))
 set.seed(1); gr <- sample(windows[windows$num_reads >= 20], 5000)
-#latent_dim <- 2; epochs <- 20; type <- 'vae_baseline'
 #latent_dim <- 2; epochs <- 20; type <- 'vae_imputation'
 #latent_dim <- 2; epochs <- 20; type <- 'vae_imputation_gmm'
 #latent_dim <- 2; epochs <- 10; type <- 'vae_knn'
@@ -54,16 +53,19 @@ set.seed(1); gr <- sample(windows[windows$num_reads >= 20], 5000)
 #latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_mixture_cnn'
 #latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_cnn_with_imputation'
 #latent_dim <- 10; epochs <- 10; type <- 'vae_fragment_size_gmm'
+#latent_dim <- 5; epochs <- 10; type <- 'vae_fragment_size'
+#latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_cnn_kmeans'
+#latent_dim <- 5; epochs <- 10; type <- 'vae_fragment_size_position_cnn'
 #latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_parametric'
-#latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size'
-#latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_cnn'
-latent_dim <- 2; epochs <- 10; type <- 'vae_fragment_size_position_cnn_kmeans'
+latent_dim <- 10; epochs <- 20; type <- 'vae_baseline'
 set.seed(1); devtools::load_all('analysis/seatac/packages/seatac'); model <- seatac(gr, type = type, latent_dim = latent_dim, epochs = epochs)
+
+#set.seed(1); devtools::load_all('analysis/seatac/packages/seatac'); model <- model %>% finetuning(centers = 4, epochs = 10)
 
 devtools::load_all('analysis/seatac/packages/seatac'); gr <- model %>% predict(gr)
 
 
-k <- 7
+k <- 4
 cls <- kmeans(gr$latent, k)$cluster
 #cls <- kmeans(model$data$fragment_size, k)$cluster
 #cls2 <- kmeans(model$data$position, k)$cluster
@@ -80,6 +82,7 @@ smoothScatter(gr$latent, main = 'v-plot')
 model$prior(NULL)$components_distribution$mean() %>% as.matrix() %>% points(pch =21, bg = 'red')
 image(matrix(colMeans(mcols(gr)$counts), metadata(gr)$n_bins_per_window, metadata(gr)$n_intervals), col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'))
 
+ gr$latent %>% model$decoder$dense_1() %>% as.matrix()
 
 y <- Rtsne(gr$latent, check_duplicates = FALSE)$Y
 smoothScatter(y, main = 'v-plot')

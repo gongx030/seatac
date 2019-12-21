@@ -499,8 +499,8 @@ predict_vae_fragment_size_position <- function(model, gr, batch_size = 512){
 			as.matrix() %>% 
 			tf$cast(tf$float32)
 
-		g <- list(fragment_size, position) %>% model$encoder()
-		gr$latent[i, ] <- g$mean() %>% as.matrix()
+		posterior <- list(fragment_size, position) %>% model$encoder()
+		gr$latent[i, ] <- posterior$mean() %>% as.matrix()
 
 		h <- gr$latent[i, ] %>% 
 			tf$cast(tf$float32) %>%

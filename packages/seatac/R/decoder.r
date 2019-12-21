@@ -534,24 +534,32 @@ decoder_model_vae_vplot_parametric <- function(
 
 	keras_model_custom(name = name, function(self){
 
-		self$lambda <- tf$Variable(tf$random$normal(shape(1L)), name = 'lambda')
+#		self$lambda <- tf$Variable(tf$random$normal(shape(1L)), name = 'lambda')
 
 		self$dense_1 <- layer_dense(units = n_components, activation = 'softmax', name = 'mixture')
+		self$dense_2 <- layer_dense(units = 1L, name = 'mono_weight')
+		self$dense_3 <- layer_dense(units = 1L, name = 'nfr_weight')
 
-		self$fragment_size_index <- tf$constant(seq(0, 1, length.out = feature_dim))
+		self$mono <- tf$Variable(tf$random$normal(shape(1L, feature_dim)), name = 'mono')
+		self$nfr <- tf$Variable(tf$random$normal(shape(1L, feature_dim)), name = 'nfr')
 
-		self$mono_mean <- tf$Variable(tf$random$normal(shape(1L)), name = 'mono_mean')
-		self$mono_sd <- tf$Variable(tf$random$normal(shape(1L)), name = 'mono_sd')
+#		self$fragment_size_index <- tf$constant(seq(0, 1, length.out = feature_dim), shape = c(1L, feature_dim))
+
+#		self$mono_mean <- tf$Variable(tf$random$normal(shape(1L)), name = 'mono_mean')
+#		self$mono_sd <- tf$Variable(tf$random$normal(shape(1L)), name = 'mono_sd')
 
 		function(x, mask = NULL){
 
 			probs <- x %>% self$dense_1()
+			mono_weight <- x %>% self$dense_2()
+			nfr_weight <- x %>% self$dense_3()
 
-			mono <- tf$exp(-tf$square(self$fragment_size_index - self$mono_mean) / tf$exp(self$mono_sd))
+#			mono <- x %>% self$dense_2()
+#			nfr <- x %>% self$dense_3()
+#			mono <- tf$matmul(tf$exp(scale_mono), tf$exp(-tf$square(self$fragment_size_index - self$mono_mean) / tf$exp(self$mono_sd)))
+#			nfr <- tf$matmul(tf$exp(scale_nfr), tf$exp(-tf$exp(self$lambda) * self$fragment_size_index))
 
-			nfr <- tf$exp(-tf$exp(self$lambda) * self$fragment_size_index)
-
-			y <- tf$matmul(probs,  tf$stack(list(mono, nfr), axis = 1L), transpose_b = TRUE)
+			y <- probs[, 1] %>% tf$expand_dims(1L) * tf$exp(-tf$exp(mono_weight + self$mono)) + probs[, 2] %>% tf$expand_dims(1L) * tf$exp(-tf$exp(nfr_weight + self$nfr))
 
 			tfd_independent(
 				tfd_bernoulli(probs = y),

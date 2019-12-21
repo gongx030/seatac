@@ -2,14 +2,20 @@
 #'
 fit <- function(model, ...){
 
-	if (model$input == 'fragment_size_position' && model$output == 'fragment_size_position' && !model$imputation){
+	if (model$input == 'fragment_size_position' && model$output == 'fragment_size_position' && !model$imputation && is.null(model$regularizer)){
+
 		fit_fragment_size_position_input_fragment_size_position_output(model, ...)
-	}else if (model$input == 'fragment_size_position' && model$output == 'fragment_size_position' && model$imputation){
+
+	}else if (model$input == 'fragment_size_position' && model$output == 'fragment_size_position' && model$imputation && is.null(model$regularizer)){
+
 		fit_fragment_size_position_input_fragment_size_position_output_with_imputation(model, ...)
-	}else if (model$input == 'fragment_size' && model$output == 'vplot_parametric' && !model$imputation){
+
+	}else if (model$input == 'fragment_size' && model$output == 'vplot_parametric' && !model$imputation && is.null(model$regularizer)){
 		fit_fragment_size_input_vplot_parametric_output(model, ...)
-	}else if (model$input == 'fragment_size' && model$output == 'fragment_size' && !model$imputation){
+	}else if (model$input == 'fragment_size' && model$output == 'fragment_size' && !model$imputation && is.null(model$regularizer)){
 		fit_fragment_size(model, ...)
+	}else if (model$input == 'fragment_size_position' && model$output == 'fragment_size_position' && model$regularizer$name == 'kmeans'){
+		fit_fragment_size_position_kmeans(model, ...)
 	}else
 		stop('unknown model input/output')
 
@@ -1042,6 +1048,7 @@ fit_fragment_size_position_input_fragment_size_position_output <- function(model
 				kl_div <- tf$reduce_mean(kl_div)
 
 				loss <- kl_div + avg_nll_fragment_size + avg_nll_position
+
 			})
 
 			total_loss <- total_loss + loss
@@ -1063,11 +1070,9 @@ fit_fragment_size_position_input_fragment_size_position_output <- function(model
 				optimizer$apply_gradients(purrr::transpose(list(prior_gradients, model$prior$trainable_variables)))
 			}
 
-		}
+			print(model$decoder$trainable_variables)
 
-#		gr2 <- model %>% predict(gr)
-#		smoothScatter(gr2$latent, main = epoch)
-#		model$prior(NULL)$components_distribution$mean() %>% as.matrix() %>% points(pch =21, bg = 'red')
+		}
 
 		flog.info(sprintf('training | epoch=%4.d/%4.d | nll(fragment_size)=%7.1f | nll(position)=%7.1f | kl=%7.1f | total=%7.1f', epoch, epochs, avg_nll_fragment_size, avg_nll_position, total_loss_kl, total_loss))
 	}
@@ -1346,3 +1351,126 @@ fit_fragment_size <- function(model, gr, learning_rate = 0.001, batch_size = 128
 	model$data <- gr
 	model
 } # fit_fragment_size
+
+
+
+#' fit_fragment_size_position_kmeans
+#'
+fit_fragment_size_position_kmeans <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs = 50, steps_per_epoch = 10){
+
+	flog.info(sprintf('batch size(batch_size): %d', batch_size))
+	flog.info(sprintf('steps per epoch(steps_per_epoch): %d', steps_per_epoch))
+
+	window_size <- metadata(gr)$window_size
+	window_dim <- length(gr)	# number of samples
+
+	optimizer <- tf$keras$optimizers$Adam(learning_rate)
+	flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
+	flog.info(sprintf('trainable prior: %s', model$trainable_prior))
+
+	if (length(model$prior$trainable_variables) > 0)
+		trainable_prior <- TRUE
+	else
+		trainable_prior <- FALSE
+
+	for (epoch in seq_len(epochs)) {
+
+		total_loss <- 0
+		total_loss_nll_fragment_size <- 0
+		total_loss_nll_position <- 0
+		total_loss_kl <- 0
+		total_loss_reg <- 0
+
+		for (s in 1:steps_per_epoch){
+
+			b <- sample.int(window_dim, batch_size)
+
+			fragment_size <- mcols(gr[b])$fragment_size %>% 
+				as.matrix() %>%
+				tf$cast(tf$float32)
+
+			position <- mcols(gr[b])$position %>% 
+				as.matrix() %>%
+				tf$cast(tf$float32)
+
+			with(tf$GradientTape(persistent = TRUE) %as% tape, {
+
+				h <- list(fragment_size, position) %>% model$encoder()
+
+				posterior <- h[[1]]	# the first is always the latent distributioj
+
+				posterior_sample <- posterior$sample()
+
+				likelihood  <- posterior_sample %>% model$decoder()
+
+				nll_fragment_size <- -likelihood[[1]]$log_prob(fragment_size)
+				nll_position <- -likelihood[[2]]$log_prob(position)
+
+				avg_nll_fragment_size <- tf$reduce_mean(nll_fragment_size)
+				avg_nll_position <- tf$reduce_mean(nll_position)
+
+				kl_div <- posterior$log_prob(posterior_sample) - model$prior(NULL)$log_prob(posterior_sample)
+
+				kl_div <- tf$reduce_mean(kl_div)
+
+				loss <- kl_div + avg_nll_fragment_size + avg_nll_position
+
+				if (!is.null(model$regularizer)){
+
+					if (model$regularizer$name == 'kmeans'){
+						z <- posterior$mean()
+						reg_loss <- list(z, h[['mixture']]) %>% model$regularizer()
+					}
+
+					loss <- loss + reg_loss
+
+				}
+
+			})
+
+			total_loss <- total_loss + loss
+			total_loss_nll_fragment_size <- total_loss_nll_fragment_size + avg_nll_fragment_size
+			total_loss_nll_position <- total_loss_nll_position + avg_nll_position
+			total_loss_kl <- total_loss_kl + kl_div
+
+			if (!is.null(model$regularizer)){
+				total_loss_reg <- total_loss_reg + reg_loss
+			}
+
+			encoder_gradients <- tape$gradient(loss, model$encoder$trainable_variables)
+			decoder_gradients <- tape$gradient(loss, model$decoder$trainable_variables)
+
+			if (trainable_prior){
+				prior_gradients <- tape$gradient(loss, model$prior$trainable_variables)
+			}
+
+			if (!is.null(model$regularizer)){
+				regularizer_gradients <- tape$gradient(loss, model$regularizer$trainable_variables)
+			}
+
+			optimizer$apply_gradients(purrr::transpose(list(encoder_gradients, model$encoder$trainable_variables)))
+			optimizer$apply_gradients(purrr::transpose(list(decoder_gradients, model$decoder$trainable_variables)))
+
+			if (trainable_prior){
+				optimizer$apply_gradients(purrr::transpose(list(prior_gradients, model$prior$trainable_variables)))
+			}
+
+			if (!is.null(model$regularizer)){
+				optimizer$apply_gradients(purrr::transpose(list(regularizer_gradients, model$regularizer$trainable_variables)))
+			}
+
+		}
+
+		gr2 <- model %>% predict(gr)
+		smoothScatter(gr2$latent, main = epoch)
+#		model$prior(NULL)$components_distribution$mean() %>% as.matrix() %>% points(pch =21, bg = 'red')
+#		model$0(NULL)$components_distribution$mean() %>% as.matrix() %>% points(pch =21, bg = 'red')
+		model$regularizer$trainable_variables[[1]][, ] %>% as.matrix() %>% points(pch = 21, bg = 'red')
+
+		flog.info(sprintf('training | epoch=%4.d/%4.d | nll(fragment_size)=%7.1f | nll(position)=%7.1f | kl=%7.1f | reg=%7.1f | total=%7.1f', epoch, epochs, avg_nll_fragment_size, avg_nll_position, total_loss_kl, total_loss_reg, total_loss))
+	}
+
+	model$data <- gr
+	model
+
+} # fit_fragment_size_position_kmeans
