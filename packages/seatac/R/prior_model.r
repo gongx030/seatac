@@ -17,9 +17,7 @@ prior_model_gmm <- function(latent_dim, n_components = 5, name = NULL){
 	keras_model_custom(name = name, function(self) {
 
 		self$loc <- tf$Variable(tf$random$normal(shape(n_components, latent_dim)))
-
 		self$raw_scale_diag <- tf$Variable(tf$random$normal(shape(n_components, latent_dim)))
-
 		self$mixture_logits <- tf$Variable(tf$random$normal(shape(n_components)))
 
 		function (x, mask = NULL) {
