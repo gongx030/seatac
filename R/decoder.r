@@ -6,9 +6,6 @@
 #' @param filters the filter sizes of each deconv layer
 #' @param kernel_size the kernel size of each deconv layer.  The feature and input spaces shared the same kernel size. 
 #'
-
-#' decoder_model_vae_baseline_conv
-#'
 decoder_model_vae_baseline_conv <- function(
 	input_dim, 
 	feature_dim, 
@@ -67,9 +64,11 @@ decoder_model_vae_baseline_conv <- function(
 				self$bn_2() %>%
 				self$deconv_3()
 
-			tfd_independent(
-				tfd_bernoulli(logits = y), 
-				reinterpreted_batch_ndims = 3L
+			list(
+				vplot = tfd_independent(
+					tfd_poisson(log_rate = y), 
+					reinterpreted_batch_ndims = 3L
+				)
 			)
 		}
 	})

@@ -7,7 +7,6 @@ encoder_model_vae_baseline <- function(
 	kernel_size = c(3L, 3L, 3L), 
 	input_strides = c(2L, 2L, 2L), 
 	feature_strides = c(2L, 2L, 1L), 
-	hidden_dim = 8L,
 	name = NULL
 ){
 
