@@ -25,7 +25,6 @@ NULL
 #'
 seatac <- function(
 	x,			# GenomicRanges object
-	type = 'vae',
 	latent_dim = 2L, 
 	hidden_dim = 8L,
 	epochs = 50,
@@ -47,10 +46,7 @@ seatac <- function(
 	input_dim <- metadata(x)$n_bins_per_window
 	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
 
-	flog.info(sprintf('model: %s', type))
-
 	model <- build_model(
-		type = type,
 		input_dim = input_dim, 
 		feature_dim = feature_dim, 
 		latent_dim = latent_dim, 
