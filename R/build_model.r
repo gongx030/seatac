@@ -5,6 +5,7 @@ build_model <- function(type = 'vae_baseline', input_dim, feature_dim, latent_di
 	if(type == 'vae_baseline'){
 
 		structure(list(
+			type = type,
 			encoder = encoder_model_vae_baseline(latent_dim, window_size),
 			decoder = decoder_model_vae_baseline_conv(input_dim, feature_dim),
 			prior = prior_model(latent_dim),

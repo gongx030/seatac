@@ -12,7 +12,7 @@ save_model <- function(x, dir){
 }
 
 #'
-save_model.cvae <- function(x, dir){
+save_model.vae_baseline <- function(x, dir){
 
 	encoder_file <- sprintf('%s/encoder.h5', dir)
 	flog.info(sprintf('writing %s', encoder_file))
@@ -24,14 +24,14 @@ save_model.cvae <- function(x, dir){
 	x$decoder$save_weights(decoder_file)
 	x$decoder_weight_file <- decoder_file
 
-	latent_prior_file <- sprintf('%s/latent_prior_model.h5', dir)
-	flog.info(sprintf('writing %s', latent_prior_file))
-	x$latent_prior_model$save_weights(latent_prior_file)
-	x$latent_prior_weight_file <- latent_prior_file
+	prior_file <- sprintf('%s/prior.h5', dir)
+	flog.info(sprintf('writing %s', prior_file))
+	x$prior$save_weights(prior_file)
+	x$prior_weight_file <- prior_file
 
 	x$encoder <- NULL
 	x$decoder <- NULL
-	x$latent_prior_model <- NULL
+	x$prior <- NULL
 
 	model_file <- sprintf('%s/model.rds', dir)
 	flog.info(sprintf('writing %s', model_file))

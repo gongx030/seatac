@@ -26,10 +26,10 @@ NULL
 seatac <- function(
 	x,			# GenomicRanges object
 	latent_dim = 2L, 
-	hidden_dim = 8L,
 	epochs = 50,
 	batch_size = 128,
 	steps_per_epoch = 50,
+	type = 'vae_baseline',
 	...
 ){
 
@@ -47,6 +47,7 @@ seatac <- function(
 	flog.info(sprintf('# bins per window(input_dim): %d', input_dim))
 
 	model <- build_model(
+		type = type,
 		input_dim = input_dim, 
 		feature_dim = feature_dim, 
 		latent_dim = latent_dim, 
