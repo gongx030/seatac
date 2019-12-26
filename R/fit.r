@@ -44,8 +44,7 @@ fit_vae_vplot <- function(model, gr, learning_rate = 0.001, batch_size = 128, ep
 
 				posterior_sample <- posterior$sample()
 
-				h <- posterior_sample %>% model$decoder()
-				likelihood <- h[['vplot']]
+				likelihood <- posterior_sample %>% model$decoder()
 
 				nll <- -likelihood$log_prob(x)
 				avg_nll <- tf$reduce_mean(nll)

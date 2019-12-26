@@ -64,11 +64,9 @@ decoder_model_vae_baseline_conv <- function(
 				self$bn_2() %>%
 				self$deconv_3()
 
-			list(
-				vplot = tfd_independent(
-					tfd_poisson(log_rate = y), 
-					reinterpreted_batch_ndims = 3L
-				)
+			tfd_independent(
+				tfd_poisson(log_rate = y), 
+				reinterpreted_batch_ndims = 3L
 			)
 		}
 	})

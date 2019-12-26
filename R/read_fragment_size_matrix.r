@@ -42,16 +42,6 @@ read_fragment_size_matrix <- function(
 	gr <- rep(windows, num_samples)
 	mcols(gr)$group <- rep(1:num_samples, each = length(windows))
 
-#	mcols(gr)$coverage <- do.call('rbind', lapply(1:num_samples, function(i){
-#		cvg <- coverage(x[mcols(x)$group == i])
-#		as(as(cvg[windows], 'RleViews'), 'matrix')
-#	}))
-#	mcols(gr)$min_coverage <- rowMins(mcols(gr)$coverage)
-#	mcols(gr)$max_coverage <- rowMaxs(mcols(gr)$coverage)
-#	mcols(gr)$mean_coverage <- rowMeans(mcols(gr)$coverage)
-#	mcols(gr)$coverage <- (mcols(gr)$coverage - mcols(gr)$min_coverage) / (mcols(gr)$max_coverage - mcols(gr)$min_coverage)
-#	mcols(gr)$coverage[is.na(mcols(gr)$coverage)] <- 0
-
 	# compute the center point between PE reads
 	# this is faster than using GAlignmentPairs
 	x <- x[strand(x) == '+']
@@ -74,9 +64,6 @@ read_fragment_size_matrix <- function(
     BC <- as.matrix(findOverlaps(bins, xi))	# bins ~ read center
     BC <- as(sparseMatrix(BC[, 1], BC[, 2], dims = c(length(bins), length(xi))), 'dgCMatrix') # bins ~ read center
     BF <- BC %*% CF  # bins ~ fragment size
-#		BF <- summary(BF)[, 1:2]
-#		BF <- sparseMatrix(i = BF[, 1], j = BF[, 2], dims = c(nrow(BC), ncol(CF)))
-#		BF <- as(BF, 'dgCMatrix')
     BF <- as.matrix(BF[wb[, 2], ])
     dim(BF) <- c(n_bins_per_window, length(windows), n_intervals)	# convert BF into an array with n_bins_per_window ~ batch_size ~ n_intervals
     BF <- aperm(BF, c(2, 1, 3)) # batch_size, n_bins_per_window ~ n_intervals
@@ -101,23 +88,6 @@ read_fragment_size_matrix <- function(
   metadata(gr)$n_bins_per_window <- n_bins_per_window 
   metadata(gr)$breaks <- breaks
   metadata(gr)$centers <- centers
-
-	flog.info('computing fragment size vectors')
-	H <- metadata(gr)$n_intervals * metadata(gr)$n_bins_per_window
-	A <- sparseMatrix(i = 1:H, j = rep(1:metadata(gr)$n_bins_per_window, each = metadata(gr)$n_intervals), dims = c(H, metadata(gr)$n_bins_per_window))
-	fragment_size <- mcols(gr)$counts %*% A %>% as.matrix()
-	mcols(gr)$fragment_size <- (fragment_size - rowMins(fragment_size)) / (rowMaxs(fragment_size) - rowMins(fragment_size))
-	mcols(gr)$fragment_size[is.na(mcols(gr)$fragment_size)] <- 0
-	mcols(gr)$fragment_size <- mcols(gr)$fragment_size %>% as('dgCMatrix')
-
-	flog.info('computing position vectors')
-	A <- sparseMatrix(i = 1:H, j = rep(1:metadata(gr)$n_intervals, metadata(gr)$n_bins_per_window), dims = c(H, metadata(gr)$n_bins_per_window))
-	position <- mcols(gr)$counts %*% A %>% as.matrix()
-	mcols(gr)$position <- (position - rowMins(position)) / (rowMaxs(position) - rowMins(position))
-	mcols(gr)$position[is.na(mcols(gr)$position)] <- 0
-	mcols(gr)$position <- mcols(gr)$position %>% as('dgCMatrix')
-
-	browser()
 
 	gr
 
