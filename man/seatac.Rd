@@ -4,8 +4,15 @@
 \alias{seatac}
 \title{seatac}
 \usage{
-seatac(x, latent_dim = 2L, epochs = 50, batch_size = 128,
-  steps_per_epoch = 50, type = "vae_baseline", ...)
+seatac(
+  x,
+  latent_dim = 2L,
+  epochs = 50,
+  batch_size = 128,
+  steps_per_epoch = 50,
+  type = "vae_baseline",
+  ...
+)
 }
 \description{
 seatac

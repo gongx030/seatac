@@ -5,7 +5,7 @@ fit.vae_baseline <- function(model, ...) fit_vae_vplot(model, ...)
 
 #' fit_vae_vplot
 #'
-fit_vae_vplot <- function(model, gr, learning_rate = 0.001, batch_size = 128, epochs = 50, steps_per_epoch = 10){
+fit_vae_vplot <- function(model, gr, learning_rate = 1e-3, batch_size = 128, epochs = 50, steps_per_epoch = 10){
 
 	flog.info(sprintf('batch size(batch_size): %d', batch_size))
 	flog.info(sprintf('steps per epoch(steps_per_epoch): %d', steps_per_epoch))

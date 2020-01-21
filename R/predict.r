@@ -26,7 +26,7 @@ predict.vae_baseline <- function(model, gr, batch_size = 128){
 	for (b in 1:n_batch){
 
 		if (b %% 10 == 0)
-			flog.info(sprintf('predicting | batch=%4.d/%4.d', b, n_batch))
+			flog.info(sprintf('predicting | batch=%5.d/%5.d', b, n_batch))
 		
 		i <- starts[b]:ends[b]
 

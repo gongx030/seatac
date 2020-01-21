@@ -32,7 +32,7 @@ prepare_windows <- function(
 			blacklist <- read.table(gzfile(blacklist_file), sep = '\t')
 			blacklist <- GRanges(seqnames = blacklist[, 1], range = IRanges(blacklist[, 2], blacklist[, 3]))
 			i <- x %over% blacklist
-			flog.info(sprintf('removing %d x overlaping with the blacklist', sum(i)))
+			flog.info(sprintf('removing %d overlaping with the blacklist', sum(i)))
 			x <- x[!i]
 		}
 	}
