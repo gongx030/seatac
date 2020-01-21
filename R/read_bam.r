@@ -5,8 +5,7 @@
 read_bam <- function(
 	filenames, 
 	peaks, 
-	genome, 
-	expand = 5000
+	genome
 ){
 
 	validate_bam(filenames)
@@ -21,28 +20,28 @@ read_bam <- function(
   seqlengths(seqinfo(gr)) <- width(gr)
   genome(seqinfo(gr)) <- providerVersion(genome)
 
-	# set the seqlevels and seqlengths from BAM files to "which"
-  seqlevels(peaks, pruning.mode = 'coarse') <- seqlevels(gr)
-  seqlevels(gr, pruning.mode = 'coarse') <- seqlevels(peaks)
-  seqlengths(seqinfo(peaks)) <-  seqlengths(seqinfo(gr))
-  genome(seqinfo(peaks)) <-  genome(seqinfo(gr))
-
-	flog.info(sprintf('expanding each peak to [-%d, +%d] region', expand / 2, expand / 2))
-	windows <- resize(peaks, fix = 'center', width = expand)	# expand the input peaks
-
   flag <- scanBamFlag(
     isSecondaryAlignment = FALSE,
     isUnmappedQuery = FALSE,
     isNotPassingQualityControls = FALSE,
     isProperPair = TRUE
   )
-  param <- ScanBamParam(which = reduce(windows), flag = flag, what = 'isize')
 
-	# Read the PE reads overlapping with specified windows
+	if (!missing(peaks)){
+		# set the seqlevels and seqlengths from BAM files to "which"
+ 		seqlevels(peaks, pruning.mode = 'coarse') <- seqlevels(gr)
+	  seqlevels(gr, pruning.mode = 'coarse') <- seqlevels(peaks)
+	  seqlengths(seqinfo(peaks)) <-  seqlengths(seqinfo(gr))
+	  genome(seqinfo(peaks)) <-  genome(seqinfo(gr))
+  	param <- ScanBamParam(which = reduce(peaks), flag = flag, what = 'isize')
+	}else{
+  	param <- ScanBamParam(flag = flag, what = 'isize')
+	}
+
+	# Read the PE reads 
   x <- Reduce('c', lapply(1:num_samples, function(i){
     flog.info(sprintf('reading %s', filenames[i]))
     ga <- readGAlignments(filenames[i], param = param)
-		mcols(ga)$group <- i
 		ga
 	}))
 	metadata(x)$num_samples <- num_samples
