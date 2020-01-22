@@ -12,8 +12,6 @@ read_fragment_size_profile <- function(
 	max_isize = 1500
 ){
 
-	breaks <- fragment_size_range[1]:fragment_size_range[2]
-
 	# compute the center point between PE reads
 	# this is faster than using GAlignmentPairs
 	x <- x[strand(x) == '+']
