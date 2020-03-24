@@ -18,8 +18,6 @@ setMethod(
 
 		validate_bam(filenames)
 
- 		num_samples <- length(filenames)
-
 	  # genomic ranges covered by the BAM files
  	 	gr <- Reduce('intersect', lapply(filenames, function(f){
 	    x <- idxstatsBam(f)
@@ -48,7 +46,6 @@ setMethod(
 	    ga <- readGAlignments(filenames[i], param = param)
 			ga
 		}))
-		metadata(x)$num_samples <- num_samples
 		x
 	}
 ) # read_bam
@@ -64,8 +61,6 @@ setMethod(
 	function(filenames, peaks, genome, ...){
 
 		validate_bam(filenames)
-
- 		num_samples <- length(filenames)
 
 	  # genomic ranges covered by the BAM files
  	 	gr <- Reduce('intersect', lapply(filenames, function(f){
@@ -90,7 +85,6 @@ setMethod(
 	    ga <- readGAlignments(filenames[i], param = param)
 			ga
 		}))
-		metadata(x)$num_samples <- num_samples
 		x
 	}
 ) # read_bam

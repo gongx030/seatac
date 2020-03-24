@@ -3,6 +3,7 @@
 export(read_fragment_size_matrix)
 export(read_fragment_size_profile)
 export(seatac)
+exportMethods(read_vplot)
 import(FNN)
 import(Matrix)
 import(SummarizedExperiment)
