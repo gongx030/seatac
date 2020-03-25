@@ -14,7 +14,6 @@
 #' @importFrom gplots colorpanel
 #' @importFrom abind abind
 #' @importFrom reticulate array_reshape
-#' @import FNN
 NULL
 
 #' seatac 
