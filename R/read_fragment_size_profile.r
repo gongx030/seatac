@@ -1,6 +1,6 @@
-setGeneric('read_fragment_size_profile', function(x, ga, ...) standardGeneric('read_fragment_size_profile'))
+setGeneric('get_fragment_size_profile', function(x, ga, ...) standardGeneric('get_fragment_size_profile'))
 
-#' read_fragment_size_profile
+#' get_fragment_size_profile
 #'
 #' @param x a GRange object that define a set of genomic regions.
 #' @param ga  a GAlignments object.
@@ -10,7 +10,7 @@ setGeneric('read_fragment_size_profile', function(x, ga, ...) standardGeneric('r
 #'
 
 setMethod(
-	'read_fragment_size_profile',
+	'get_fragment_size_profile',
 	signature(
 		x = 'GRanges',
 		ga = 'GAlignments'
@@ -33,5 +33,5 @@ setMethod(
 		mcols(x)$fragment_size_profile <- WR %*% RF # window ~ fragment size
 		x
 	}
-) # read_fragment_size_profile
+) # get_fragment_size_profile
 

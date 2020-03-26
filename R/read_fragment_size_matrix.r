@@ -1,24 +1,23 @@
-#' read_fragment_size_matrix
+#' get_fragment_size_matrix
 #'
 #' @param x a GAlignments object.
 #' @param windows a GRange object that define a set of genomic regions.
-#' @param window_size The size of each genomic window for training the model.
 #' @param bin_size The bin size
 #' @param fragment_size_range fragment_size_range
 #' @param fragment_size_interval fragment_size_interval
 #'
 #' @export
 #'
-read_fragment_size_matrix <- function(
+get_fragment_size_matrix <- function(
 	x, 
 	windows, 
-	window_size = 320,
 	bin_size = 5,
 	fragment_size_range = c(50, 690), 
 	fragment_size_interval = 10
 ){
 
-	windows <- resize(windows, fix = 'center', width = window_size)
+
+	browser()
 
   num_samples <- metadata(x)$num_samples
 
@@ -91,5 +90,5 @@ read_fragment_size_matrix <- function(
 
 	gr
 
-} # read_fragment_size_matrix
+} # get_fragment_size_matrix
 
