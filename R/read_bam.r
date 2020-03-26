@@ -41,11 +41,11 @@ setMethod(
  		param <- ScanBamParam(which = reduce(peaks), flag = flag, what = 'isize')
 
 		# Read the PE reads 
-	  x <- Reduce('c', lapply(seq_len(length(filenames)), function(i){
+	  x <- lapply(seq_len(length(filenames)), function(i){
  	  	flog.info(sprintf('reading %s', filenames[i]))
-	    ga <- readGAlignments(filenames[i], param = param)
-			ga
-		}))
+	    readGAlignments(filenames[i], param = param)
+		}) %>% 
+			GAlignmentsList()
 		x
 	}
 ) # read_bam
@@ -60,15 +60,22 @@ setMethod(
 	), 
 	function(filenames, peaks, genome, ...){
 
-		validate_bam(filenames)
+		read_bam(filenames)
 
-	  # genomic ranges covered by the BAM files
- 	 	gr <- Reduce('intersect', lapply(filenames, function(f){
-	    x <- idxstatsBam(f)
-			GRanges(seqnames = x[, 'seqnames'], range = IRanges(1, x[, 'seqlength']))
- 	  }))
-		seqlengths(seqinfo(gr)) <- width(gr)
-	  genome(seqinfo(gr)) <- providerVersion(genome)
+	}
+) # read_bam
+
+
+setMethod(
+	'read_bam',
+	signature(
+		filenames = 'character',
+		peaks = 'missing',
+		genome = 'missing'
+	), 
+	function(filenames, peaks, genome, ...){
+
+		validate_bam(filenames)
 
 	  flag <- scanBamFlag(
  	  	isSecondaryAlignment = FALSE,
@@ -80,11 +87,11 @@ setMethod(
  		param <- ScanBamParam(flag = flag, what = 'isize')
 
 		# Read the PE reads 
-	  x <- Reduce('c', lapply(seq_len(length(filenames)), function(i){
+	  x <- lapply(seq_len(length(filenames)), function(i){
  	  	flog.info(sprintf('reading %s', filenames[i]))
-	    ga <- readGAlignments(filenames[i], param = param)
-			ga
-		}))
+	    readGAlignments(filenames[i], param = param)
+		}) %>% 
+			GAlignmentsList()
 		x
 	}
 ) # read_bam

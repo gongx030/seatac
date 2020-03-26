@@ -1,5 +1,3 @@
-#' seatac
-#'
 #' @import Matrix
 #' @import SummarizedExperiment
 #' @importFrom matrixStats rowSds rowVars rowMedians rowMins rowMaxs
@@ -11,4 +9,3 @@
 #' @importFrom gplots colorpanel
 #' @importFrom abind abind
 NULL
-
