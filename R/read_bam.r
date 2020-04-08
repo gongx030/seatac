@@ -46,6 +46,7 @@ setMethod(
 	    readGAlignments(filenames[i], param = param)
 		}) %>% 
 			GAlignmentsList()
+		names(x) <- names(filenames)
 		x
 	}
 ) # read_bam
@@ -92,6 +93,7 @@ setMethod(
 	    readGAlignments(filenames[i], param = param)
 		}) %>% 
 			GAlignmentsList()
+		names(x) <- names(filenames)
 		x
 	}
 ) # read_bam

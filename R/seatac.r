@@ -8,4 +8,6 @@
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments
 #' @importFrom gplots colorpanel
 #' @importFrom abind abind
+#' @importFrom fields image.smooth 
+#' @importFrom purrr pluck
 NULL

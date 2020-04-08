@@ -8,9 +8,9 @@ setMethod(
 	'get_motif_vplot',
 	signature(
 		x = 'GRanges',
-		motifs = 'GRangesList'
+		motifs = 'GRanges'
 	),
-	function(x, motifs, width = 320){
+	function(x, motifs, width = 320, ...){
 
 		window_size <- width(x)
 
@@ -20,11 +20,6 @@ setMethod(
 		window_size <- window_size[1]
 
 		n_bins_per_motif <- width / metadata(x)$bin_size
-
-		n <- sapply(motifs, length)
-		motif_names <- names(motifs)
-		motifs <- Reduce('c', motifs)
-		motifs$tf_name <- factor(rep(motif_names, n), motif_names)
 
 		bins <- x %>%
 			slidingWindows(width = metadata(x)$bin_size, step = metadata(x)$bin_size) %>%
@@ -42,17 +37,20 @@ setMethod(
 		MB[, 2] <- MB[, 2] + offsets
 
 		BF <- as.matrix(x$counts) 
-		dim(BF) <- c(length(x), metadata(x)$n_bins_per_window, metadata(x)$n_intervals)	# batch size ~ bins per window ~ intervals
-		BF <- aperm(BF, c(2, 1, 3))	# n_bins_per_window ~ batch size ~ n_intervals
-		dim(BF) <- c(length(x) * metadata(x)$n_bins_per_window, metadata(x)$n_intervals)
+		dim(BF) <- c(length(x), metadata(x)$n_bins_per_window, metadata(x)$n_intervals, metadata(x)$n_samples)	# batch size ~ bins per window ~ intervals ~ samples
 
-		BF <- BF[MB[, 2], ]	# length(motifs) * n_bins_per_motif ~ n_intervals
-		dim(BF) <- c(n_bins_per_motif, length(motifs), metadata(x)$n_intervals)
-		BF <- aperm(BF, c(2, 1, 3))	# n_bins_per_motif ~ length(motifs) ~ n_intervals
+		BF <- aperm(BF, c(2, 1, 3, 4))	# n_bins_per_window ~ batch size ~ n_intervals
+		dim(BF) <- c(length(x) * metadata(x)$n_bins_per_window, metadata(x)$n_intervals, metadata(x)$n_samples)
 
-		dim(BF) <- c(length(motifs), n_bins_per_motif * metadata(x)$n_intervals)
+		BF <- BF[MB[, 2], , ]	# length(motifs) * n_bins_per_motif ~ n_intervals ~ n_samples
+		dim(BF) <- c(n_bins_per_motif, length(motifs), metadata(x)$n_intervals, metadata(x)$n_samples)
+		BF <- aperm(BF, c(2, 1, 3, 4))	# length(motifs) ~ n_bins_per_motif ~ n_intervals ~ n_samples
+
+		dim(BF) <- c(length(motifs), n_bins_per_motif * metadata(x)$n_intervals * metadata(x)$n_samples)
 		motifs$counts <- as(BF, 'dgCMatrix')
 
+		metadata(motifs)$n_samples <- metadata(x)$n_samples
+		metadata(motifs)$samples <- metadata(x)$samples
 		metadata(motifs)$fragment_size_range  <- metadata(x)$fragment_size_range
 		metadata(motifs)$fragment_size_interval <- metadata(x)$fragment_size_interval
 		metadata(motifs)$bin_size <- metadata(x)$bin_size
@@ -61,6 +59,8 @@ setMethod(
 		metadata(motifs)$n_bins_per_window <- n_bins_per_motif
 		metadata(motifs)$breaks <- metadata(x)$breaks
 		metadata(motifs)$centers <- metadata(x)$centers
+		metadata(motifs)$n_motifs <- nlevels(motifs$tf_name)
+		metadata(motifs)$motifs <- levels(motifs$tf_name)
 
 		motifs
 
@@ -75,14 +75,18 @@ setMethod(
 setMethod(
 	'get_motif_vplot',
 	signature(
-		x = 'GRangesList',
+		x = 'GRanges',
 		motifs = 'GRangesList'
 	),
-	function(x, motifs, ...){
+	function(x, motifs, width = 320, ...){
 
-		lapply(x, function(xx) get_motif_vplot(xx, motifs, ...)) %>%
-			GRangesList()
+		n <- sapply(motifs, length)
+		motif_names <- names(motifs)
+		motifs <- Reduce('c', motifs)
+		motifs$tf_name <- factor(rep(motif_names, n), motif_names)
+		motifs <- resize(motifs, width = width,  fix = 'center')
+
+		get_motif_vplot(x, motifs, width, ...)
 	}
 )
-
 

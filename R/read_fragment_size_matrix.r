@@ -14,7 +14,7 @@ setMethod(
 	'get_vplot',
 	signature(
 		x = 'GRanges',
-		ga = 'GAlignments'
+		ga = 'GAlignmentsList'
 	), 
 	function(
 		x, 
@@ -46,26 +46,33 @@ setMethod(
 
 		# compute the center point between PE reads
 		# this is faster than using GAlignmentPairs
-		ga <- ga[strand(ga) == '+']
-		ga <- GRanges(
-			seqnames = seqnames(ga), 
-			range = IRanges(start(ga) + round(mcols(ga)$isize / 2), width = 1), 
-			isize = mcols(ga)$isize
-		)
 
-		ga$fragment_size <- as.numeric(cut(ga$isize, breaks))	# discretize the fragment size
-		ga <- ga[!is.na(ga$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
+		mcols(x)$counts <- do.call('cbind', lapply(ga, function(g){	
+		
+			g <- g[strand(g) == '+']
+			g <- GRanges(
+				seqnames = seqnames(g), 
+				range = IRanges(start(g) + round(mcols(g)$isize / 2), width = 1), 
+				isize = mcols(g)$isize
+			)
 
-		CF <- sparseMatrix(i = 1:length(ga), j = ga$fragment_size, dims = c(length(ga), n_intervals))  # read center ~ fragment size
-		BC <- as.matrix(findOverlaps(bins, ga))	# bins ~ read center
-		BC <- as(sparseMatrix(BC[, 1], BC[, 2], dims = c(length(bins), length(ga))), 'dgCMatrix') # bins ~ read center
-		BF <- BC %*% CF  # bins ~ fragment size
-		BF <- as.matrix(BF[wb[, 2], ])
-		dim(BF) <- c(n_bins_per_window, length(x), n_intervals)	# convert BF into an array with n_bins_per_window ~ batch_size ~ n_intervals
-		BF <- aperm(BF, c(2, 1, 3)) # batch_size, n_bins_per_window ~ n_intervals
-		dim(BF) <- c(length(x), n_bins_per_window * n_intervals)
-		mcols(x)$counts <- as(BF, 'dgCMatrix')
+			g$fragment_size <- as.numeric(cut(g$isize, breaks))	# discretize the fragment size
+			g <- g[!is.na(g$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
 
+			CF <- sparseMatrix(i = 1:length(g), j = g$fragment_size, dims = c(length(g), n_intervals))  # read center ~ fragment size
+			BC <- as.matrix(findOverlaps(bins, g))	# bins ~ read center
+			BC <- as(sparseMatrix(BC[, 1], BC[, 2], dims = c(length(bins), length(g))), 'dgCMatrix') # bins ~ read center
+			BF <- BC %*% CF  # bins ~ fragment size
+			BF <- as.matrix(BF[wb[, 2], ])
+			dim(BF) <- c(n_bins_per_window, length(x), n_intervals)	# convert BF into an array with n_bins_per_window ~ batch_size ~ n_intervals
+			BF <- aperm(BF, c(2, 1, 3)) # batch_size, n_bins_per_window ~ n_intervals
+			dim(BF) <- c(length(x), n_bins_per_window * n_intervals)
+			as(BF, 'dgCMatrix')
+
+		}))	# batch_size ~ n_bins_per_window * n_intervals * n_samples
+
+		metadata(x)$n_samples <- length(ga)
+		metadata(x)$samples <- names(ga)
 		metadata(x)$fragment_size_range  <- fragment_size_range
 		metadata(x)$fragment_size_interval <- fragment_size_interval
 		metadata(x)$bin_size <- bin_size
@@ -80,18 +87,3 @@ setMethod(
 
 ) # get_vplot
 
-setMethod(
-	'get_vplot',
-	signature(
-		x = 'GRanges',
-		ga = 'GAlignmentsList'
-	), 
-	function(
-		x, 
-		ga, 
-		...
-	){
-		lapply(ga, function(g) get_vplot(x, g, ...)) %>%
-			GRangesList()
-	}
-)
