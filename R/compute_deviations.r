@@ -142,10 +142,10 @@ smooth_vplot <- function(X){
 	}) %>%
 		unlist() %>%
 		array(dim = c(
-			metadata(x)$n_bins_per_window,
-			metadata(x)$n_intervals,
-			metadata(x)$n_motifs,
-			metadata(x)$n_samples
+			n_bins_per_window,
+			n_intervals,
+			n_motifs,
+			n_samples
     )) %>% 
 		aperm(c(3, 1, 2, 4))
 	Z
