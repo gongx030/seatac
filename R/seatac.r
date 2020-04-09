@@ -1,3 +1,7 @@
+#' seatac: A package for ATAC-seq V-plot analysis
+#'
+#' ATAC-seq V-plot analysis
+#'
 #' @import Matrix
 #' @import SummarizedExperiment
 #' @importFrom matrixStats rowSds rowVars rowMedians rowMins rowMaxs
@@ -10,3 +14,7 @@
 #' @importFrom abind abind
 #' @importFrom fields image.smooth 
 #' @importFrom purrr pluck
+#' @docType package
+#' @name seatac
+#'
+NULL
