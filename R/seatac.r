@@ -10,4 +10,3 @@
 #' @importFrom abind abind
 #' @importFrom fields image.smooth 
 #' @importFrom purrr pluck
-NULL

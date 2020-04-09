@@ -9,8 +9,6 @@ setMethod(
 	function(x, ...){
 
 		Z <- assays(x)$z
-		Z[is.na(Z)] <- 0
-		Z[is.infinite(Z)] <- 0
 		dim(Z) <- c(metadata(x)$n_motifs, metadata(x)$n_bins_per_window,  metadata(x)$n_intervals, metadata(x)$n_samples)
 
 		Z_mean <- rowMeans(Z, dims = 3)
@@ -24,7 +22,7 @@ setMethod(
 			)
 		)
 
-		Z_var <- rowSums((Z - Z_mean)^2, dims = 3) / metadata(x)$n_samples
+		Z_var <- rowSums((Z - Z_mean)^2, dims = 3)
 
 		P <- pchisq(
 			(metadata(x)$n_samples  - 1) * Z_var, 
@@ -35,7 +33,13 @@ setMethod(
 
 		browser()
 
-		-log10(P[n, , ]) %>% image(col = colorpanel(100, low = 'black', high = 'yellow'), breaks = c(seq(0, -log10(1e-3), length.out = 100), 10000))
+		par(mfcol = c(5, 10))
+		h <- apply(P, 1, function(y) any(y < 0.1))
+		lapply(which(h), function(n) -log10(P[n, , ]) %>% image(col = colorpanel(100, low = 'black', high = 'yellow'), breaks = c(seq(0, -log10(1e-5), length.out = 100), 10000), main = metadata(x)$motifs[n]))
+
+
+		lapply(1:5, function(m) Z[n, , , m] %>% image(col = colorpanel(100, low = 'black', high = 'yellow'), main = metadata(x)$motifs[n]))
+		-log10(P[n, , ]) %>% image(col = colorpanel(100, low = 'black', high = 'yellow'), breaks = c(seq(0, -log10(1e-3), length.out = 100), 10000), main = metadata(x)$motifs[n])
 																			                 
 	}
 )

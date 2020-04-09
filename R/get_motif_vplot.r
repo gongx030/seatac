@@ -10,7 +10,7 @@ setMethod(
 		x = 'GRanges',
 		motifs = 'GRanges'
 	),
-	function(x, motifs, width = 320, ...){
+	function(x, motifs, width = 320, min_reads = 20, max_reads = 500, ...){
 
 		window_size <- width(x)
 
@@ -49,6 +49,9 @@ setMethod(
 		dim(BF) <- c(length(motifs), n_bins_per_motif * metadata(x)$n_intervals * metadata(x)$n_samples)
 		motifs$counts <- as(BF, 'dgCMatrix')
 
+		motifs$n_reads <- rowSums(motifs$counts)
+		motifs <- motifs[motifs$n_reads >= min_reads & motifs$n_reads < max_reads] # some region have high number of reads
+
 		metadata(motifs)$n_samples <- metadata(x)$n_samples
 		metadata(motifs)$samples <- metadata(x)$samples
 		metadata(motifs)$fragment_size_range  <- metadata(x)$fragment_size_range
@@ -61,6 +64,7 @@ setMethod(
 		metadata(motifs)$centers <- metadata(x)$centers
 		metadata(motifs)$n_motifs <- nlevels(motifs$tf_name)
 		metadata(motifs)$motifs <- levels(motifs$tf_name)
+		metadata(motifs)$positions <- seq(metadata(motifs)$bin_size, metadata(motifs)$window_size, by = metadata(motifs)$bin_size) - (metadata(motifs)$window_size / 2)
 
 		motifs
 
