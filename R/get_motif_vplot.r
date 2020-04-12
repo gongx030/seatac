@@ -36,10 +36,31 @@ setMethod(
 		offsets <- 1:n_bins_per_motif - round(mean(n_bins_per_motif / 2))
 		MB[, 2] <- MB[, 2] + offsets
 
+		browser()
+		BF <- x$counts %>% as_sparse_array()
+		BF <- BF %>% array_reshape(
+			c(
+				length(x),
+				metadata(x)$n_bins_per_window,
+				metadata(x)$n_intervals,
+				metadata(x)$n_samples
+			)
+		)
+		BF <- BF %>% 
+			array_permute(c(2, 1, 3, 4))# n_bins_per_window ~ batch size ~ n_intervals
+
+		BF <- BF %>% array_reshape(
+			c(
+				length(x) * metadata(x)$n_bins_per_window, 
+				metadata(x)$n_intervals, 
+				metadata(x)$n_samples
+			)
+		)
+
 		BF <- as.matrix(x$counts) 
 		dim(BF) <- c(length(x), metadata(x)$n_bins_per_window, metadata(x)$n_intervals, metadata(x)$n_samples)	# batch size ~ bins per window ~ intervals ~ samples
 
-		BF <- aperm(BF, c(2, 1, 3, 4))	# n_bins_per_window ~ batch size ~ n_intervals
+		BF <- aperm(BF, c(2, 1, 3, 4))	
 		dim(BF) <- c(length(x) * metadata(x)$n_bins_per_window, metadata(x)$n_intervals, metadata(x)$n_samples)
 
 		BF <- BF[MB[, 2], , ]	# length(motifs) * n_bins_per_motif ~ n_intervals ~ n_samples

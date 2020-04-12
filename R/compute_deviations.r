@@ -157,7 +157,7 @@ setMethod(
 
 #' smooth_vplot
 #'
-#' @param X
+#' @param X input array
 #' @return an array with the same dimensions as X
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
