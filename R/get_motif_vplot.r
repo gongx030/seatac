@@ -1,5 +1,3 @@
-setGeneric('get_motif_vplot', function(x, motifs, ...) standardGeneric('get_motif_vplot'))
-
 #' get_motif_vplot
 #'
 #' @export
@@ -8,9 +6,9 @@ setMethod(
 	'get_motif_vplot',
 	signature(
 		x = 'GRanges',
-		motifs = 'GRanges'
+		pwms = 'PWMatrixList'
 	),
-	function(x, motifs, width = 320, min_reads = 20, max_reads = 500, ...){
+	function(x, pwms, width = 320, genome, min_reads = 20, max_reads = 500, ...){
 
 		window_size <- width(x)
 
@@ -18,6 +16,19 @@ setMethod(
 			stop('the window size of input data must be equal')
 
 		window_size <- window_size[1]
+
+		motifs <- matchMotifs(
+			pwms,
+			resize(x, fix = 'center', width = peak_size - width),
+			genome = genome,
+			out = 'positions'
+		)
+
+		n <- sapply(motifs, length)
+		motif_names <- names(motifs)
+		motifs <- Reduce('c', motifs)
+		motifs$tf_name <- factor(rep(motif_names, n), motif_names)
+		motifs <- resize(motifs, width = width,  fix = 'center')
 
 		n_bins_per_motif <- width / metadata(x)$bin_size
 
@@ -36,7 +47,6 @@ setMethod(
 		offsets <- 1:n_bins_per_motif - round(mean(n_bins_per_motif / 2))
 		MB[, 2] <- MB[, 2] + offsets
 
-		browser()
 		BF <- x$counts %>% as_sparse_array()
 		BF <- BF %>% array_reshape(
 			c(
@@ -52,23 +62,39 @@ setMethod(
 		BF <- BF %>% array_reshape(
 			c(
 				length(x) * metadata(x)$n_bins_per_window, 
+				metadata(x)$n_intervals * metadata(x)$n_samples
+			)
+		)
+
+		BF <- sparseMatrix(i = BF@subs[, 1], j = BF@subs[, 2], x = BF@vals, dims = BF@dims)
+
+		BF <- BF[MB[, 2], ] # length(motifs) * n_bins_per_motif ~ n_intervals *  n_samples
+
+		BF <- BF %>% as_sparse_array()
+
+		BF <- BF %>% array_reshape(
+			c(
+				n_bins_per_motif, 
+				length(motifs), 
 				metadata(x)$n_intervals, 
 				metadata(x)$n_samples
 			)
 		)
 
-		BF <- as.matrix(x$counts) 
-		dim(BF) <- c(length(x), metadata(x)$n_bins_per_window, metadata(x)$n_intervals, metadata(x)$n_samples)	# batch size ~ bins per window ~ intervals ~ samples
+		BF <- BF %>% 
+			array_permute(c(2, 1, 3, 4)) # length(motifs) ~ n_bins_per_motif ~ n_intervals ~ n_samples
 
-		BF <- aperm(BF, c(2, 1, 3, 4))	
-		dim(BF) <- c(length(x) * metadata(x)$n_bins_per_window, metadata(x)$n_intervals, metadata(x)$n_samples)
+		BF <- BF %>% array_reshape(
+			c(
+				length(motifs), 
+				n_bins_per_motif * metadata(x)$n_intervals * metadata(x)$n_samples
+			)
+		) # length(motifs) ~ n_bins_per_motif * n_intervals * n_samples
 
-		BF <- BF[MB[, 2], , ]	# length(motifs) * n_bins_per_motif ~ n_intervals ~ n_samples
-		dim(BF) <- c(n_bins_per_motif, length(motifs), metadata(x)$n_intervals, metadata(x)$n_samples)
-		BF <- aperm(BF, c(2, 1, 3, 4))	# length(motifs) ~ n_bins_per_motif ~ n_intervals ~ n_samples
 
-		dim(BF) <- c(length(motifs), n_bins_per_motif * metadata(x)$n_intervals * metadata(x)$n_samples)
-		motifs$counts <- as(BF, 'dgCMatrix')
+		BF <- sparseMatrix(i = BF@subs[, 1], j = BF@subs[, 2], x = BF@vals, dims = BF@dims)
+
+		motifs$counts <- BF
 
 		motifs$n_reads <- rowSums(motifs$counts)
 		motifs <- motifs[motifs$n_reads >= min_reads & motifs$n_reads < max_reads] # some region have high number of reads
@@ -92,26 +118,4 @@ setMethod(
 	}
 ) # get_motif_vplot
 
-
-#' get_motif_vplot
-#'
-#' @export
-#'
-setMethod(
-	'get_motif_vplot',
-	signature(
-		x = 'GRanges',
-		motifs = 'GRangesList'
-	),
-	function(x, motifs, width = 320, ...){
-
-		n <- sapply(motifs, length)
-		motif_names <- names(motifs)
-		motifs <- Reduce('c', motifs)
-		motifs$tf_name <- factor(rep(motif_names, n), motif_names)
-		motifs <- resize(motifs, width = width,  fix = 'center')
-
-		get_motif_vplot(x, motifs, width, ...)
-	}
-)
 

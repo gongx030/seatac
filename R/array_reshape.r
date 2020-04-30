@@ -1,5 +1,3 @@
-setGeneric('array_reshape', function(x, dims, ...) standardGeneric('array_reshape'))
-
 #' array_reshape
 #'
 setMethod(
@@ -33,25 +31,31 @@ setMethod(
 		if (prod(dims) != prod(dim(x)))
 			stop(sprintf('dims [product %d] do not match the length of object [%d]', prod(dims),  prod(dim(x))))
 
+		# first convert the sparse_array into a sparse_vector
 		x <- x %>% as_sparse_vector()
 
-		subs <- do.call('cbind', lapply(1:length(dims), function(i){
-			if (i == 1)
-				s <- rep(1:dims[i], times = prod(dims[-1]), each = 1)
-			else if (i == length(dims))
-				s <- rep(1:dims[i], times = 1, each = prod(dims[-length(dims)]))
-			else
-				s <- rep(1:dims[i], each = prod(dims[1:(i - 1)]), times = prod(dims[(i + 1):length(dims)]))
-			s[x@subs]
-		}))
+		if (length(dims) == 1){
 
-		new(
-			'sparse_array',
-			subs = subs,
-			vals = x@vals,
-			dims = dims,
-			dimnames = dimnames
-		)
+			x <- x %>% as_sparse_array()
+
+		}else{
+
+			subs <- NULL
+			y <- x@subs
+			for (i in 1:(length(dims) - 1)){
+				n <- ((y - 1L) %% dims[i] + 1L)	# make the modulo from 1 to dims[i]. 
+				y <- floor((y - 1L) / prod(dims[i])) + 1L
+				subs <- cbind(subs, n)
+			}
+			subs <- cbind(subs, y)
+
+			new(
+				'sparse_array',
+				subs = subs,
+				vals = x@vals,
+				dims = dims,
+				dimnames = dimnames
+			)
+		}
 	}
 )
-

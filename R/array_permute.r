@@ -1,5 +1,3 @@
-setGeneric('array_permute', function(x, perm, ...) standardGeneric('array_permute'))
-
 #' array_permute 
 #'
 setMethod(

@@ -1,5 +1,9 @@
-setGeneric('as_sparse_array', function(x, ...) standardGeneric('as_sparse_array'))
-
+#' as_sparse_array
+#'
+#' Convert a dgCMatrix object into an sparse_array object
+#'
+#' @param x a dgCMatrix object
+#'
 setMethod(
 	'as_sparse_array',
 	signature(
@@ -16,6 +20,19 @@ setMethod(
 			dims = dim(x),
 			dimnames = dimnames(x)
 		)
+	}
+)
+
+
+#' as_sparse_array
+#'
+setMethod(
+	'array_reshape',
+	signature(
+		x = 'sparse_vector'
+	),
+	function(x, ...){
+		stop('not implemented yet')
 	}
 )
 

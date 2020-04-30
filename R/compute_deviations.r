@@ -1,11 +1,9 @@
-setGeneric('compute_deviations', function(x, ...) standardGeneric('compute_deviations'))
-
 setMethod(
 	'compute_deviations',
 	signature(
 		x = 'GRanges'
 	),
-	function(x, gc_group = 5, theta = 1, resampling = 100, ...){
+	function(x, gc_group = 5, theta = 1, resampling = 100, burnin = 10, ...){
 
 		flog.info(sprintf('gc group(gc_group):%d', gc_group))
 		flog.info(sprintf('theta:%.3f', theta))
@@ -20,18 +18,11 @@ setMethod(
 			dims = c(nc, metadata(x)$n_bins_per_window * metadata(x)$n_intervals)
 		)
 
-		# total reads per motif/grid combination
-		X <- x$counts	%*% C2G # read counts: motifs ~ grid ( n_intervals * n_bins_per_window )
-
 		# read counts: (n_bins_per_window * n_intervals) ~ n_samples
 		W <- colSums(x$counts) %>% 
 			matrix(nrow = metadata(x)$n_bins_per_window * metadata(x)$n_intervals, ncol = metadata(x)$n_samples)
-
 		W <- W / rowSums(W)	# ratio of reads of each grid across all samples
 		W[is.na(W)] <- 0
-
-		# expected read counts (length(x) ~ n_intervals * n_bins_per_window * n_samples)
-		E <- do.call('cbind', lapply(seq_len(metadata(x)$n_samples), function(i) X %*% Diagonal(x = W[, i])))
 
 		# a binary matrix for motif ~ TF assignment
 		M <- sparseMatrix(
@@ -40,8 +31,11 @@ setMethod(
 			dims = c(length(x),  metadata(x)$n_motifs)
 		) 
 
+		r <- rep(1:(each = metadata(x)$n_bins_per_window * metadata(x)$n_intervals), metadata(x)$n_samples)
+
 		# expected read count matrix: n_motifs ~ n_bins_per_window ~ n_intervals ~ n_samples
-		ME <- (t(M) %*% E) %>% as.matrix()
+		ME <- t(M) %*% x$counts %*% C2G # n_motifs ~ (n_intervals * n_bins_per_window)
+		ME <- (ME[, r] %*% Diagonal(x = c(W))) %>% as.matrix()
 		dim(ME) <- c(metadata(x)$n_motifs, metadata(x)$n_bins_per_window, metadata(x)$n_intervals, metadata(x)$n_samples)
 
 		# observed read count matrix: n_motifs ~ n_bins_per_window ~ n_intervals ~ n_samples
@@ -55,82 +49,87 @@ setMethod(
 		gc_cutoffs <- quantile(x$gc_content, seq(0, 1, length.out = gc_group + 1))
 		groups <- as.numeric(cut(x$gc_content, gc_cutoffs, include.lowest = TRUE))
 
-		# a permutation matrix (n_motifs ~ resampling)
 		B <- matrix(NA, length(x), resampling)
-		for (i in seq_len(gc_group)){
+		for(i in seq_len(gc_group)){
 			j <- which(groups == i)
-			B[j, ] <- sample(j, resampling * sum(groups == i), replace = TRUE)
+			B[j, ] <- sample(j, resampling * length(j), replace = TRUE)
 		}
 
-		# compute the expected vplot for permutated motifs
-		Y_resample <- bplapply(seq_len(resampling), function(i){
-			MBX <- (t(M[B[, i], ]) %*% x$counts) %>% as.matrix()
-			MBE <- (t(M[B[, i], ]) %*% E) %>% as.matrix()
-			MBX - MBE
-		}) %>%	
-			unlist()%>%
-			array(dim = c(
-				metadata(x)$n_motifs, 
-				metadata(x)$n_bins_per_window,
-				metadata(x)$n_intervals,
-				metadata(x)$n_samples,
-				resampling
-			))
-
-		Y_resample_mean <- rowMeans(Y_resample, dims = 4)
-		Y_resample_mean <- array(
-			c(Y_resample_mean), 
+		# mean deviation of resampled intervals
+		Y_resample_mean <- Y_resample_var <- array(
+			0, 
 			dim = c(
 				metadata(x)$n_motifs, 
-				metadata(x)$n_bins_per_window,
-				metadata(x)$n_intervals,
-				metadata(x)$n_samples, 
-				resampling
+				metadata(x)$n_bins_per_window, 
+				metadata(x)$n_intervals, 
+				metadata(x)$n_samples
 			)
 		)
 
-		Y_resample_sd <- rowSums((Y_resample - Y_resample_mean)^2, dims = 4)  %>%
-			sqrt() %>%
-			array(
-				dim = c(
+		# SD of deviation of resampled intervals
+		Y_resample_var <- array(
+			0, 
+			dim = c(
+				metadata(x)$n_motifs, 
+				metadata(x)$n_bins_per_window, 
+				metadata(x)$n_intervals, 
+				metadata(x)$n_samples
+			)
+		)
+
+		D_resample_mean  <- D_resample_var <- matrix(
+			0, 
+			metadata(x)$n_motifs, metadata(x)$n_samples,
+			dimnames = list(metadata(x)$motifs, metadata(x)$samples)
+		)
+
+		# compute the expected vplot for permutated motifs
+		for (i in seq_len(resampling)){
+
+			flog.info(sprintf('resampling | %d/%d', i, resampling))
+
+			MBX <- (t(M[B[, i], ]) %*% x$counts) %>% as.matrix()
+			MBE <- t(M[B[, i], ]) %*% x$counts %*% C2G
+			MBE <- (MBE[, r] %*% Diagonal(x = c(W))) %>% as.matrix()	# 	n_motifs ~ (n_intervals * n_bins_per_window * n_samples)
+
+			Y_resample <- (MBX - MBE) %>%
+				array(dim = c(
 					metadata(x)$n_motifs, 
 					metadata(x)$n_bins_per_window,
 					metadata(x)$n_intervals,
-					metadata(x)$n_samples, 
-					resampling
-				)
-			)
+					metadata(x)$n_samples
+				))
+					
+			# Welford's online algorithm for computing variance of Y_resample
+			previous_mean <- Y_resample_mean
+			Y_resample_mean <- Y_resample_mean + (Y_resample - Y_resample_mean) / i
+			Y_resample_var <- Y_resample_var + (Y_resample - Y_resample_mean) * (Y_resample - previous_mean)
 
-		Z_resample <- (Y_resample - Y_resample_mean) / Y_resample_sd
+			# Z-score of resampled vplot
+			Z_resample <- (Y_resample - Y_resample_mean) / sqrt(Y_resample_var / (i - 1))
+			Z_resample[is.infinite(Z_resample) | is.na(Z_resample)] <- 0
 
-		# v-plot distance of the deviance between individual permutated sample and the mean of all permutated samples
-		D_resample <- (Z_resample)^2  %>%
-			aperm(c(1, 4, 5, 2, 3)) %>%
-		  rowSums(dim = 3) %>%
-			matrix(
-				nrow = metadata(x)$n_motifs * metadata(x)$n_samples,
-				ncol = metadata(x)$n_motifs * metadata(x)$n_samples * resampling,
-				byrow = TRUE
-			)
+			# distance of resampled v-plot
+			D_resample <- Z_resample^2 %>%
+				aperm(c(1, 4, 2, 3)) %>%
+	  		rowSums(dim = 2) 
 
-		Z <- (Y - Y_resample_mean[, , , , 1]) / Y_resample_sd[, , , , 1]
+			# Welford's online algorithm for computing variance of D_resample
+			previous_mean <- D_resample_mean
+			D_resample_mean <- D_resample_mean + (D_resample - D_resample_mean) / i
+			D_resample_var <- D_resample_var + (D_resample - D_resample_mean) * (D_resample - previous_mean)
+		}
+
+		# Z-score of input vplot
+		Z <- (Y - Y_resample_mean) / sqrt(Y_resample_var / (resampling - 1))
+		Z[is.infinite(Z) | is.na(Z)] <- 0
+
 		D <- Z^2 %>%
 			aperm(c(1, 4, 2, 3)) %>%
-			rowSums(dim = 2) %>%
-			c()
+			rowSums(dim = 2) 
 
-		# compute the permutation p-value
-		P <- (D_resample - D > 0) %>% 
-			rowSums() %>%
-			array(
-				dim = c(
-					metadata(x)$n_motifs, 
-					metadata(x)$n_samples
-				),
-				dimnames = list(metadata(x)$motifs, metadata(x)$samples)
-			)
-		P <- (P + 1) / (resampling * metadata(x)$n_motifs * metadata(x)$n_samples + 1)
-
+		P <- 1 - pnorm(D, mean = D_resample_mean, sd = sqrt(D_resample_var / (resampling - 1)))
+		dimnames(P) <- list(metadata(x)$motifs, metadata(x)$samples)
 		P_adj <- apply(P, 2, p.adjust, method = 'BH')
 
 		dim(Y) <- c(metadata(x)$n_motifs, metadata(x)$n_bins_per_window * metadata(x)$n_intervals * metadata(x)$n_samples)
@@ -153,7 +152,8 @@ setMethod(
 		) %>% DataFrame()
 		se
 	}
-)
+) # compute_deviations
+
 
 #' smooth_vplot
 #'

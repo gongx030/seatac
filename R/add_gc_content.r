@@ -1,5 +1,3 @@
-setGeneric('add_gc_content', function(x, genome, ...) standardGeneric('add_gc_content'))
-
 #' add_gc_content
 #'
 #' @export

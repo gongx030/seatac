@@ -1,10 +1,7 @@
-setGeneric('read_vplot', function(x, peaks, ...) standardGeneric('read_vplot'))
-
 #' read_vplot
 #'
-#' @param x a GAlignments object.
-#' @param peaks a GRange object that define a set of genomic regions.
-#' @param window_size The size of each genomic window for training the model.
+#' @param x a GRange object that define a set of genomic regions.
+#' @param filenames BAM file names
 #' @param bin_size The bin size
 #' @param fragment_size_range fragment_size_range
 #' @param fragment_size_interval fragment_size_interval
@@ -14,43 +11,88 @@ setGeneric('read_vplot', function(x, peaks, ...) standardGeneric('read_vplot'))
 setMethod(
 	'read_vplot',
 	signature(
-		x = 'GAlignments',
-		peaks = 'GRanges'
+		x = 'GRanges',
+		filenames = 'character',
+		genome = 'BSgenome'
 	), 
 	function(
 		x, 
-		peaks, 
-		max_isize = 650,
-		...
+		filenames, 
+		genome,
+		bin_size = 5,
+		fragment_size_range = c(50, 690), 
+		fragment_size_interval = 10
 	){
 
-		if (peaks %>% width() %>% unique() %>% length() > 1)
-			stop('each peak must have the same width')
+		if (is.null(names(filenames)))
+			stop('filenames must be a named vector')
 
-		w <- width(peaks)[1]	# assuming that all peaks have the same width
+		if (any(duplicated(names(filenames))))
+			stop('names(filenames) must be unique')
+
+		window_size <- width(x)
+
+		if (length(unique(window_size)) > 1)
+			stop('the window size of input data must be equal')
+		
+		window_size <- window_size[1]
+
+ 		n_bins_per_window <- window_size / bin_size
+
+		breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
+		centers <- (breaks[-1] + breaks[-length(breaks)]) / 2
+
+		n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval
+
+		wb <- cbind(rep(1:length(x), n_bins_per_window), 1:(length(x)* n_bins_per_window))	# windows ~ bins, sorted by window
+
+		bins <- x %>%
+			slidingWindows(width = bin_size, step = bin_size) %>%
+			unlist()
 
 		# compute the center point between PE reads
 		# this is faster than using GAlignmentPairs
-		x <- x[strand(x) == '+']
-		x <- GRanges(
-			seqnames = seqnames(x), 
-			range = IRanges(start(x) + round(mcols(x)$isize / 2), width = 1), 
-			isize = mcols(x)$isize,
-		)
-		x <- x[x %over% peaks]
-		x <- x[x$isize <= max_isize]
 
-		positions <- peaks %>%
-			slidingWindows(width = 1, step = 1) %>%
-			unlist()	# 
+		mcols(x)$counts <- do.call('cbind', bplapply(filenames, function(file){	
+			
+			g <- read_bam(file, peaks = x, genome = genome)
+		
+			g <- g[strand(g) == '+']
+			g <- GRanges(
+				seqnames = seqnames(g), 
+				range = IRanges(start(g) + round(mcols(g)$isize / 2), width = 1), 
+				isize = mcols(g)$isize
+			)
 
-		PR <- findOverlaps(positions, x) %>% as.matrix()
-		PR <- sparseMatrix(i = PR[, 1], j = PR[, 2], dims = c(length(positions), length(x))) %>% as('dgCMatrix')	# positions ~ reads
-		RF <- sparseMatrix(i = 1:length(x), j = mcols(x)$isize, dims = c(length(x), max_isize))	%>% as('dgCMatrix') # reads ~ fragment size
-		FP <- t(PR %*% RF)	# fragment_size ~ positions
-		dim(FP) <- c(w * max_isize, length(peaks))
-		mcols(peaks)$counts <- t(FP)
-		peaks
+			g$fragment_size <- as.numeric(cut(g$isize, breaks))	# discretize the fragment size
+			g <- g[!is.na(g$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
+
+			CF <- sparseMatrix(i = 1:length(g), j = g$fragment_size, dims = c(length(g), n_intervals))  # read center ~ fragment size
+			BC <- as.matrix(findOverlaps(bins, g))	# bins ~ read center
+			BC <- as(sparseMatrix(BC[, 1], BC[, 2], dims = c(length(bins), length(g))), 'dgCMatrix') # bins ~ read center
+			BF <- BC %*% CF  # bins ~ fragment size
+			BF <- as.matrix(BF[wb[, 2], ])
+			dim(BF) <- c(n_bins_per_window, length(x), n_intervals)	# convert BF into an array with n_bins_per_window ~ batch_size ~ n_intervals
+			BF <- aperm(BF, c(2, 1, 3)) # batch_size, n_bins_per_window ~ n_intervals
+			dim(BF) <- c(length(x), n_bins_per_window * n_intervals)
+			as(BF, 'dgCMatrix')
+
+		}))	# batch_size ~ n_bins_per_window * n_intervals * n_samples
+
+		metadata(x)$n_samples <- length(filenames)
+		metadata(x)$samples <- names(filenames)
+		metadata(x)$fragment_size_range  <- fragment_size_range
+		metadata(x)$fragment_size_interval <- fragment_size_interval
+		metadata(x)$bin_size <- bin_size
+		metadata(x)$window_size <- window_size 
+		metadata(x)$n_intervals <- n_intervals
+		metadata(x)$n_bins_per_window <- n_bins_per_window 
+		metadata(x)$breaks <- breaks
+		metadata(x)$centers <- centers
+
+		x
 	}
-)
+
+) # read_vplot
+
 
