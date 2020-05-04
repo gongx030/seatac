@@ -24,28 +24,28 @@ setMethod(
 		W <- W / rowSums(W)	# ratio of reads of each grid across all samples
 		W[is.na(W)] <- 0
 
-		# a binary matrix for motif ~ TF assignment
+		# a binary matrix for motif ~ membership
 		M <- sparseMatrix(
 			i = 1:length(x),
-			j = as.numeric(x$tf_name),
-			dims = c(length(x),  metadata(x)$n_motifs)
+			j = x$membership,
+			dims = c(length(x),  metadata(x)$k)
 		) 
 
 		r <- rep(1:(each = metadata(x)$n_bins_per_window * metadata(x)$n_intervals), metadata(x)$n_samples)
 
-		# expected read count matrix: n_motifs ~ n_bins_per_window ~ n_intervals ~ n_samples
-		ME <- t(M) %*% x$counts %*% C2G # n_motifs ~ (n_intervals * n_bins_per_window)
+		# expected read count matrix: k ~ n_bins_per_window ~ n_intervals ~ n_samples
+		ME <- t(M) %*% x$counts %*% C2G # k ~ (n_intervals * n_bins_per_window)
 		ME <- (ME[, r] %*% Diagonal(x = c(W))) %>% as.matrix()
-		dim(ME) <- c(metadata(x)$n_motifs, metadata(x)$n_bins_per_window, metadata(x)$n_intervals, metadata(x)$n_samples)
+		dim(ME) <- c(metadata(x)$k, metadata(x)$n_bins_per_window, metadata(x)$n_intervals, metadata(x)$n_samples)
 
-		# observed read count matrix: n_motifs ~ n_bins_per_window ~ n_intervals ~ n_samples
+		# observed read count matrix: k~ n_bins_per_window ~ n_intervals ~ n_samples
 		MX <- (t(M) %*% x$counts) %>% as.matrix()
-		dim(MX) <- c(metadata(x)$n_motifs, metadata(x)$n_bins_per_window, metadata(x)$n_intervals, metadata(x)$n_samples)
+		dim(MX) <- c(metadata(x)$k, metadata(x)$n_bins_per_window, metadata(x)$n_intervals, metadata(x)$n_samples)
 
 		Y <- MX - ME 	# raw deviations
 		Y <- smooth_vplot(Y, theta = theta)
 
-		# split motif intervals into groups based on the GC content
+		# split intervals into groups based on the GC content
 		gc_cutoffs <- quantile(x$gc_content, seq(0, 1, length.out = gc_group + 1))
 		groups <- as.numeric(cut(x$gc_content, gc_cutoffs, include.lowest = TRUE))
 
@@ -59,18 +59,7 @@ setMethod(
 		Y_resample_mean <- Y_resample_var <- array(
 			0, 
 			dim = c(
-				metadata(x)$n_motifs, 
-				metadata(x)$n_bins_per_window, 
-				metadata(x)$n_intervals, 
-				metadata(x)$n_samples
-			)
-		)
-
-		# SD of deviation of resampled intervals
-		Y_resample_var <- array(
-			0, 
-			dim = c(
-				metadata(x)$n_motifs, 
+				metadata(x)$k, 
 				metadata(x)$n_bins_per_window, 
 				metadata(x)$n_intervals, 
 				metadata(x)$n_samples
@@ -79,8 +68,8 @@ setMethod(
 
 		D_resample_mean  <- D_resample_var <- matrix(
 			0, 
-			metadata(x)$n_motifs, metadata(x)$n_samples,
-			dimnames = list(metadata(x)$motifs, metadata(x)$samples)
+			metadata(x)$k, metadata(x)$n_samples,
+			dimnames = list(NULL, metadata(x)$samples)
 		)
 
 		# compute the expected vplot for permutated motifs
@@ -90,11 +79,11 @@ setMethod(
 
 			MBX <- (t(M[B[, i], ]) %*% x$counts) %>% as.matrix()
 			MBE <- t(M[B[, i], ]) %*% x$counts %*% C2G
-			MBE <- (MBE[, r] %*% Diagonal(x = c(W))) %>% as.matrix()	# 	n_motifs ~ (n_intervals * n_bins_per_window * n_samples)
+			MBE <- (MBE[, r] %*% Diagonal(x = c(W))) %>% as.matrix()	# 	k ~ (n_intervals * n_bins_per_window * n_samples)
 
 			Y_resample <- (MBX - MBE) %>%
 				array(dim = c(
-					metadata(x)$n_motifs, 
+					metadata(x)$k, 
 					metadata(x)$n_bins_per_window,
 					metadata(x)$n_intervals,
 					metadata(x)$n_samples
@@ -129,18 +118,18 @@ setMethod(
 			rowSums(dim = 2) 
 
 		P <- 1 - pnorm(D, mean = D_resample_mean, sd = sqrt(D_resample_var / (resampling - 1)))
-		dimnames(P) <- list(metadata(x)$motifs, metadata(x)$samples)
+		dimnames(P) <- list(NULL, metadata(x)$samples)
 		P_adj <- apply(P, 2, p.adjust, method = 'BH')
 
-		dim(Y) <- c(metadata(x)$n_motifs, metadata(x)$n_bins_per_window * metadata(x)$n_intervals * metadata(x)$n_samples)
-		dim(Z) <- c(metadata(x)$n_motifs, metadata(x)$n_bins_per_window * metadata(x)$n_intervals * metadata(x)$n_samples)
+		dim(Y) <- c(metadata(x)$k, metadata(x)$n_bins_per_window * metadata(x)$n_intervals * metadata(x)$n_samples)
+		dim(Z) <- c(metadata(x)$k, metadata(x)$n_bins_per_window * metadata(x)$n_intervals * metadata(x)$n_samples)
+
+		MX <- (t(M %*% Diagonal(x = 1 / colSums(M))) %*% x$counts) %>% as.matrix()
 
 		se <- SummarizedExperiment(
-			assays = list(deviations = Y, z = Z),
-			rowData = data.frame(motif = metadata(x)$motifs)
+			assays = list(deviations = Y, z = Z, counts = MX),
 		)
 		metadata(se) <- metadata(x)
-		rownames(se) <- metadata(x)$motifs
 		metadata(se)$resampling <- resampling
 		rowData(se)$p_value <- P
 		rowData(se)$p_adj <- P_adj

@@ -13,7 +13,7 @@ setMethod(
 		filenames = 'character',
 		genome = 'BSgenome'
 	),
-	function(x, filenames, ...){
+	function(x, filenames, genome, ...){
 
 		if (is.null(names(filenames)))
 			stop('filenames must be a named vector')

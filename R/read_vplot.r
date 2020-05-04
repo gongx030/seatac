@@ -1,4 +1,6 @@
-#' read_vplot
+#' Read the V-plot
+#' 
+#' Read the V-plot from BAM files within a set of genomic regions
 #'
 #' @param x a GRange object that define a set of genomic regions.
 #' @param filenames BAM file names
@@ -79,6 +81,7 @@ setMethod(
 
 		}))	# batch_size ~ n_bins_per_window * n_intervals * n_samples
 
+
 		metadata(x)$n_samples <- length(filenames)
 		metadata(x)$samples <- names(filenames)
 		metadata(x)$fragment_size_range  <- fragment_size_range
@@ -89,6 +92,10 @@ setMethod(
 		metadata(x)$n_bins_per_window <- n_bins_per_window 
 		metadata(x)$breaks <- breaks
 		metadata(x)$centers <- centers
+		metadata(x)$positions <- seq(metadata(x)$bin_size, metadata(x)$window_size, by = metadata(x)$bin_size) - (metadata(x)$window_size / 2)
+
+		# add GC content
+		x <- x %>% add_gc_content(genome = genome)
 
 		x
 	}

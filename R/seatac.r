@@ -4,7 +4,7 @@
 #'
 #' @import Matrix
 #' @import SummarizedExperiment
-#' @importFrom matrixStats rowSds rowVars rowMedians rowMins rowMaxs
+#' @importFrom matrixStats rowSds rowVars rowMedians rowMins rowMaxs colVars
 #' @import futile.logger 
 #' @importFrom GenomicRanges tileGenome resize intersect reduce
 #' @importFrom GenomeInfoDb seqlengths
@@ -12,7 +12,7 @@
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments GAlignmentsList
 #' @importFrom gplots colorpanel
 #' @importFrom abind abind
-#' @importFrom fields image.smooth 
+#' @importFrom fields image.smooth
 #' @importFrom purrr pluck
 #' @importFrom BSgenome BSgenome
 #' @importFrom motifmatchr matchMotifs

@@ -15,3 +15,5 @@ setGeneric('compute_deviations', function(x, ...) standardGeneric('compute_devia
 setGeneric('read_vplot', function(x, filenames, genome, ...) standardGeneric('read_vplot'))
 
 setGeneric('add_gc_content', function(x, genome, ...) standardGeneric('add_gc_content'))
+
+setGeneric('cluster_vplot', function(x, ...) standardGeneric('cluster_vplot'))
