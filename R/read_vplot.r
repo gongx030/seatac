@@ -9,6 +9,7 @@
 #' @param fragment_size_interval fragment_size_interval
 #'
 #' @export
+#' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
 	'read_vplot',

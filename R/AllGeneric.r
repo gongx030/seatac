@@ -17,3 +17,9 @@ setGeneric('read_vplot', function(x, filenames, genome, ...) standardGeneric('re
 setGeneric('add_gc_content', function(x, genome, ...) standardGeneric('add_gc_content'))
 
 setGeneric('cluster_vplot', function(x, ...) standardGeneric('cluster_vplot'))
+
+setGeneric('vplot_autoencoder', function(x, ...) standardGeneric('vplot_autoencoder'))
+
+setGeneric('fit', function(model, x, ...) standardGeneric('fit'))
+
+setGeneric('encode', function(model, x, ...) standardGeneric('encode'))

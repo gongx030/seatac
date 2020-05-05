@@ -2,6 +2,9 @@
 #'
 #' ATAC-seq V-plot analysis
 #'
+#' @import tensorflow
+#' @import keras
+#' @import tfprobability
 #' @import Matrix
 #' @import SummarizedExperiment
 #' @importFrom matrixStats rowSds rowVars rowMedians rowMins rowMaxs colVars
@@ -16,6 +19,8 @@
 #' @importFrom purrr pluck
 #' @importFrom BSgenome BSgenome
 #' @importFrom motifmatchr matchMotifs
+#' @importFrom cccd nng
+#' @importFrom igraph cluster_louvain membership
 #' @docType package
 #' @name seatac
 #'
