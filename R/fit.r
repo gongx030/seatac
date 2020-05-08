@@ -25,15 +25,6 @@ setMethod(
 		interval_per_batch <- floor(batch_size / metadata(x)$n_samples)	
 		batch_size2 <- interval_per_batch * metadata(x)$n_samples
 
-		# binary group indicator
-		g <- sparseMatrix(
-			i = 1:batch_size2,
-			j = rep(1:metadata(x)$n_samples, each = interval_per_batch),
-			dims = c(batch_size2, metadata(x)$n_samples)
-		) %>%
-			as.matrix() %>%
-			tf$cast(tf$float32)
-
 		for (epoch in seq_len(epochs)) {
 
 			total_loss <- 0
@@ -68,15 +59,13 @@ setMethod(
 
 				with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
-					xs_corrected <- list(xs, g) %>% model@batch_correcter()
-
-					posterior <- xs_corrected %>% model@encoder()
+					posterior <- xs %>% model@encoder()
 
 					posterior_sample <- posterior$sample()
 
 					likelihood <- posterior_sample %>% model@decoder()
 
-					loss_reconstruction <- -likelihood$log_prob(xs_corrected) %>%
+					loss_reconstruction <- -likelihood$log_prob(xs) %>%
 						tf$reduce_mean()
 
 					kl_div <- (posterior$log_prob(posterior_sample) - model@prior(NULL)$log_prob(posterior_sample)) %>%
@@ -84,7 +73,6 @@ setMethod(
 
 					loss <- loss_reconstruction + kl_div
 				})
-
 
 				total_loss <- total_loss + loss
 				total_loss_reconstruction <- total_loss_reconstruction + loss_reconstruction
@@ -100,17 +88,14 @@ setMethod(
 					purrr::transpose() %>%
 					optimizer$apply_gradients()
 
-				batch_correcter_gradients <- tape$gradient(loss, model@batch_correcter$trainable_variables)
-				list(batch_correcter_gradients, model@batch_correcter$trainable_variables) %>%
-					purrr::transpose() %>%
-					optimizer$apply_gradients()
 			}
 
-			xs_corrected %>% tf$reduce_sum(0L) %>% tf$squeeze() %>% as.matrix() %>% image()
+#			xs %>% tf$reduce_sum(0L) %>% tf$squeeze() %>% as.matrix() %>% image()
+#			likelihood$mean() %>% tf$reduce_sum(0L) %>% tf$squeeze() %>% as.matrix() %>% image()
 
 			flog.info(sprintf('training | epoch=%4.d/%4.d | loss_reconstruction=%9.1f | kl=%9.1f | total_loss=%9.1f', epoch, epochs, total_loss_reconstruction, total_loss_kl, total_loss))
 
 		}
 
 	}
-)
+) # fit

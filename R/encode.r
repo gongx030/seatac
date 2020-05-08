@@ -50,17 +50,7 @@ setMethod(
 					)) %>%
 				tf$cast(tf$float32)
 
-				# binary group indicator
-			g <- sparseMatrix(
-				i = 1:batch_size2,
-				j = rep(1:metadata(x)$n_samples, each = length(b)),
-				dims = c(batch_size2, metadata(x)$n_samples)
-			) %>%
-				as.matrix() %>%
-				tf$cast(tf$float32)
-
-			zi <- list(xi, g) %>% 
-				model@batch_correcter() %>%
+			zi <- xi %>%
 				model@encoder()
 				
 			zi <- zi$mean() %>%

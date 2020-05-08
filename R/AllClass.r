@@ -23,10 +23,8 @@ setClass(
 setClass(
 	'vplot_autoencoder_model',
 	slot = c(
-		batch_correcter = 'kerastools.model.RModel',
 		encoder = 'kerastools.model.RModel',
 		decoder = 'kerastools.model.RModel',
-		prior = 'kerastools.model.RModel',
 		latent_dim = 'integer',
 		n_samples = 'integer',
 		window_dim = 'integer',

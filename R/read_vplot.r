@@ -58,7 +58,7 @@ setMethod(
 
 		mcols(x)$counts <- do.call('cbind', bplapply(filenames, function(file){	
 			
-			g <- read_bam(file, peaks = x, genome = genome)
+			g <- read_bam(file, peaks = resize(x, fix = 'center', width = window_size + 2000), genome = genome)
 		
 			g <- g[strand(g) == '+']
 			g <- GRanges(

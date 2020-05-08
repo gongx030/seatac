@@ -20,14 +20,6 @@ setMethod(
 
 		model <- new(
 			'vplot_autoencoder_model',
-			batch_correcter = batch_correcter_model(
-				n_samples = metadata(x)$n_samples, 
-				window_dim = metadata(x)$n_bins_per_window,
-				interval_dim = metadata(x)$n_intervals
-			),
-			prior = prior_model(
-				latent_dim = latent_dim
-			),
 			encoder = encoder_model(
 				latent_dim = latent_dim,
 				filters = c(32L, 32L, 32L),
