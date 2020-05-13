@@ -13,7 +13,9 @@ setMethod(
 		learning_rate = 1e-3, 
 		batch_size = 128, 	# v-plot per batch
 		epochs = 50, 
-		steps_per_epoch = 10
+		steps_per_epoch = 10,
+		recurrent_steps = 3,
+		K = 10L	# number of samples drawn from each V-plot
 	){
 
 		flog.info(sprintf('batch size(batch_size): %d', batch_size))
@@ -21,9 +23,6 @@ setMethod(
 
 		optimizer <- tf$keras$optimizers$Adam(learning_rate)
 		flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
-
-		interval_per_batch <- floor(batch_size / metadata(x)$n_samples)	
-		batch_size2 <- interval_per_batch * metadata(x)$n_samples
 
 		for (epoch in seq_len(epochs)) {
 
@@ -33,45 +32,53 @@ setMethod(
 
 			for (s in 1:steps_per_epoch){
 
-				b <- sample.int(length(x), interval_per_batch)
+				b <- sample.int(length(x), batch_size)
 
-				xs <- mcols(x[b])$counts %>%
-					array_reshape(c(
-						length(b), 
-						metadata(x)$n_bins_per_window,
-						metadata(x)$n_intervals,
-						metadata(x)$n_samples
-						)
-					) %>%
-					array_permute(c(1, 4, 2, 3)) %>%
-					array_reshape(c(
-						batch_size2,
-						metadata(x)$n_bins_per_window *metadata(x)$n_intervals
-					)) %>%
-					as_dgCMatrix() %>%
+				xi <- mcols(x[b])$counts %>%
 					as.matrix() %>%
 					reticulate::array_reshape(c(		# convert into a C-style array
-						batch_size2, 
+						batch_size, 
 						metadata(x)$n_bins_per_window, metadata(x)$n_intervals, 
 						1L
 					)) %>%
 					tf$cast(tf$float32)
 
+				w <- (xi > 0) %>%	# index for the non-zero terms
+					tf$cast(tf$float32)
+
 				with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
-					posterior <- xs %>% model@encoder()
+					for (iter in seq_len(recurrent_steps)){
 
-					posterior_sample <- posterior$sample()
+						if (iter == 1)
+							xi_input <- xi
+						else
+							xi_input <- xi * w + xi_pred * (1 - w)
 
-					likelihood <- posterior_sample %>% model@decoder()
+						posterior <- xi_input %>% model@encoder()
+						posterior_sample <- posterior$sample()
 
-					loss_reconstruction <- -likelihood$log_prob(xs) %>%
+						xi_pred <- posterior_sample %>% model@decoder()
+
+						xi_pred <- xi_pred$mean() %>%
+							tf$clip_by_value(clip_value_min = 0, clip_value_max = 100)
+
+					}
+
+					print(range(as.matrix(posterior$mean())))
+
+					print(range(as.matrix(xi_pred)))
+
+#					loss_reconstruction <- (w * (xi - xi_pred)^2) %>%
+					loss_reconstruction <- ((xi - xi_pred)^2) %>%
+						tf$reduce_sum(axis = shape(1L, 2L, 3L)) %>%
 						tf$reduce_mean()
 
 					kl_div <- (posterior$log_prob(posterior_sample) - model@prior(NULL)$log_prob(posterior_sample)) %>%
 						tf$reduce_mean()
 
-					loss <- loss_reconstruction + kl_div
+					loss <- loss_reconstruction  + kl_div
+
 				})
 
 				total_loss <- total_loss + loss
@@ -90,12 +97,32 @@ setMethod(
 
 			}
 
-#			xs %>% tf$reduce_sum(0L) %>% tf$squeeze() %>% as.matrix() %>% image()
-#			likelihood$mean() %>% tf$reduce_sum(0L) %>% tf$squeeze() %>% as.matrix() %>% image()
 
 			flog.info(sprintf('training | epoch=%4.d/%4.d | loss_reconstruction=%9.1f | kl=%9.1f | total_loss=%9.1f', epoch, epochs, total_loss_reconstruction, total_loss_kl, total_loss))
 
-		}
+			if (epoch == 1 || epoch %% 5 == 0){
 
+				ii <- sample(1:length(x), 2000)
+
+				z <- model %>% encode(x[ii], batch_size = batch_size, recurrent_steps = recurrent_steps)
+				X <- x$counts[ii, ]
+				sample_label <- x$sample_id[ii]
+
+				kk <- 3
+
+				y_umap <- umap(z)$layout
+				cls <- kmeans(z, kk, nstart = 10)$cluster
+				y_umap %>% plot(pch = 21, bg = sample_label)
+				y_umap %>% plot(pch = 21, bg = cls)
+
+				for (jj in 1:kk){
+					X[cls == jj, ] %>% 
+						colMeans() %>% 
+						matrix(metadata(x)$n_bins_per_window , metadata(x)$n_intervals) %>% 
+						image(main = jj)
+				}
+				print(table(cls, sample_label))
+			}
+		}
 	}
 ) # fit

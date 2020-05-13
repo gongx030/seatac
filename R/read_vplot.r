@@ -24,7 +24,8 @@ setMethod(
 		genome,
 		bin_size = 5,
 		fragment_size_range = c(50, 690), 
-		fragment_size_interval = 10
+		fragment_size_interval = 10,
+		min_reads = 5, max_reads = 500
 	){
 
 		if (is.null(names(filenames)))
@@ -56,7 +57,7 @@ setMethod(
 		# compute the center point between PE reads
 		# this is faster than using GAlignmentPairs
 
-		mcols(x)$counts <- do.call('cbind', bplapply(filenames, function(file){	
+		counts <- do.call('rbind', bplapply(filenames, function(file){	
 			
 			g <- read_bam(file, peaks = resize(x, fix = 'center', width = window_size + 2000), genome = genome)
 		
@@ -78,10 +79,18 @@ setMethod(
 			dim(BF) <- c(n_bins_per_window, length(x), n_intervals)	# convert BF into an array with n_bins_per_window ~ batch_size ~ n_intervals
 			BF <- aperm(BF, c(2, 1, 3)) # batch_size, n_bins_per_window ~ n_intervals
 			dim(BF) <- c(length(x), n_bins_per_window * n_intervals)
+
 			as(BF, 'dgCMatrix')
 
 		}))	# batch_size ~ n_bins_per_window * n_intervals * n_samples
 
+		x <- x[rep(1:length(x), length(filenames)), ]
+		x$sample_id <- rep(1:length(filenames), each = length(x) / length(filenames))
+		x$counts <- counts
+
+		n_reads <- rowSums(counts)
+		n <- n_reads >= min_reads & n_reads <= max_reads
+		x <- x[n]
 
 		metadata(x)$n_samples <- length(filenames)
 		metadata(x)$samples <- names(filenames)
@@ -96,7 +105,7 @@ setMethod(
 		metadata(x)$positions <- seq(metadata(x)$bin_size, metadata(x)$window_size, by = metadata(x)$bin_size) - (metadata(x)$window_size / 2)
 
 		# add GC content
-		x <- x %>% add_gc_content(genome = genome)
+		# x <- x %>% add_gc_content(genome = genome)
 
 		x
 	}

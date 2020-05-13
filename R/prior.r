@@ -10,4 +10,3 @@ prior_model <- function(latent_dim, name = NULL){
 		}
 	})
 } # prior model
-

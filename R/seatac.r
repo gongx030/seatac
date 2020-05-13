@@ -3,8 +3,8 @@
 #' ATAC-seq V-plot analysis
 #'
 #' @import tensorflow
-#' @import keras
 #' @import tfprobability
+#' @import keras
 #' @import Matrix
 #' @import SummarizedExperiment
 #' @importFrom matrixStats rowSds rowVars rowMedians rowMins rowMaxs colVars

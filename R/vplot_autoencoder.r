@@ -12,14 +12,14 @@ setMethod(
 	function(
 		x,
 		latent_dim = 10L,
-		epochs = 50,
-		batch_size = 128,
-		steps_per_epoch = 50,
 		...
 	){
 
 		model <- new(
 			'vplot_autoencoder_model',
+			prior = prior_model(
+				latent_dim = latent_dim
+			),
 			encoder = encoder_model(
 				latent_dim = latent_dim,
 				filters = c(32L, 32L, 32L),
@@ -42,14 +42,9 @@ setMethod(
 			latent_dim = as.integer(latent_dim)
 		)
 
-		model %>% fit(x, batch_size = batch_size, epochs = epochs, steps_per_epoch = steps_per_epoch)
+		model %>% fit(x, ...)
+		model
 
-		z <- model %>% encode(x, batch_size = batch_size)
-
-		metadata(x)$model <- model
-		x$latent <- z
-
-		x
 	}
 )
 
