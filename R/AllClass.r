@@ -23,7 +23,6 @@ setClass(
 setClass(
 	'vplot_autoencoder_model',
 	slot = c(
-		prior = 'kerastools.model.RModel',
 		encoder = 'kerastools.model.RModel',
 		decoder = 'kerastools.model.RModel',
 		latent_dim = 'integer',

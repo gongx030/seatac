@@ -24,17 +24,19 @@ setMethod(
 		optimizer <- tf$keras$optimizers$Adam(learning_rate)
 		flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 
+		X <- mcols(x)$counts
+		X[X > 0] <- 1
+
 		for (epoch in seq_len(epochs)) {
 
 			total_loss <- 0
 			total_loss_reconstruction <- 0
-			total_loss_kl <- 0
 
 			for (s in 1:steps_per_epoch){
 
 				b <- sample.int(length(x), batch_size)
 
-				xi <- mcols(x[b])$counts %>%
+				xi <- X[b, ] %>%
 					as.matrix() %>%
 					reticulate::array_reshape(c(		# convert into a C-style array
 						batch_size, 
@@ -43,7 +45,9 @@ setMethod(
 					)) %>%
 					tf$cast(tf$float32)
 
-				w <- (xi > 0) %>%	# index for the non-zero terms
+					browser()
+				
+				w <- (xi > 0) %>%  # index for the non-zero terms
 					tf$cast(tf$float32)
 
 				with(tf$GradientTape(persistent = TRUE) %as% tape, {
@@ -53,37 +57,28 @@ setMethod(
 						if (iter == 1)
 							xi_input <- xi
 						else
-							xi_input <- xi * w + xi_pred * (1 - w)
+							xi_input <- xi * wi + xi_pred * (1 - wi)
 
-						posterior <- xi_input %>% model@encoder()
-						posterior_sample <- posterior$sample()
+						wi <- (xi_input > 0) %>%	# index for the non-zero terms
+							tf$cast(tf$float32)
 
-						xi_pred <- posterior_sample %>% model@decoder()
-
-						xi_pred <- xi_pred$mean() %>%
-							tf$clip_by_value(clip_value_min = 0, clip_value_max = 100)
+						xi_pred <- xi_input %>% 
+							model@encoder() %>%
+							model@decoder()
 
 					}
 
-					print(range(as.matrix(posterior$mean())))
-
-					print(range(as.matrix(xi_pred)))
-
-#					loss_reconstruction <- (w * (xi - xi_pred)^2) %>%
-					loss_reconstruction <- ((xi - xi_pred)^2) %>%
+#					loss_reconstruction <- ((xi - xi_pred)^2) %>%
+					loss_reconstruction <- (w * k_binary_crossentropy(xi, xi_pred)) %>%
 						tf$reduce_sum(axis = shape(1L, 2L, 3L)) %>%
 						tf$reduce_mean()
 
-					kl_div <- (posterior$log_prob(posterior_sample) - model@prior(NULL)$log_prob(posterior_sample)) %>%
-						tf$reduce_mean()
-
-					loss <- loss_reconstruction  + kl_div
+					loss <- loss_reconstruction  
 
 				})
 
 				total_loss <- total_loss + loss
 				total_loss_reconstruction <- total_loss_reconstruction + loss_reconstruction
-				total_loss_kl <- total_loss_kl + kl_div
 
 				encoder_gradients <- tape$gradient(loss, model@encoder$trainable_variables)
 				list(encoder_gradients, model@encoder$trainable_variables) %>%
@@ -97,26 +92,25 @@ setMethod(
 
 			}
 
-
-			flog.info(sprintf('training | epoch=%4.d/%4.d | loss_reconstruction=%9.1f | kl=%9.1f | total_loss=%9.1f', epoch, epochs, total_loss_reconstruction, total_loss_kl, total_loss))
+			flog.info(sprintf('training | epoch=%4.d/%4.d | loss_reconstruction=%9.1f | total_loss=%9.1f', epoch, epochs, total_loss_reconstruction, total_loss))
 
 			if (epoch == 1 || epoch %% 5 == 0){
 
 				ii <- sample(1:length(x), 2000)
 
 				z <- model %>% encode(x[ii], batch_size = batch_size, recurrent_steps = recurrent_steps)
-				X <- x$counts[ii, ]
+				Xii <- x$counts[ii, ]
 				sample_label <- x$sample_id[ii]
 
 				kk <- 3
 
 				y_umap <- umap(z)$layout
-				cls <- kmeans(z, kk, nstart = 10)$cluster
+				cls <- kmeans(y_umap, kk, nstart = 10)$cluster
 				y_umap %>% plot(pch = 21, bg = sample_label)
 				y_umap %>% plot(pch = 21, bg = cls)
 
 				for (jj in 1:kk){
-					X[cls == jj, ] %>% 
+					Xii[cls == jj, ] %>% 
 						colMeans() %>% 
 						matrix(metadata(x)$n_bins_per_window , metadata(x)$n_intervals) %>% 
 						image(main = jj)

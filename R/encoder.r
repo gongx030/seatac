@@ -45,7 +45,7 @@ encoder_model <- function(
 		self$bn_3 <- layer_batch_normalization()
 
 		self$dense_1 <- layer_dense(
-			units = latent_dim * 2, 
+			units = latent_dim, 
 			kernel_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001),
 			bias_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001)
 		)
@@ -61,13 +61,7 @@ encoder_model <- function(
 				self$bn_3(training = training) %>%
 				layer_flatten() %>%
 				self$dense_1()
-			
-			tfd_multivariate_normal_diag(
-				loc = y[, 1:latent_dim],
-				scale_diag = tf$nn$softplus(y[, (latent_dim + 1):(2 * latent_dim)] + 1e-3),
-				scale_identity_multiplier = 1e-10,
-				validate_args = TRUE
-			)
+			y
 		}
 	})
 

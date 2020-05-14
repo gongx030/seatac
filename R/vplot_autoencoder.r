@@ -17,9 +17,6 @@ setMethod(
 
 		model <- new(
 			'vplot_autoencoder_model',
-			prior = prior_model(
-				latent_dim = latent_dim
-			),
 			encoder = encoder_model(
 				latent_dim = latent_dim,
 				filters = c(32L, 32L, 32L),

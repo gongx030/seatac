@@ -20,6 +20,9 @@ setMethod(
 
 		z <- matrix(NA, length(x), model@latent_dim)
 
+		X <- x$counts
+		X[X > 0] <- 1
+
 		for (i in 1:n_batch){
 
 			if (i %% 10 == 0)
@@ -27,7 +30,7 @@ setMethod(
 
 			b <- starts[i]:ends[i]
 
-			xi <- mcols(x[b])$counts %>%
+			xi <- X[b, ] %>%
 				as.matrix() %>%
 				reticulate::array_reshape(c(    # convert into a C-style array
 					length(b),
@@ -36,22 +39,25 @@ setMethod(
 				)) %>%
 				tf$cast(tf$float32)
 			
-			w <- (xi > 0) %>% # index for the non-zero terms
-				tf$cast(tf$float32)
-
 			for (iter in seq_len(recurrent_steps)){
 
 				if (iter == 1)
 					xi_input <- xi
 				else
-					xi_input <- xi * w + xi_pred$mean() * (1 - w)
+					xi_input <- xi * wi + xi_pred * (1 - wi)
 
-				posterior <- xi_input %>% model@encoder()
-				posterior_sample <- posterior$sample()
-				xi_pred <- posterior_sample %>% model@decoder()
+				wi <- (xi_input > 0) %>%  # index for the non-zero terms
+					tf$cast(tf$float32)
+
+				zi <- xi_input %>% model@encoder()
+				xi_pred <- zi %>% model@decoder()
+
 			}
 
-			z[b, ] <- posterior$mean() %>% as.matrix()
+			if (i == 1)
+				xi_pred %>% tf$reduce_sum(0L) %>% tf$squeeze() %>% as.matrix() %>% image()
+
+			z[b, ] <- zi %>% as.matrix()
 
 		}
 

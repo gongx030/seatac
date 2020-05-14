@@ -61,7 +61,8 @@ decoder_model <- function(
 			strides = shape(window_strides[3], interval_strides[3]),
 			kernel_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001),
 			bias_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001),
-			padding = 'same'
+			padding = 'same',
+			activation = 'relu'
 		)
 
 		function(x, mask = NULL){
@@ -75,11 +76,8 @@ decoder_model <- function(
 				self$deconv_2() %>%
 				self$bn_2() %>%
 				self$deconv_3()
+			y
 
-			tfd_independent(
-				tfd_poisson(log_rate = y), 
-				reinterpreted_batch_ndims = 3L
-			)
 		}
 	})
 } # decoder_model_vae_baseline_conv
