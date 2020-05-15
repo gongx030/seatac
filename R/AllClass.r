@@ -1,5 +1,7 @@
 setOldClass('kerastools.model.RModel')
 
+setOldClass('tensorflow.tensor')
+
 setClassUnion('listOrNULL', members = c('list', 'NULL'))
 
 setClass(

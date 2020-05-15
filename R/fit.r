@@ -14,8 +14,7 @@ setMethod(
 		batch_size = 128, 	# v-plot per batch
 		epochs = 50, 
 		steps_per_epoch = 10,
-		recurrent_steps = 3,
-		K = 10L	# number of samples drawn from each V-plot
+		K = 8L # number of samples drawn from each V-plot
 	){
 
 		flog.info(sprintf('batch size(batch_size): %d', batch_size))
@@ -24,61 +23,71 @@ setMethod(
 		optimizer <- tf$keras$optimizers$Adam(learning_rate)
 		flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 
-		X <- mcols(x)$counts
-		X[X > 0] <- 1
+		starts <- seq(1, length(x), by = batch_size)
+		ends <- starts + batch_size - 1
+		ends[ends > length(x)] <- length(x)
+		n_batch <- length(starts)
 
 		for (epoch in seq_len(epochs)) {
 
 			total_loss <- 0
 			total_loss_reconstruction <- 0
+			total_loss_center_reconstruction <- 0
+			total_loss_cluster <- 0
 
-			for (s in 1:steps_per_epoch){
+			for (i in seq_len(n_batch)){
 
-				b <- sample.int(length(x), batch_size)
+				b <- starts[i]:ends[i]
 
-				xi <- X[b, ] %>%
+				xi <- x[b]$counts %>%
 					as.matrix() %>%
 					reticulate::array_reshape(c(		# convert into a C-style array
-						batch_size, 
-						metadata(x)$n_bins_per_window, metadata(x)$n_intervals, 
+						length(b),
+						metadata(x)$n_bins_per_window, 
+						metadata(x)$n_intervals, 
 						1L
 					)) %>%
 					tf$cast(tf$float32)
 
-					browser()
-				
-				w <- (xi > 0) %>%  # index for the non-zero terms
-					tf$cast(tf$float32)
-
 				with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
-					for (iter in seq_len(recurrent_steps)){
+					zi <- xi %>% 
+						model@encoder() 
 
-						if (iter == 1)
-							xi_input <- xi
-						else
-							xi_input <- xi * wi + xi_pred * (1 - wi)
+					xi_pred <- zi %>%
+						model@decoder()
 
-						wi <- (xi_input > 0) %>%	# index for the non-zero terms
-							tf$cast(tf$float32)
+					di <- zi^2 %>% tf$reduce_sum(1L, keepdims = TRUE) - 
+						2 * tf$matmul(zi, u, transpose_b = TRUE) + 
+						tf$transpose(u)^2 %>% tf$reduce_sum(0L, keepdims = TRUE)
 
-						xi_pred <- xi_input %>% 
-							model@encoder() %>%
-							model@decoder()
+					Pi <- tf$nn$softmax(-di)
 
-					}
+					yi <- tf$tensordot(tf$transpose(Pi), xi, 1L) / tf$cast(batch_size, tf$float32)
 
-#					loss_reconstruction <- ((xi - xi_pred)^2) %>%
-					loss_reconstruction <- (w * k_binary_crossentropy(xi, xi_pred)) %>%
-						tf$reduce_sum(axis = shape(1L, 2L, 3L)) %>%
+					yi_pred <- u %>%
+						model@decoder()
+
+					loss_cluster <- (Pi * (di + log(Pi + 1e-3))) %>%
+						tf$reduce_sum(axis = 1L) %>%
+						tf$reduce_mean()
+					
+					loss_reconstruction <- loss_mean_squared_error(xi, xi_pred) %>%
+						tf$reduce_sum(axis = shape(1L, 2L)) %>%
 						tf$reduce_mean()
 
-					loss <- loss_reconstruction  
+					loss_center_reconstruction <- loss_mean_squared_error(yi, yi_pred) %>%
+						tf$reduce_sum(axis = shape(1L, 2L)) %>%
+						tf$reduce_mean()
+
+					loss <- loss_reconstruction  + loss_cluster + loss_center_reconstruction
 
 				})
 
 				total_loss <- total_loss + loss
 				total_loss_reconstruction <- total_loss_reconstruction + loss_reconstruction
+				total_loss_center_reconstruction <- total_loss_center_reconstruction + loss_center_reconstruction
+				total_loss_cluster <- total_loss_cluster + loss_cluster
 
 				encoder_gradients <- tape$gradient(loss, model@encoder$trainable_variables)
 				list(encoder_gradients, model@encoder$trainable_variables) %>%
@@ -90,15 +99,34 @@ setMethod(
 					purrr::transpose() %>%
 					optimizer$apply_gradients()
 
+				other_gradients <- tape$gradient(loss, list(u))
+				list(other_gradients, list(u)) %>%
+					purrr::transpose() %>%
+					optimizer$apply_gradients()
+
 			}
 
-			flog.info(sprintf('training | epoch=%4.d/%4.d | loss_reconstruction=%9.1f | total_loss=%9.1f', epoch, epochs, total_loss_reconstruction, total_loss))
+			flog.info(sprintf('training | epoch=%4.d/%4.d | loss_reconstruction=%9.1f | loss_center_reconstruction=%9.1f | total_loss_cluster=%9.1f | total_loss=%9.1f', epoch, epochs, total_loss_reconstruction, total_loss_center_reconstruction, total_loss_cluster, total_loss))
 
-			if (epoch == 1 || epoch %% 5 == 0){
+#			P <- tf$nn$softmax(g) %>%
+#				as.matrix()
+#			U <- t(P) %*% x$counts
+
+#			if (epoch == 5) browser()
+
+			print(u)
+
+			for (kk in 1:K){
+				y <- u %>%
+					model@decoder()
+				y[kk, , , 1] %>% as.matrix() %>% t() %>% image(main = kk)
+			}
+
+			if (epoch > 100000){
 
 				ii <- sample(1:length(x), 2000)
 
-				z <- model %>% encode(x[ii], batch_size = batch_size, recurrent_steps = recurrent_steps)
+				z <- model %>% encode(x[ii], batch_size = batch_size)
 				Xii <- x$counts[ii, ]
 				sample_label <- x$sample_id[ii]
 
