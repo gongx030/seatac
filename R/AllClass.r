@@ -23,13 +23,13 @@ setClass(
 )
 
 setClass(
-	'vplot_autoencoder_model',
+	'vplot_predictor_model',
 	slot = c(
 		encoder = 'kerastools.model.RModel',
 		decoder = 'kerastools.model.RModel',
-		latent_dim = 'integer',
 		n_samples = 'integer',
 		window_dim = 'integer',
-		interval_dim = 'integer'
+		interval_dim = 'integer',
+		latent_dim = 'integer'
 	)
 )

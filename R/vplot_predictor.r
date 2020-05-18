@@ -1,28 +1,27 @@
-#' vplot_autoencoder
+#' vplot_predictor
 #'
 #' @export
 #'
 #' @author Wuming Gong
 #'
 setMethod(
-	'vplot_autoencoder',
+	'vplot_predictor',
 	signature(
 		x = 'GRanges'
 	),
 	function(
 		x,
-		latent_dim = 10L,
+		latent_dim = 25L,
 		...
 	){
 
 		model <- new(
-			'vplot_autoencoder_model',
+			'vplot_predictor_model',
 			encoder = encoder_model(
+				sample_embedding_dim = 20L,
+				sequence_embedding_dim = 100L,
 				latent_dim = latent_dim,
-				filters = c(32L, 32L, 32L),
-				kernel_size = c(3L, 3L, 3L),
-				window_strides = c(2L, 2L, 2L),
-				interval_strides = c(2L, 2L, 1L)
+				sample_dim = as.integer(metadata(x)$n_samples)
 			),
 			decoder = decoder_model(
 				window_dim = metadata(x)$n_bins_per_window,

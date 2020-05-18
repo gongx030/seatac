@@ -38,6 +38,9 @@ setMethod(
 
 		if (length(unique(window_size)) > 1)
 			stop('the window size of input data must be equal')
+
+		# retrieve the DNA sequences
+		x$sequence <- getSeq(genome, x)
 		
 		window_size <- window_size[1]
 
