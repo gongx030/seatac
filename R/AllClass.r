@@ -23,13 +23,27 @@ setClass(
 )
 
 setClass(
-	'vplot_predictor_model',
+	'vplot_autoencoder_model',
 	slot = c(
 		encoder = 'kerastools.model.RModel',
 		decoder = 'kerastools.model.RModel',
+		latent_dim = 'integer',
+		n_samples = 'integer',
+		window_dim = 'integer',
+		interval_dim = 'integer'
+	)
+)
+
+setClass(
+	'vplot_knn_autoencoder_model',
+	slot = c(
+		encoder = 'kerastools.model.RModel',
+		decoder = 'kerastools.model.RModel',
+		latent_dim = 'integer',
 		n_samples = 'integer',
 		window_dim = 'integer',
 		interval_dim = 'integer',
-		latent_dim = 'integer'
+		num_clusters = 'integer',
+		K = 'integer'
 	)
 )

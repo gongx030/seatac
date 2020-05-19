@@ -25,8 +25,6 @@ decoder_model <- function(
 
 		self$dense_1 <- layer_dense(
 			units = output_dim0, 
-			kernel_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001),
-			activity_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001),
 			activation = 'relu',
 		)
 
@@ -38,8 +36,6 @@ decoder_model <- function(
 			kernel_size = kernel_size[1],
 			strides = shape(window_strides[1], interval_strides[1]),
 			padding = 'same',
-			kernel_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001),
-			activity_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001),
 			activation = 'relu'
 		)
 		self$bn_1 <- layer_batch_normalization()
@@ -49,8 +45,6 @@ decoder_model <- function(
 			kernel_size = kernel_size[2],
 			strides = shape(window_strides[2], interval_strides[2]),
 			padding = 'same',
-			kernel_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001),
-			activity_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001),
 			activation = 'relu'
 		)
 		self$bn_2 <- layer_batch_normalization()
@@ -59,8 +53,6 @@ decoder_model <- function(
 			filters = filters[3],
 			kernel_size = kernel_size[3],
 			strides = shape(window_strides[3], interval_strides[3]),
-			kernel_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001),
-			bias_regularizer = regularizer_l1_l2(l1 = 0.001, l2 = 0.001),
 			padding = 'same',
 			activation = 'relu'
 		)
