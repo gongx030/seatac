@@ -100,39 +100,3 @@ setMethod(
 	}
 ) # compute_deviations
 
-
-#' smooth_vplot
-#'
-#' @param X input array
-#' @return an array with the same dimensions as X
-#' @author Wuming Gong (gongx030@umn.edu)
-#'
-smooth_vplot <- function(X, theta = 1){
-
-	n_motifs <- dim(X)[1]
-	n_bins_per_window <- dim(X)[2]
-	n_intervals <- dim(X)[3]
-	n_samples <- dim(X)[4]
-
-	p <- expand.grid(
-		 motif = seq_len(n_motifs),
-		 sample = seq_len(n_samples)
-	)
-	Z <- bplapply(1:nrow(p), function(i){
-		z <- X[p[i, 'motif'], , , p[i, 'sample']] %>%
-			image.smooth(theta = theta) %>%
-			pluck('z')
-		z <- z / sum(z) * sum(X[p[i, 'motif'], , , p[i, 'sample']])
-		z
-	}) %>%
-		unlist() %>%
-		array(dim = c(
-			n_bins_per_window,
-			n_intervals,
-			n_motifs,
-			n_samples
-    )) %>% 
-		aperm(c(3, 1, 2, 4))
-	Z
-} # smooth_vplot
-

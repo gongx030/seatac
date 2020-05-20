@@ -23,27 +23,44 @@ setClass(
 )
 
 setClass(
-	'vplot_autoencoder_model',
+	'vplot_model',
 	slot = c(
-		encoder = 'kerastools.model.RModel',
-		decoder = 'kerastools.model.RModel',
-		latent_dim = 'integer',
-		n_samples = 'integer',
 		window_dim = 'integer',
-		interval_dim = 'integer'
+		interval_dim = 'integer',
+		data = 'GRanges',
+		n_samples = 'integer'
 	)
 )
 
 setClass(
-	'vplot_knn_autoencoder_model',
+	'vplot_autoencoder_model',
 	slot = c(
 		encoder = 'kerastools.model.RModel',
 		decoder = 'kerastools.model.RModel',
-		latent_dim = 'integer',
-		n_samples = 'integer',
-		window_dim = 'integer',
-		interval_dim = 'integer',
-		num_clusters = 'integer',
-		K = 'integer'
-	)
+		latent_dim = 'integer'
+	),
+	contains = 'vplot_model'
 )
+
+setClass(
+	'vplot_autoencoder_cluster_model',
+	slot = c(
+		num_clusters = 'integer',
+		sigma = 'numeric',
+		gamma = 'numeric',
+		membership = 'matrix',
+		centers = 'matrix'
+	),
+	contains = 'vplot_autoencoder_model'
+)
+
+
+setClass(
+	'vplot_autoencoder_rge_model',
+	slot = c(
+		lambda = 'numeric'
+	),
+	contains = 'vplot_autoencoder_cluster_model'
+)
+
+

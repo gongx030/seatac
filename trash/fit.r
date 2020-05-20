@@ -3,7 +3,7 @@
 setMethod(
 	'fit',
 	signature(
-		model = 'vplot_autoencoder_model',
+		model = 'vplot_autoencoder_model2',
 		x = 'GRanges'
 	),
 	function(

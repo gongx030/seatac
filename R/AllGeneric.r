@@ -18,8 +18,19 @@ setGeneric('add_gc_content', function(x, genome, ...) standardGeneric('add_gc_co
 
 setGeneric('cluster_vplot', function(x, ...) standardGeneric('cluster_vplot'))
 
-setGeneric('build_model', function(x, ...) standardGeneric('build_model'))
+setGeneric('build_model', function(x, name, ...) standardGeneric('build_model'))
 
-setGeneric('fit', function(model, x, ...) standardGeneric('fit'))
+setGeneric('fit', function(model, ...) standardGeneric('fit'))
 
-setGeneric('encode', function(model, x, ...) standardGeneric('encode'))
+setGeneric('encode', function(model, ...) standardGeneric('encode'))
+
+setGeneric('as_vplot_autoencoder_cluster_model', function(x, ...) standardGeneric('as_vplot_autoencoder_cluster_model'))
+
+setGeneric('as_vplot_autoencoder_rge_model', function(x, ...) standardGeneric('as_vplot_autoencoder_rge_model'))
+
+setGeneric('save_model', function(x, dir, ...) standardGeneric('save_model'))
+
+setGeneric('load_model', function(dir, ...) standardGeneric('load_model'))
+
+setGeneric('smooth_vplot', function(x, ...) standardGeneric('smooth_vplot'))
+
