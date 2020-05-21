@@ -101,10 +101,8 @@ setMethod(
 				list(other_gradients, list(u)) %>%
 					purrr::transpose() %>%
 					optimizer$apply_gradients()
-			}
 
-			if (as.matrix(total_loss_cluster) < 0)
-				browser()
+			}
 
 			if (epoch %% steps_per_epoch == 0){
 
@@ -120,18 +118,20 @@ setMethod(
 
 				p <- tf$nn$softmax(-d / model@sigma)
 
-#				y_umap <- umap(as.matrix(z))$layout
 				cls <- p %>% 
 					tf$nn$softmax() %>%
 					tf$math$argmax(axis = 1L) %>%
 					as.numeric()
 				cls <- cls + 1
-#				y_umap %>% plot(pch = 21, bg = cls, col = cls, main = epoch, cex = 0.25)
-				z %>% 
+
+				z %>%
 					as.matrix() %>%
+					umap() %>%
+					pluck('layout') %>%
 					plot(pch = 21, bg = cls, col = cls, main = epoch, cex = 0.25)
-				y <- u %>% 
-					model@decoder()
+
+#				y <- u %>% 
+#					model@decoder()
 
 				for (k in 1:model@num_clusters){
 

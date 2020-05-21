@@ -20,17 +20,21 @@ setGeneric('cluster_vplot', function(x, ...) standardGeneric('cluster_vplot'))
 
 setGeneric('build_model', function(x, name, ...) standardGeneric('build_model'))
 
-setGeneric('fit', function(model, ...) standardGeneric('fit'))
+setGeneric('fit', function(model, x, ...) standardGeneric('fit'))
 
-setGeneric('encode', function(model, ...) standardGeneric('encode'))
+setGeneric('encode', function(model, x, ...) standardGeneric('encode'))
 
 setGeneric('as_vplot_autoencoder_cluster_model', function(x, ...) standardGeneric('as_vplot_autoencoder_cluster_model'))
 
 setGeneric('as_vplot_autoencoder_rge_model', function(x, ...) standardGeneric('as_vplot_autoencoder_rge_model'))
+
+setGeneric('as_vplot_autoencoder_disc_model', function(x, ...) standardGeneric('as_vplot_autoencoder_disc_model'))
 
 setGeneric('save_model', function(x, dir, ...) standardGeneric('save_model'))
 
 setGeneric('load_model', function(dir, ...) standardGeneric('load_model'))
 
 setGeneric('smooth_vplot', function(x, ...) standardGeneric('smooth_vplot'))
+
+setGeneric('predict', function(model, x, ...) standardGeneric('predict'))
 

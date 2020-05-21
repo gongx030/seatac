@@ -1,10 +1,12 @@
 setMethod(
 	'encode',
 	signature(
-		model = 'vplot_autoencoder_model'
+		model = 'vplot_autoencoder_model',
+		x = 'GRanges'
 	),
 	function(
 		model,
+		x,
 		batch_size = 128   # v-plot per batch
 	){
 

@@ -27,8 +27,11 @@ setClass(
 	slot = c(
 		window_dim = 'integer',
 		interval_dim = 'integer',
-		data = 'GRanges',
-		n_samples = 'integer'
+		n_samples = 'integer',
+		fragment_size_range = 'integer',
+		fragment_size_interval = 'integer',
+		window_size = 'integer',
+		bin_size = 'integer'
 	)
 )
 
@@ -54,9 +57,29 @@ setClass(
 	contains = 'vplot_autoencoder_model'
 )
 
+setClass(
+	'vplot_autoencoder_cluster_v2_model',
+	slot = c(
+		num_clusters = 'integer',
+		sigma = 'numeric',
+		gamma = 'numeric',
+		membership = 'matrix',
+		centers = 'matrix'
+	),
+	contains = 'vplot_autoencoder_cluster_model'
+)
 
 setClass(
 	'vplot_autoencoder_rge_model',
+	slot = c(
+		lambda = 'numeric'
+	),
+	contains = 'vplot_autoencoder_cluster_model'
+)
+
+
+setClass(
+	'vplot_autoencoder_disc_model',
 	slot = c(
 		lambda = 'numeric'
 	),

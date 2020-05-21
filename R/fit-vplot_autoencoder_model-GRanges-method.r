@@ -3,10 +3,12 @@
 setMethod(
 	'fit',
 	signature(
-		model = 'vplot_autoencoder_model'
+		model = 'vplot_autoencoder_model',
+		x = 'GRanges'
 	),
 	function(
 		model,
+		x,
 		learning_rate = 1e-3, 
 		batch_size = 256L,
 		epochs = 100L
@@ -17,9 +19,9 @@ setMethod(
 		optimizer <- tf$keras$optimizers$Adam(learning_rate)
 		flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 
-		starts <- seq(1, length(model@data), by = batch_size)
+		starts <- seq(1, length(x), by = batch_size)
 		ends <- starts + batch_size - 1
-		ends[ends > length(model@data)] <- length(model@data)
+		ends[ends > length(x)] <- length(x)
 		n_batch <- length(starts)
 
 		for (epoch in seq_len(epochs)){
@@ -30,7 +32,7 @@ setMethod(
 
 				b <- starts[i]:ends[i]
 
-				xi <- model@data[b]$counts %>%
+				xi <- x[b]$counts %>%
 					as.matrix() %>%
 					reticulate::array_reshape(c(		# convert into a C-style array
 						length(b),

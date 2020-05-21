@@ -113,11 +113,6 @@ setMethod(
 				list(decoder_gradients, model@decoder$trainable_variables) %>%
 					purrr::transpose() %>%
 					optimizer$apply_gradients()
-
-				other_gradients <- tape$gradient(loss, list(u))
-				list(other_gradients, list(u)) %>%
-					purrr::transpose() %>%
-					optimizer$apply_gradients()
 			}
 
 			if (epoch %% steps_per_epoch == 0){
@@ -138,43 +133,59 @@ setMethod(
 
 				g <- u %>%
 					model@decoder() %>%
-					tf$reshape(shape(model@num_clusters, metadata(model@data)$n_bins_per_window * metadata(model@data)$n_intervals)) %>%
-					as.matrix() %>%
-					dist() %>%
-					as.matrix()
-				g <- 1 / (g + 1)	# distance to dimilarity
+					tf$reshape(shape(model@num_clusters, metadata(model@data)$n_bins_per_window * metadata(model@data)$n_intervals)) 
 
-				w <- g %>% 
+				g2 <- g^2 %>% tf$reduce_sum(1L, keepdims = TRUE)
+				dg <- g2 - 2 * tf$matmul(g, g, transpose_b = TRUE) + tf$transpose(g2)
+				dg <- dg / (dg + 1)	# distance to similarity
+
+				w <- dg  %>% 
+					as.matrix() %>%
 					as('dgCMatrix') %>%
 					igraph::graph_from_adjacency_matrix(weighted = TRUE) %>%
 					igraph::mst() %>%
 					igraph::as_adjacency_matrix() %>%
 					as.matrix() %>%
 					tf$cast(tf$float32)
+				w <- w + tf$transpose(w)
 
-				y_umap <- umap(as.matrix(z))$layout
+				flog.info('updating centers')
+
+				l <- w %>% tf$reduce_sum(1L) %>% tf$linalg$diag() - w	# graph laplacian matrix
+				L <- tf$linalg$diag(tf$reduce_sum(p, axis = 0L))
+
+				u <- tf$matmul(
+					tf$matmul(z, p, transpose_a = TRUE),
+					(2 * model@lambda * l + model@gamma * L) %>%
+						tf$linalg$inv()
+				) %>%
+					tf$transpose()
+				
 				cls <- p %>% 
 					tf$nn$softmax() %>%
 					tf$math$argmax(axis = 1L) %>%
 					as.numeric()
 				cls <- cls + 1
-				y_umap %>% plot(pch = 21, bg = cls, col = cls, main = epoch, cex = 0.25)
-				y <- u %>% 
-					model@decoder()
+
+				z %>%
+					as.matrix() %>%
+					umap() %>%
+					pluck('layout') %>%
+					plot(pch = 21, bg = cls, col = cls, main = epoch, cex = 0.25)
 
 				for (k in 1:model@num_clusters){
 
-					if (sum(cls == k) > 1){
-						model@data$counts[cls == k, ] %>% 
-							colMeans() %>% 
-							matrix(metadata(model@data)$n_bins_per_window , metadata(model@data)$n_intervals) %>% 
-							image(main = k)
-					}
+#					if (sum(cls == k) > 1){
+#						model@data$counts[cls == k, ] %>% 
+#							colMeans() %>% 
+#							matrix(metadata(model@data)$n_bins_per_window , metadata(model@data)$n_intervals) %>% 
+#							image(main = k)
+#					}
 				}
 				print(table(cls, model@data$sample_id))
 			}
 
-			flog.info(sprintf('training vplot_autoencoder_rge_model | epoch=%4.d/%4.d | loss_reconstruction=%9.1f | loss_cluster=%9.1f | loss_graph_embedding=%9.1f | total_loss=%9.1f', epoch, epochs, total_loss_reconstruction, total_loss_cluster, total_loss_graph_embedding, total_loss))
+			flog.info(sprintf('training vplot_autoencoder_rge_model | epoch=%4.d/%4.d | loss_reconstruction=%13.7f | loss_cluster=%13.7f | loss_graph_embedding=%13.7f | total_loss=%13.7f', epoch, epochs, total_loss_reconstruction, total_loss_cluster, total_loss_graph_embedding, total_loss))
 
 		}
 

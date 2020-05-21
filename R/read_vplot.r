@@ -100,12 +100,12 @@ setMethod(
 
 		metadata(x)$n_samples <- length(filenames)
 		metadata(x)$samples <- names(filenames)
-		metadata(x)$fragment_size_range  <- fragment_size_range
-		metadata(x)$fragment_size_interval <- fragment_size_interval
-		metadata(x)$bin_size <- bin_size
-		metadata(x)$window_size <- window_size 
-		metadata(x)$n_intervals <- n_intervals
-		metadata(x)$n_bins_per_window <- n_bins_per_window 
+		metadata(x)$fragment_size_range  <- as.integer(fragment_size_range)
+		metadata(x)$fragment_size_interval <- as.integer(fragment_size_interval)
+		metadata(x)$bin_size <- as.integer(bin_size)
+		metadata(x)$window_size <- as.integer(window_size)
+		metadata(x)$n_intervals <- as.integer(n_intervals)
+		metadata(x)$n_bins_per_window <- as.integer(n_bins_per_window )
 		metadata(x)$breaks <- breaks
 		metadata(x)$centers <- centers
 		metadata(x)$positions <- seq(metadata(x)$bin_size, metadata(x)$window_size, by = metadata(x)$bin_size) - (metadata(x)$window_size / 2)
