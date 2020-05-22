@@ -1,10 +1,10 @@
 setMethod(
 	'as_vplot_autoencoder_cluster_v2_model',
 	signature(
-		model = 'vplot_autoencoder_model'
+		x = 'vplot_autoencoder_model'
 	),
 	function(
-		model,
+		x,
 		sigma,
 		gamma,
 		num_clusters

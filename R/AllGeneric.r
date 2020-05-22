@@ -24,12 +24,6 @@ setGeneric('fit', function(model, x, ...) standardGeneric('fit'))
 
 setGeneric('encode', function(model, x, ...) standardGeneric('encode'))
 
-setGeneric('as_vplot_autoencoder_cluster_model', function(x, ...) standardGeneric('as_vplot_autoencoder_cluster_model'))
-
-setGeneric('as_vplot_autoencoder_rge_model', function(x, ...) standardGeneric('as_vplot_autoencoder_rge_model'))
-
-setGeneric('as_vplot_autoencoder_disc_model', function(x, ...) standardGeneric('as_vplot_autoencoder_disc_model'))
-
 setGeneric('as_vplot_autoencoder_cluster_v2_model', function(x, ...) standardGeneric('as_vplot_autoencoder_cluster_v2_model'))
 
 setGeneric('save_model', function(x, dir, ...) standardGeneric('save_model'))
