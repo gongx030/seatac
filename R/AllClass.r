@@ -4,6 +4,8 @@ setOldClass('tensorflow.tensor')
 
 setClassUnion('listOrNULL', members = c('list', 'NULL'))
 
+setClassUnion('matrixOrNULL', members = c('matrix', 'NULL'))
+
 setClass(
 	'sparse_array',
 	slot = c(
@@ -25,14 +27,24 @@ setClass(
 setClass(
 	'vplot_model',
 	slot = c(
-		window_dim = 'integer',
-		interval_dim = 'integer',
 		n_samples = 'integer',
 		fragment_size_range = 'integer',
 		fragment_size_interval = 'integer',
 		window_size = 'integer',
-		bin_size = 'integer'
+		bin_size = 'integer',
+		n_bins_per_window = 'integer',
+		n_intervals = 'integer'
 	)
+)
+
+setClass(
+	'vplot_parametric_vae_model',
+	slot = c(
+		encoder = 'kerastools.model.RModel',
+		prior = 'kerastools.model.RModel',
+		latent_dim = 'integer'
+	),
+	contains = 'vplot_model'
 )
 
 setClass(
@@ -51,21 +63,14 @@ setClass(
 		num_clusters = 'integer',
 		sigma = 'numeric',
 		gamma = 'numeric',
-		membership = 'matrix',
-		centers = 'matrix'
+		membership = 'matrixOrNULL',
+		centers = 'matrixOrNULL'
 	),
 	contains = 'vplot_autoencoder_model'
 )
 
 setClass(
 	'vplot_autoencoder_cluster_v2_model',
-	slot = c(
-		num_clusters = 'integer',
-		sigma = 'numeric',
-		gamma = 'numeric',
-		membership = 'matrix',
-		centers = 'matrix'
-	),
 	contains = 'vplot_autoencoder_cluster_model'
 )
 

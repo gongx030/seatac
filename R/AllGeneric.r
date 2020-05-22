@@ -18,7 +18,7 @@ setGeneric('add_gc_content', function(x, genome, ...) standardGeneric('add_gc_co
 
 setGeneric('cluster_vplot', function(x, ...) standardGeneric('cluster_vplot'))
 
-setGeneric('build_model', function(x, name, ...) standardGeneric('build_model'))
+setGeneric('build_model', function(name, x, ...) standardGeneric('build_model'))
 
 setGeneric('fit', function(model, x, ...) standardGeneric('fit'))
 
@@ -29,6 +29,8 @@ setGeneric('as_vplot_autoencoder_cluster_model', function(x, ...) standardGeneri
 setGeneric('as_vplot_autoencoder_rge_model', function(x, ...) standardGeneric('as_vplot_autoencoder_rge_model'))
 
 setGeneric('as_vplot_autoencoder_disc_model', function(x, ...) standardGeneric('as_vplot_autoencoder_disc_model'))
+
+setGeneric('as_vplot_autoencoder_cluster_v2_model', function(x, ...) standardGeneric('as_vplot_autoencoder_cluster_v2_model'))
 
 setGeneric('save_model', function(x, dir, ...) standardGeneric('save_model'))
 

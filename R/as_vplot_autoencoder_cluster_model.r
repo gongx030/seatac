@@ -12,14 +12,15 @@ setMethod(
 
 		flog.info('converting vplot_autoencoder_model to vplot_autoencoder_cluster_model')
 
-		model <- x@data %>% 
-			build_model(
-				name = 'vplot_autoencoder_cluster_model', 
-				latent_dim = x@latent_dim,
-				num_clusters = num_clusters,
-				sigma = sigma,
-				gamma = gamma
-			)
+		browser()
+
+		build_model(
+			name = 'vplot_autoencoder_cluster_model', 
+			latent_dim = x@latent_dim,
+			num_clusters = num_clusters,
+			sigma = sigma,
+			gamma = gamma
+		)
 
 		# initialize the weights
 		k_random_uniform(c(1L, model@window_dim, model@interval_dim, 1L)) %>%

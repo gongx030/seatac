@@ -3,7 +3,8 @@
 setMethod(
 	'fit',
 	signature(
-		model = 'vplot_autoencoder_cluster_model'
+		model = 'vplot_autoencoder_cluster_model',
+		x = 'GRanges'
 	),
 	function(
 		model,
