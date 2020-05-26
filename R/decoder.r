@@ -75,3 +75,21 @@ decoder_model <- function(
 } # decoder_model_vae_baseline_conv
 
 
+parametric_vae_decoder_model <- function(
+	name = NULL
+){
+	keras_model_custom(name = name, function(self){
+
+		self$dense_1 <- layer_dense(
+			units = 4L,
+			activation = 'relu'
+		)
+
+		function(x, mask = NULL){
+
+			y <- x %>%
+				self$dense_1()
+			y
+		}
+	})
+}

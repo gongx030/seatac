@@ -96,8 +96,6 @@ setMethod(
 		n <- n_reads >= min_reads & n_reads <= max_reads
 		x <- x[n]
 
-		x$counts <- Diagonal(x = 1 / rowSums(x$counts)) %*% x$counts
-
 		metadata(x)$n_samples <- length(filenames)
 		metadata(x)$samples <- names(filenames)
 		metadata(x)$fragment_size_range  <- as.integer(fragment_size_range)

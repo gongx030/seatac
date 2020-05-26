@@ -6,8 +6,10 @@ setMethod(
 	),
 	function(x, theta = 1, ...){
 
+		x$smoothed_counts <- Diagonal(x = 1 / rowSums(x$counts)) %*% x$counts
+
 		Z <- do.call('rbind', bplapply(1:length(x), function(i){
-			z <- x[i]$counts %>%
+			z <- x[i]$smoothed_counts %>%
 				matrix(metadata(x)$n_bins_per_window, metadata(x)$n_intervals) %>%
 				image.smooth(theta = theta) %>%
 				pluck('z')
@@ -20,7 +22,7 @@ setMethod(
 
 		Z <- as(Z, 'dgCMatrix')
 			
-		x$counts <- Z
+		x$smoothed_counts <- Z
 		x
 
 	}

@@ -28,6 +28,8 @@ setMethod(
 
 		}else if (name == 'vplot_parametric_vae_model'){
 
+			nfr_prob <- build_fragment_size_model(x, n = 1e4, bootstrap = 20)
+
 			model <- build_model(
 				name = name,
 				n_bins_per_window = metadata(x)$n_bins_per_window,
@@ -37,8 +39,11 @@ setMethod(
 				fragment_size_interval = metadata(x)$fragment_size_interval,
 				window_size = metadata(x)$window_size,
 				bin_size = metadata(x)$bin_size,
+				nfr_prob = nfr_prob,
 				...
 			)
+
+			flog.info('building fragment size model')
 
 		}else
 			stop(sprintf('unknown name: %s', name))
@@ -95,30 +100,31 @@ setMethod(
 			)
 		}else if (name == 'vplot_parametric_vae_model'){
 
-			latent_dim <- 4L
-
-			browser()
+			param <- list(...)
 
 			model <- new(
 				name,
-				encoder = encoder_model(
-					latent_dim = latent_dim,
+				encoder = vae_encoder_model(
+					latent_dim = as.integer(param$latent_dim),
 					filters = c(32L, 32L, 32L),
 					kernel_size = c(3L, 3L, 3L),
 					window_strides = c(2L, 2L, 2L),
 					interval_strides = c(2L, 2L, 1L)
 				),
 				prior = prior_model(
-					latent_dim = latent_dim
+					latent_dim = as.integer(param$latent_dim)
+				),
+				decoder = parametric_vae_decoder_model(
 				),
 				n_samples = as.integer(param$n_samples),
 				n_bins_per_window = as.integer(param$n_bins_per_window),
 				n_intervals = as.integer(param$n_intervals),
-				latent_dim = latent_dim,
+				latent_dim = as.integer(param$latent_dim),
 				fragment_size_range = as.integer(param$fragment_size_range),
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
-				bin_size = as.integer(param$bin_size)
+				bin_size = as.integer(param$bin_size),
+				nfr_prob = param$nfr_prob
 			)
 
 		}else if (name == 'vplot_autoencoder_cluster_v2_model'){

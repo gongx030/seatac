@@ -42,7 +42,9 @@ setClass(
 	slot = c(
 		encoder = 'kerastools.model.RModel',
 		prior = 'kerastools.model.RModel',
-		latent_dim = 'integer'
+		decoder = 'kerastools.model.RModel',
+		latent_dim = 'integer',
+		nfr_prob = 'numeric'
 	),
 	contains = 'vplot_model'
 )

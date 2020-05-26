@@ -8,6 +8,7 @@ setMethod(
 	),
 	function(
 		model,
+		x,
 		learning_rate = 1e-3, 
 		batch_size = 256L,
 		epochs = 100L,
