@@ -1,7 +1,7 @@
 Package: seatac
-Title: Segmentation of temporal ATAC-seq data
-Version: 0.2.0
-Date: 2020-05-05
+Title: Segmentation of ATAC-seq data
+Version: 0.2.1
+Date: 2020-06-08
 Author: Wuming Gong <gongx030@umn.edu>
 Maintainer: Wuming Gong <gongx030@umn.edu>
 Description: What the package does (one paragraph).

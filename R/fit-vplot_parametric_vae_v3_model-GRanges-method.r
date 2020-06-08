@@ -3,7 +3,7 @@
 setMethod(
 	'fit',
 	signature(
-		model = 'vplot_parametric_vae_v2_model',
+		model = 'vplot_parametric_vae_v3_model',
 		x = 'GRanges'
 	),
 	function(
@@ -69,12 +69,13 @@ setMethod(
 					tf$cast(tf$float32)
 
 				# read position relative to the center for each point
-				y <- metadata(x)$centers[xc[, 3]] %>%
+				y <- metadata(x)$positions[xc[, 2]] %>%
+					abs() %>%
 					tf$cast(tf$float32) %>%
 					tf$reshape(c(nrow(xc), 1L))
 
 				# binary index matrix of data point ~ window (relative to center) assignment
-				h <- sparseMatrix(i = 1:nrow(xc), j = xc[, 2], dims = c(nrow(xc), metadata(x)$n_bins_per_window)) %>%
+				h <- sparseMatrix(i = 1:nrow(xc), j = xc[, 3], dims = c(nrow(xc), metadata(x)$n_intervals)) %>%
 					as.matrix() %>%
 					tf$cast(tf$float32)
 
@@ -90,7 +91,7 @@ setMethod(
 
 					z <- posterior$sample()
 
-					v <- z %>% 	# batch size ~ n_bins_per_window
+					v <- z %>% 	# batch size ~ n_intervals
 						model@decoder()
 
 					u <- tf$tensordot(g, v, 1L)
