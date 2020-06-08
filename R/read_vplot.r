@@ -25,7 +25,7 @@ setMethod(
 		bin_size = 5,
 		fragment_size_range = c(50, 690), 
 		fragment_size_interval = 10,
-		min_reads = 5, max_reads = 500
+		min_reads = 10L
 	){
 
 		if (is.null(names(filenames)))
@@ -39,9 +39,6 @@ setMethod(
 		if (length(unique(window_size)) > 1)
 			stop('the window size of input data must be equal')
 
-		# retrieve the DNA sequences
-		# x$sequence <- getSeq(genome, x)
-		
 		window_size <- window_size[1]
 
  		n_bins_per_window <- window_size / bin_size
@@ -92,9 +89,16 @@ setMethod(
 
 		x$counts <- counts
 
-		n_reads <- rowSums(counts)
-		n <- n_reads >= min_reads & n_reads <= max_reads
-		x <- x[n]
+		n_reads <- rowSums(x$counts) %>%
+			matrix(length(x) / length(filenames), length(filenames))
+
+		valid <- rep(rowSums(n_reads >= min_reads) == length(filenames), length(filenames))
+
+		flog.info(sprintf('number of windows with greater than %d reads:%d', sum(valid), min_reads))
+
+		x <- x[which(valid)]
+
+		x$window_id <- rep(1:(length(x) / length(filenames)), length(filenames))
 
 		metadata(x)$n_samples <- length(filenames)
 		metadata(x)$samples <- names(filenames)
@@ -107,9 +111,6 @@ setMethod(
 		metadata(x)$breaks <- breaks
 		metadata(x)$centers <- centers
 		metadata(x)$positions <- seq(metadata(x)$bin_size, metadata(x)$window_size, by = metadata(x)$bin_size) - (metadata(x)$window_size / 2)
-
-		# add GC content
-		# x <- x %>% add_gc_content(genome = genome)
 
 		x
 	}

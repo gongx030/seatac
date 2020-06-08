@@ -42,9 +42,34 @@ setClass(
 	slot = c(
 		encoder = 'kerastools.model.RModel',
 		prior = 'kerastools.model.RModel',
+		decoder_window = 'kerastools.model.RModel',
+		decoder_interval = 'kerastools.model.RModel',
+		latent_dim = 'integer',
+		sigma0 = 'numeric'
+	),
+	contains = 'vplot_model'
+)
+
+setClass(
+	'vplot_parametric_vae_v2_model',
+	slot = c(
+		encoder = 'kerastools.model.RModel',
+		prior = 'kerastools.model.RModel',
 		decoder = 'kerastools.model.RModel',
 		latent_dim = 'integer',
-		nfr_prob = 'numeric'
+		sigma0 = 'numeric'
+	),
+	contains = 'vplot_model'
+)
+
+setClass(
+	'vplot_parametric_vae_v3_model',
+	slot = c(
+		encoder = 'kerastools.model.RModel',
+		prior = 'kerastools.model.RModel',
+		decoder = 'kerastools.model.RModel',
+		latent_dim = 'integer',
+		sigma0 = 'numeric'
 	),
 	contains = 'vplot_model'
 )

@@ -16,8 +16,6 @@ setGeneric('read_vplot', function(x, filenames, genome, ...) standardGeneric('re
 
 setGeneric('add_gc_content', function(x, genome, ...) standardGeneric('add_gc_content'))
 
-setGeneric('cluster_vplot', function(x, ...) standardGeneric('cluster_vplot'))
-
 setGeneric('build_model', function(name, x, ...) standardGeneric('build_model'))
 
 setGeneric('fit', function(model, x, ...) standardGeneric('fit'))
@@ -34,3 +32,4 @@ setGeneric('smooth_vplot', function(x, ...) standardGeneric('smooth_vplot'))
 
 setGeneric('predict', function(model, x, ...) standardGeneric('predict'))
 
+setGeneric('results', function(x, treatment, control, ...) standardGeneric('results'))

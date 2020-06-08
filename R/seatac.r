@@ -19,7 +19,6 @@
 #' @importFrom purrr pluck
 #' @importFrom BSgenome BSgenome
 #' @importFrom motifmatchr matchMotifs
-#' @importFrom cccd nng
 #' @importFrom igraph cluster_louvain membership
 #' @importFrom flexmix flexmix clusters FLXMRglm
 #' @docType package

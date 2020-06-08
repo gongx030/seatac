@@ -76,19 +76,65 @@ decoder_model <- function(
 
 
 parametric_vae_decoder_model <- function(
+	output_dim, 
+	filters0 = 8L, 
+	filters = c(8L, 8L, 1L), 
+	kernel_size = c(3L, 3L, 3L), 
+	interval_strides = c(2L, 2L, 2L), 
 	name = NULL
 ){
+
+	output_dim0 <- output_dim / prod(interval_strides)
+  input_dim0 <- output_dim0 * filters0
+
 	keras_model_custom(name = name, function(self){
 
 		self$dense_1 <- layer_dense(
-			units = 4L,
+			units = input_dim0,
+			activation = 'relu'
+		)
+
+		self$dropout_1 <- layer_dropout(rate = 0.2)
+
+		self$deconv_1 <- layer_conv_2d_transpose(
+			filters = filters[1],
+			kernel_size = kernel_size[1],
+			strides = shape(1L, interval_strides[1]),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$bn_1 <- layer_batch_normalization()
+
+		self$deconv_2 <- layer_conv_2d_transpose(
+			filters = filters[2],
+			kernel_size = kernel_size[2],
+			strides = shape(1L, interval_strides[2]),
+			padding = 'same',
+			activation = 'relu'
+		)
+		self$bn_2 <- layer_batch_normalization()
+
+		self$deconv_3 <- layer_conv_2d_transpose(
+			filters = filters[3],
+			kernel_size = kernel_size[3],
+			strides = shape(1L, interval_strides[3]),
+			padding = 'same',
 			activation = 'relu'
 		)
 
 		function(x, mask = NULL){
 
 			y <- x %>%
-				self$dense_1()
+				self$dense_1() %>%
+			  self$dropout_1() %>%
+				layer_reshape(target_shape = c(1L, output_dim0, filters0)) %>%
+				self$deconv_1() %>%
+				self$bn_1() %>%
+				self$deconv_2() %>%
+				self$bn_2() %>%
+				self$deconv_3() %>%
+				layer_reshape(target_shape = c(output_dim))
+
 			y
 		}
 	})
