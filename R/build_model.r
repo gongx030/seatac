@@ -1,8 +1,29 @@
+#' build_model
 setMethod(
 	'build_model',
 	signature(
 		name = 'character',
-		x = 'GRanges'
+		x = 'VplotsList'
+	),
+	function(
+		name,
+		x,
+		...
+	){
+
+		x <- unlist(x)	# to Vplots
+		build_model(name, x, ...)
+
+	}
+)
+
+
+#' build_model
+setMethod(
+	'build_model',
+	signature(
+		name = 'character',
+		x = 'Vplots'
 	),
 	function(
 		name,
@@ -12,13 +33,12 @@ setMethod(
 
 		build_model(
 			name = name,
-			n_bins_per_window = metadata(x)$n_bins_per_window,
-			n_intervals = metadata(x)$n_intervals,
-			n_samples = metadata(x)$n_samples,
-			fragment_size_range = metadata(x)$fragment_size_range,
-			fragment_size_interval = metadata(x)$fragment_size_interval,
-			window_size = metadata(x)$window_size,
-			bin_size = metadata(x)$bin_size,
+			n_bins_per_window = x@n_bins_per_window,
+			n_intervals = x@n_intervals,
+			fragment_size_range = x@fragment_size_range,
+			fragment_size_interval = x@fragment_size_interval,
+			window_size = x@window_size,
+			bin_size = x@bin_size,
 			...
 		)
 	}
@@ -26,7 +46,7 @@ setMethod(
 
 
 
-
+#' build_model
 setMethod(
 	'build_model',
 	signature(
@@ -61,7 +81,6 @@ setMethod(
 					window_strides = c(2L, 2L, 2L),
 					interval_strides = c(2L, 2L, 2L),
 				),
-				n_samples = as.integer(param$n_samples),
 				n_bins_per_window = as.integer(param$n_bins_per_window),
 				n_intervals = as.integer(param$n_intervals),
 				latent_dim = as.integer(param$latent_dim),
@@ -101,7 +120,6 @@ setMethod(
 					kernel_size = c(6L, 6L, 6L),
 					interval_strides = c(2L, 2L, 1L)
 				),
-				n_samples = as.integer(param$n_samples),
 				n_bins_per_window = as.integer(param$n_bins_per_window),
 				n_intervals = as.integer(param$n_intervals),
 				latent_dim = as.integer(param$latent_dim),
@@ -135,7 +153,6 @@ setMethod(
 					kernel_size = c(6L, 6L, 6L),
 					interval_strides = c(2L, 2L, 1L)
 				),
-				n_samples = as.integer(param$n_samples),
 				n_bins_per_window = as.integer(param$n_bins_per_window),
 				n_intervals = as.integer(param$n_intervals),
 				latent_dim = as.integer(param$latent_dim),
@@ -169,7 +186,6 @@ setMethod(
 					kernel_size = c(6L, 6L, 6L),
 					interval_strides = c(2L, 2L, 1L)
 				),
-				n_samples = as.integer(param$n_samples),
 				n_bins_per_window = as.integer(param$n_bins_per_window),
 				n_intervals = as.integer(param$n_intervals),
 				latent_dim = as.integer(param$latent_dim),
@@ -177,7 +193,8 @@ setMethod(
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
 				bin_size = as.integer(param$bin_size),
-				sigma0 = 1
+				sigma0 = 1,
+				gaussian_kernel = gaussian_kernel(size = 10, mu = 1, std = 1)
 			)
 
 		}else if (name == 'vplot_autoencoder_cluster_v2_model'){

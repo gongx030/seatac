@@ -1,10 +1,10 @@
-#' vplot_parametric_vae_model
+#' predict
 #'
 setMethod(
 	'predict',
 	signature(
 		model = 'vplot_parametric_vae_v3_model',
-		x = 'GRanges'
+		x = 'Vplots'
 	),
 	function(
 		model,
@@ -18,23 +18,26 @@ setMethod(
 		ends[ends > length(x)] <- length(x)
 		n_batch <- length(starts)
 
-		distance_mean <- matrix(NA, length(x), metadata(x)$n_intervals)
-		distance_sd <- matrix(NA, length(x), metadata(x)$n_intervals)
+		distance_mean <- matrix(NA, length(x), x@n_intervals)
+		distance_sd <- matrix(NA, length(x), x@n_intervals)
 		latent <- matrix(NA, length(x), model@latent_dim)
 
 		for (i in 1:n_batch){
 
 			b <- starts[i]:ends[i]
 
-			xi <- x[b]$smoothed_counts %>%
+			xi <- x[b]$counts %>%
 				as.matrix() %>%
 				reticulate::array_reshape(c(    # convert into a C-style array
 					length(b),
-					metadata(x)$n_intervals,
-					metadata(x)$n_bins_per_window,
+					x@n_intervals,
+					x@n_bins_per_window,
 					1L
 				)) %>%
-				tf$cast(tf$float32)
+				tf$cast(tf$float32) %>%
+				tf$nn$conv2d(model@gaussian_kernel, strides = c(1, 1, 1, 1), padding = 'SAME')
+
+			xi <- xi / tf$reduce_sum(xi, c(1L, 2L, 3L), keepdims = TRUE)
 
 			posterior <- xi %>%
 				model@encoder()
@@ -46,12 +49,12 @@ setMethod(
 				model@decoder()
 
 			distance_mean[b, ] <-  v %>% 
-				tf$reshape(shape(n, length(b), metadata(x)$n_intervals)) %>%
+				tf$reshape(shape(n, length(b), x@n_intervals)) %>%
 				tf$reduce_mean(0L) %>%
 				as.matrix()
 
 			distance_sd[b, ] <- v %>% 
-				tf$reshape(shape(n, length(b), metadata(x)$n_intervals)) %>%
+				tf$reshape(shape(n, length(b), x@n_intervals)) %>%
 				tf$math$reduce_std(0L) %>%
 				as.matrix()
 

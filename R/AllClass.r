@@ -7,6 +7,28 @@ setClassUnion('listOrNULL', members = c('list', 'NULL'))
 setClassUnion('matrixOrNULL', members = c('matrix', 'NULL'))
 
 setClass(
+	'Vplots', 
+	slot = c(
+		fragment_size_range  = 'integer',
+		fragment_size_interval = 'integer',
+		bin_size = 'integer',
+		window_size = 'integer',
+		n_intervals = 'integer',
+		n_bins_per_window = 'integer',
+		breaks = 'numeric',
+		centers = 'numeric',
+		positions = 'numeric'
+	),
+	contains = 'GRanges'
+)
+
+setClass(
+	'VplotsList',
+	contains = 'GRangesList'
+)
+
+
+setClass(
 	'sparse_array',
 	slot = c(
 		subs = 'matrix',
@@ -27,7 +49,6 @@ setClass(
 setClass(
 	'vplot_model',
 	slot = c(
-		n_samples = 'integer',
 		fragment_size_range = 'integer',
 		fragment_size_interval = 'integer',
 		window_size = 'integer',
@@ -69,7 +90,8 @@ setClass(
 		prior = 'kerastools.model.RModel',
 		decoder = 'kerastools.model.RModel',
 		latent_dim = 'integer',
-		sigma0 = 'numeric'
+		sigma0 = 'numeric',
+		gaussian_kernel = 'tensorflow.tensor'
 	),
 	contains = 'vplot_model'
 )

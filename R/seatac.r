@@ -2,6 +2,8 @@
 #'
 #' ATAC-seq V-plot analysis
 #'
+#' @import methods
+#' @import BiocGenerics
 #' @import tensorflow
 #' @import tfprobability
 #' @import keras
@@ -18,7 +20,6 @@
 #' @importFrom fields image.smooth
 #' @importFrom purrr pluck
 #' @importFrom BSgenome BSgenome
-#' @importFrom motifmatchr matchMotifs
 #' @importFrom igraph cluster_louvain membership
 #' @importFrom flexmix flexmix clusters FLXMRglm
 #' @docType package

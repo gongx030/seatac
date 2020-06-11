@@ -4,13 +4,14 @@ setMethod(
 	'fit',
 	signature(
 		model = 'vplot_parametric_vae_v3_model',
-		x = 'GRanges'
+		x = 'Vplots'
 	),
 	function(
 		model,
 		x,
 		learning_rate = 1e-3, 
 		batch_size = 256L,
+		min_reads = 20,
 		epochs = 100L
 	){
 
@@ -20,6 +21,11 @@ setMethod(
 		flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 
 		flog.info(sprintf('input windows:%d', length(x)))
+
+		n_reads <- rowSums(x$counts)
+		valid <- n_reads >= min_reads
+		x <- x[valid]
+		flog.info(sprintf('qualified windows(n_reads>=%d):%d', min_reads, length(x)))
 
 		starts <- seq(1, length(x), by = batch_size)
 		ends <- starts + batch_size - 1
@@ -40,21 +46,24 @@ setMethod(
 				b <- starts[i]:ends[i]
 
 				# data input
-				xi <- x[b]$smoothed_counts %>%
+				xi <- x[b]$counts %>%
 					as.matrix() %>%
 					reticulate::array_reshape(c(		# convert into a C-style array
 						length(b),
-						metadata(x)$n_intervals, 
-						metadata(x)$n_bins_per_window, 
+						x@n_intervals, 
+						x@n_bins_per_window, 
 						1L
 					)) %>%
-					tf$cast(tf$float32)
+					tf$cast(tf$float32) %>%
+					tf$nn$conv2d(model@gaussian_kernel, strides = c(1, 1, 1, 1), padding = 'SAME')
+
+				xi <- xi / tf$reduce_sum(xi, c(1L, 2L, 3L), keepdims = TRUE)
 
 				xc <- x[b]$counts %>%
 					array_reshape(c(	
 						length(b),
-						metadata(x)$n_bins_per_window,
-						metadata(x)$n_intervals
+						x@n_bins_per_window,
+						x@n_intervals
 					))
 
 				# read counts for each data point
@@ -69,13 +78,13 @@ setMethod(
 					tf$cast(tf$float32)
 
 				# read position relative to the center for each point
-				y <- metadata(x)$positions[xc[, 2]] %>%
+				y <- x@positions[xc[, 2]] %>%
 					abs() %>%
 					tf$cast(tf$float32) %>%
 					tf$reshape(c(nrow(xc), 1L))
 
 				# binary index matrix of data point ~ window (relative to center) assignment
-				h <- sparseMatrix(i = 1:nrow(xc), j = xc[, 3], dims = c(nrow(xc), metadata(x)$n_intervals)) %>%
+				h <- sparseMatrix(i = 1:nrow(xc), j = xc[, 3], dims = c(nrow(xc), x@n_intervals)) %>%
 					as.matrix() %>%
 					tf$cast(tf$float32)
 

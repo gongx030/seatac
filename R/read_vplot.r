@@ -24,8 +24,7 @@ setMethod(
 		genome,
 		bin_size = 5,
 		fragment_size_range = c(50, 690), 
-		fragment_size_interval = 10,
-		min_reads = 10L
+		fragment_size_interval = 10
 	){
 
 		if (is.null(names(filenames)))
@@ -57,7 +56,7 @@ setMethod(
 		# compute the center point between PE reads
 		# this is faster than using GAlignmentPairs
 
-		counts <- do.call('rbind', bplapply(filenames, function(file){	
+		counts <- bplapply(filenames, function(file){	
 			
 			g <- read_bam(file, peaks = resize(x, fix = 'center', width = window_size + 2000), genome = genome)
 		
@@ -82,37 +81,26 @@ setMethod(
 
 			as(BF, 'dgCMatrix')
 
-		}))	# batch_size ~ n_bins_per_window * n_intervals * n_samples
+		})	# batch_size ~ n_bins_per_window * n_intervals 
 
-		x <- x[rep(1:length(x), length(filenames)), ]
-		x$sample_id <- rep(1:length(filenames), each = length(x) / length(filenames))
+		counts <- Reduce('+', counts)
 
 		x$counts <- counts
 
-		n_reads <- rowSums(x$counts) %>%
-			matrix(length(x) / length(filenames), length(filenames))
+		new(
+			'Vplots', 
+			x, 
+			fragment_size_range  = as.integer(fragment_size_range),
+			fragment_size_interval = as.integer(fragment_size_interval),
+			bin_size = as.integer(bin_size),
+			window_size = as.integer(window_size),
+			n_intervals = as.integer(n_intervals),
+			n_bins_per_window = as.integer(n_bins_per_window ),
+			breaks = breaks,
+			centers = centers,
+			positions = seq(bin_size, window_size, by = bin_size) - (window_size / 2)
+		)
 
-		valid <- rep(rowSums(n_reads >= min_reads) == length(filenames), length(filenames))
-
-		flog.info(sprintf('number of windows with greater than %d reads:%d', sum(valid), min_reads))
-
-		x <- x[which(valid)]
-
-		x$window_id <- rep(1:(length(x) / length(filenames)), length(filenames))
-
-		metadata(x)$n_samples <- length(filenames)
-		metadata(x)$samples <- names(filenames)
-		metadata(x)$fragment_size_range  <- as.integer(fragment_size_range)
-		metadata(x)$fragment_size_interval <- as.integer(fragment_size_interval)
-		metadata(x)$bin_size <- as.integer(bin_size)
-		metadata(x)$window_size <- as.integer(window_size)
-		metadata(x)$n_intervals <- as.integer(n_intervals)
-		metadata(x)$n_bins_per_window <- as.integer(n_bins_per_window )
-		metadata(x)$breaks <- breaks
-		metadata(x)$centers <- centers
-		metadata(x)$positions <- seq(metadata(x)$bin_size, metadata(x)$window_size, by = metadata(x)$bin_size) - (metadata(x)$window_size / 2)
-
-		x
 	}
 
 ) # read_vplot
