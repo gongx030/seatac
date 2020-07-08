@@ -9,8 +9,7 @@ setMethod(
 	function(
 		model,
 		x,
-		batch_size = 128,   # v-plot per batch
-		n = 20L
+		batch_size = 128   # v-plot per batch
 	){
 
 		starts <- seq(1, length(x), by = batch_size)
@@ -18,69 +17,52 @@ setMethod(
 		ends[ends > length(x)] <- length(x)
 		n_batch <- length(starts)
 
-		d_interval_mean <- matrix(NA, length(x), metadata(x)$n_intervals)
-		d_interval_sd <- matrix(NA, length(x), metadata(x)$n_intervals)
-		d_window_mean <- matrix(NA, length(x), metadata(x)$n_bins_per_window)
-		d_window_sd <- matrix(NA, length(x), metadata(x)$n_bins_per_window)
 		latent <- matrix(NA, length(x), model@latent_dim)
+		distance_mean <- matrix(NA, length(x), x@n_intervals)
+		position_mean <- matrix(NA, length(x), x@n_bins_per_window)
 
 		for (i in 1:n_batch){
 
 			b <- starts[i]:ends[i]
 
-			xi <- x[b]$smoothed_counts %>%
+			xi <- x[b]$counts %>%
 				as.matrix() %>%
 				reticulate::array_reshape(c(    # convert into a C-style array
 					length(b),
-					metadata(x)$n_intervals,
-					metadata(x)$n_bins_per_window,
+					x@n_intervals,
+					x@n_bins_per_window,
 					1L
-				)) %>%
-				tf$cast(tf$float32)
+					)) %>%
+				tf$cast(tf$float32) %>%
+				tf$nn$conv2d(model@gaussian_kernel, strides = c(1, 1, 1, 1), padding = 'SAME')
+
+			xi <- xi / tf$reduce_sum(xi, c(1L, 2L, 3L), keepdims = TRUE)
 
 			posterior <- xi %>%
 				model@encoder()
 
-			z <- posterior$sample(n)
+			z <- posterior$mean() 
 
-			v_window <- z %>%
-				tf$reshape(shape(length(b) * n, model@latent_dim)) %>%
+			v_window <- z %>%   # batch size ~ n_bins_per_window
 				model@decoder_window()
 
-			v_interval <- z %>%
-				tf$reshape(shape(length(b) * n, model@latent_dim)) %>%
+			v_interval <- z %>%   # batch size ~ n_intervals
 				model@decoder_interval()
 
-			d_window_mean[b, ] <- v_window %>% 
-				tf$reshape(shape(n, length(b), metadata(x)$n_bins_per_window)) %>%
-				tf$reduce_mean(0L) %>%
+			latent[b, ] <- z %>%
 				as.matrix()
 
-			d_window_sd[b, ] <- v_window %>% 
-				tf$reshape(shape(n, length(b), metadata(x)$n_bins_per_window)) %>%
-				tf$math$reduce_std(0L) %>%
+			distance_mean[b, ] <- v_interval %>%
 				as.matrix()
 
-			d_interval_mean[b, ] <- v_interval %>% 
-				tf$reshape(shape(n, length(b), metadata(x)$n_intervals)) %>%
-				tf$reduce_mean(0L) %>%
-				as.matrix()
-
-			d_interval_sd[b, ] <- v_interval %>% 
-				tf$reshape(shape(n, length(b), metadata(x)$n_intervals)) %>%
-				tf$math$reduce_std(0L) %>%
-				as.matrix()
-
-			latent[b, ] <- posterior$mean() %>%
+			position_mean[b, ] <- v_window %>%
 				as.matrix()
 
 		}
 
-		mcols(x)$distance_window_mean <- d_window_mean
-		mcols(x)$distance_window_sd <- d_window_sd
-		mcols(x)$distance_interval_mean <- d_interval_mean
-		mcols(x)$distance_interval_sd <- d_interval_sd
 		mcols(x)$latent <- latent
+		mcols(x)$distance_mean <- distance_mean
+		mcols(x)$position_mean <- position_mean
 
 		x
 	}

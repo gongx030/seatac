@@ -4,7 +4,7 @@ setMethod(
 	'fit',
 	signature(
 		model = 'vplot_autoencoder_model',
-		x = 'GRanges'
+		x = 'Vplots'
 	),
 	function(
 		model,
@@ -34,13 +34,18 @@ setMethod(
 
 				xi <- x[b]$counts %>%
 					as.matrix() %>%
-					reticulate::array_reshape(c(		# convert into a C-style array
+					reticulate::array_reshape(c(    # convert into a C-style array
 						length(b),
-						metadata(x)$n_bins_per_window, 
-						metadata(x)$n_intervals, 
+						x@n_intervals,
+						x@n_bins_per_window,
 						1L
 					)) %>%
-					tf$cast(tf$float32)
+					tf$cast(tf$float32) %>%
+					tf$nn$conv2d(model@gaussian_kernel, strides = c(1, 1, 1, 1), padding = 'SAME')
+
+				xi_min <- tf$reduce_min(xi, c(1L, 2L), keepdims = TRUE)
+				xi_max <- tf$reduce_max(xi, c(1L, 2L), keepdims = TRUE)
+				xi <- (xi - xi_min) / (xi_max - xi_min)
 
 				with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
@@ -66,7 +71,13 @@ setMethod(
 					optimizer$apply_gradients()
 			}
 
-			flog.info(sprintf('training vplot_autoencoder_model | epoch=%4.d/%4.d | total_loss=%13.7f', epoch, epochs, total_loss))
+			flog.info(sprintf('training %s | epoch=%4.d/%4.d | total_loss=%13.7f', class(model), epoch, epochs, total_loss))
+
+      if (epoch == 1 || epoch %% 20 == 0){
+				x <- model %>% predict(x, batch_size = batch_size)
+				y_umap <- umap(x$latent)$layout
+				plot(y_umap, pch = 21, bg = classes, col = classes, main = epoch, cex = 0.5)
+			}
 
 		}
 		model

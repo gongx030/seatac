@@ -12,7 +12,7 @@ setMethod(
 		learning_rate = 1e-3, 
 		batch_size = 256L,
 		epochs = 100L,
-		steps_per_epoch = 10L
+		epochs_per_updating = 10L
 	){
 
 		flog.info(sprintf('batch size(batch_size): %d', batch_size))
@@ -20,18 +20,35 @@ setMethod(
 		optimizer <- tf$keras$optimizers$Adam(learning_rate)
 		flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 
-		starts <- seq(1, length(model@data), by = batch_size)
+		starts <- seq(1, length(x), by = batch_size)
 		ends <- starts + batch_size - 1
-		ends[ends > length(model@data)] <- length(model@data)
+		ends[ends > length(x)] <- length(x)
 		n_batch <- length(starts)
 
-		z <- model %>% encode(batch_size = batch_size)
-		km <- kmeans(z, model@num_clusters)
-		u <- km$centers %>%
-			tf$cast(tf$float32) %>%
-			tf$Variable()
+		# initialize the clusters
+		X <- x$counts %>%
+		  as.matrix() %>%
+		    array(c(
+					length(x),
+					x@n_bins_per_window,
+					x@n_intervals
+			))
 
-		p <- sparseMatrix(i = 1:length(model@data), j = km$cluster, dims = c(length(model@data), model@num_clusters))
+		X_window <- rowSums(X, dims = 2)
+		X_window <- Diagonal(x = 1 / rowSums(X_window)) %*% X_window
+
+		X <- aperm(X, c(1, 3, 2))
+		X_interval <- rowSums(X, dims = 2)
+		X_interval <- Diagonal(x = 1 / rowSums(X_interval)) %*% X_interval
+
+		km <- kmeans(cbind(X_window, X_interval), nstart = 10, centers = model@num_clusters)
+		print(table(km$cluster, classes))
+
+		# initialize the centers
+		u <- tf$Variable(tf$random$normal(shape(model@num_clusters, model@latent_dim)))
+
+		# memership matrix
+		p <- sparseMatrix(i = 1:length(x), j = km$cluster, dims = c(length(x), model@num_clusters))
 		p <- p + 0.1
 		p <- Diagonal(x = 1 / rowSums(p)) %*% p
 		p <- p %>% 
@@ -48,15 +65,20 @@ setMethod(
 
 				b <- starts[i]:ends[i]
 
-				xi <- model@data[b]$counts %>%
+				xi <- x[b]$counts %>%
 					as.matrix() %>%
 					reticulate::array_reshape(c(		# convert into a C-style array
 						length(b),
-						metadata(x)$n_bins_per_window, 
-						metadata(x)$n_intervals, 
+						x@n_intervals, 
+						x@n_bins_per_window, 
 						1L
 					)) %>%
-					tf$cast(tf$float32)
+					tf$cast(tf$float32) %>%
+					tf$nn$conv2d(model@gaussian_kernel, strides = c(1, 1, 1, 1), padding = 'SAME')
+
+				xi_min <- tf$reduce_min(xi, c(1L, 2L), keepdims = TRUE)
+				xi_max <- tf$reduce_max(xi, c(1L, 2L), keepdims = TRUE)
+				xi <- (xi - xi_min) / (xi_max - xi_min)
 
 				with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
@@ -106,12 +128,13 @@ setMethod(
 
 			}
 
-			if (epoch %% steps_per_epoch == 0){
+			if (epoch %% epochs_per_updating == 0){
 
 				flog.info('updating membership')
 
-				z <- model %>% 
-					encode(batch_size = batch_size) %>%
+				x <- model %>% predict(x, batch_size = batch_size)
+
+				z <- x$latent %>% 
 					tf$cast(tf$float32)
 
 				d <- z^2 %>% tf$reduce_sum(1L, keepdims = TRUE) - 
@@ -126,28 +149,19 @@ setMethod(
 					as.numeric()
 				cls <- cls + 1
 
-				z %>%
-					as.matrix() %>%
-					umap() %>%
-					pluck('layout') %>%
-					plot(pch = 21, bg = cls, col = cls, main = epoch, cex = 0.25)
+				
+				print(table(cls, classes))
 
-#				y <- u %>% 
-#					model@decoder()
-
-				for (k in 1:model@num_clusters){
-
-					if (sum(cls == k) > 1){
-						model@data$counts[cls == k, ] %>% 
-							colMeans() %>% 
-							matrix(metadata(model@data)$n_bins_per_window , metadata(model@data)$n_intervals) %>% 
-							image(main = k)
-					}
-				}
-				print(table(cls, model@data$sample_id))
 			}
 
-			flog.info(sprintf('training vplot_autoencoder_cluster_model | epoch=%4.d/%4.d | loss_reconstruction=%13.7f | loss_cluster=%13.7f | total_loss=%13.7f', epoch, epochs, total_loss_reconstruction, total_loss_cluster, total_loss))
+			if (epoch == 1 || epoch %% 10 == 0){
+				x <- model %>% predict(x, batch_size = batch_size)
+				y_umap <- umap(x$latent)$layout
+#				print(table(kmeans(y_umap, 3)$cluster, classes))
+				plot(y_umap, pch = 21, bg = classes, col = classes, main = epoch, cex = 0.5)
+			}
+
+			flog.info(sprintf('training %s | epoch=%4.d/%4.d | loss_reconstruction=%13.7f | loss_cluster=%13.7f | total_loss=%13.7f', class(model), epoch, epochs, total_loss_reconstruction, total_loss_cluster, total_loss))
 
 		}
 

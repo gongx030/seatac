@@ -19,7 +19,6 @@ setMethod(
 		n_batch <- length(starts)
 
 		distance_mean <- matrix(NA, length(x), x@n_intervals)
-		distance_sd <- matrix(NA, length(x), x@n_intervals)
 		latent <- matrix(NA, length(x), model@latent_dim)
 
 		for (i in 1:n_batch){
@@ -42,29 +41,20 @@ setMethod(
 			posterior <- xi %>%
 				model@encoder()
 
-			z <- posterior$sample(n)
+			z <- posterior$mean()
 
 			v <- z %>%
-				tf$reshape(shape(length(b) * n, model@latent_dim)) %>%
 				model@decoder()
 
 			distance_mean[b, ] <-  v %>% 
-				tf$reshape(shape(n, length(b), x@n_intervals)) %>%
-				tf$reduce_mean(0L) %>%
 				as.matrix()
 
-			distance_sd[b, ] <- v %>% 
-				tf$reshape(shape(n, length(b), x@n_intervals)) %>%
-				tf$math$reduce_std(0L) %>%
-				as.matrix()
-
-			latent[b, ] <- posterior$mean() %>%
+			latent[b, ] <- z %>% 
 				as.matrix()
 
 		}
 
 		mcols(x)$distance_mean <- distance_mean
-		mcols(x)$distance_sd <- distance_sd
 		mcols(x)$latent <- latent
 
 		x

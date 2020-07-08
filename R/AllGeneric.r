@@ -33,3 +33,8 @@ setGeneric('smooth_vplot', function(x, ...) standardGeneric('smooth_vplot'))
 setGeneric('predict', function(model, x, ...) standardGeneric('predict'))
 
 setGeneric('results', function(control, treatment, ...) standardGeneric('results'))
+
+setGeneric('vplot', function(x, ...) standardGeneric('vplot'))
+
+setGeneric('simulate_vplot', function(x, ...) standardGeneric('simulate_vplot'))
+

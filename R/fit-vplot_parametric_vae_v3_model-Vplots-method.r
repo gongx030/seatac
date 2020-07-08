@@ -11,7 +11,6 @@ setMethod(
 		x,
 		learning_rate = 1e-3, 
 		batch_size = 256L,
-		min_reads = 20,
 		epochs = 100L
 	){
 
@@ -21,11 +20,6 @@ setMethod(
 		flog.info(sprintf('optimizer: Adam(learning_rate=%.3e)', learning_rate))
 
 		flog.info(sprintf('input windows:%d', length(x)))
-
-		n_reads <- rowSums(x$counts)
-		valid <- n_reads >= min_reads
-		x <- x[valid]
-		flog.info(sprintf('qualified windows(n_reads>=%d):%d', min_reads, length(x)))
 
 		starts <- seq(1, length(x), by = batch_size)
 		ends <- starts + batch_size - 1
@@ -133,8 +127,11 @@ setMethod(
 					optimizer$apply_gradients()
 			}
 
-      if (epoch == 1 || epoch %% 10 == 0){
-				plot(y[, 1], y_pred[, 1], main = epoch)
+      if (epoch == 1 || epoch %% 20 == 0){
+				x <- model %>% predict(x, batch_size = batch_size)
+				y_umap <- umap(x$latent)$layout
+				plot(y_umap, pch = 21, bg = classes, col = classes, main = epoch)
+#				plot(y[, 1], y_pred[, 1], main = epoch)
 			}
 
 			flog.info(sprintf('training %s | epoch=%4.d/%4.d | total_loss_likelihood=%13.7f | total_loss_kl=%13.7f | total_loss=%13.7f', class(model), epoch, epochs, total_loss_likelihood, total_loss_kl, total_loss))

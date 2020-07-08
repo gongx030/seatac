@@ -4,8 +4,8 @@
 #'
 #' @import methods
 #' @import BiocGenerics
-#' @import tensorflow
 #' @import tfprobability
+#' @import tensorflow
 #' @import keras
 #' @import Matrix
 #' @import SummarizedExperiment
@@ -21,7 +21,8 @@
 #' @importFrom purrr pluck
 #' @importFrom BSgenome BSgenome
 #' @importFrom igraph cluster_louvain membership
-#' @importFrom flexmix flexmix clusters FLXMRglm
+#' @importFrom irlba irlba
+#' @import flexmix
 #' @docType package
 #' @name seatac
 #'
