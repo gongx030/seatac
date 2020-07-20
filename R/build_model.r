@@ -88,8 +88,7 @@ setMethod(
 				fragment_size_range = as.integer(param$fragment_size_range),
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
-				bin_size = as.integer(param$bin_size),
-				gaussian_kernel = gaussian_kernel(size = 10, mu = 1, std = 1)
+				bin_size = as.integer(param$bin_size)
 			)
 		}else if (name == 'vplot_autoencoder_v2_model'){
 
@@ -117,11 +116,12 @@ setMethod(
 				fragment_size_range = as.integer(param$fragment_size_range),
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
-				bin_size = as.integer(param$bin_size),
-				gaussian_kernel = gaussian_kernel(size = 10, mu = 1, std = 1)
+				bin_size = as.integer(param$bin_size)
 			)
 
 		}else if (name == 'vplot_vae_model'){
+
+			n_bins_per_block <- as.integer(param$block_size / param$bin_size)
 
 			model <- new(
 				name,
@@ -135,8 +135,8 @@ setMethod(
 				prior = prior_model(
 					latent_dim = as.integer(param$latent_dim)
 				),
-				decoder = decoder_model(
-					window_dim = as.integer(param$n_bins_per_window),
+				decoder = poisson_decoder_model(
+					window_dim = n_bins_per_block,
 					interval_dim = as.integer(param$n_intervals),
 					filters0 = 64L,
 					filters = c(32L, 32L, 1L),
@@ -151,8 +151,13 @@ setMethod(
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
 				bin_size = as.integer(param$bin_size),
-				gaussian_kernel = gaussian_kernel(size = 10, mu = 1, std = 1)
+				block_size = as.integer(param$block_size),
+				n_bins_per_block = n_bins_per_block,
+				min_reads_per_block = param$min_reads_per_block,
+				max_reads_per_pixel = param$max_reads
 			)
+
+			model@n_blocks_per_window <- as.integer(model@n_bins_per_window - model@n_bins_per_block + 1)
 
 		}else if (name == 'vplot_parametric_vae_model'){
 
@@ -191,8 +196,7 @@ setMethod(
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
 				bin_size = as.integer(param$bin_size),
-				sigma0 = 1,
-				gaussian_kernel = gaussian_kernel(size = 10, mu = 1, std = 1)
+				sigma0 = 1
 			)
 
 		}else if (name == 'vplot_parametric_vae_v2_model'){
@@ -261,8 +265,7 @@ setMethod(
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
 				bin_size = as.integer(param$bin_size),
-				sigma0 = param$sigma0,
-				gaussian_kernel = gaussian_kernel(size = 10, mu = 1, std = 1)
+				sigma0 = param$sigma0
 			)
 
 		}else if (name == 'vplot_parametric_vae_v3_vampprior_model'){
@@ -304,8 +307,7 @@ setMethod(
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
 				bin_size = as.integer(param$bin_size),
-				sigma0 = param$sigma0,
-				gaussian_kernel = gaussian_kernel(size = 10, mu = 1, std = 1)
+				sigma0 = param$sigma0
 			)
 
 		}else if (name == 'vplot_parametric_vae_v3_gmm_model'){
@@ -347,8 +349,7 @@ setMethod(
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
 				bin_size = as.integer(param$bin_size),
-				sigma0 = param$sigma0,
-				gaussian_kernel = gaussian_kernel(size = 10, mu = 1, std = 1)
+				sigma0 = param$sigma0
 			)
 
 		}else if (name == 'vplot_parametric_vae_v4_model'){
@@ -384,8 +385,7 @@ setMethod(
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
 				bin_size = as.integer(param$bin_size),
-				sigma0 = 1,
-				gaussian_kernel = gaussian_kernel(size = 10, mu = 1, std = 1)
+				sigma0 = 1
 			)
 
 		}else if (name == 'vplot_parametric_vae_v5_model'){
@@ -420,7 +420,6 @@ setMethod(
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
 				bin_size = as.integer(param$bin_size),
-				gaussian_kernel = gaussian_kernel(size = 10, mu = 1, std = 1),
 				mu = param$mu,
 				sigma = param$sigma,
 				shape = param$shape,
@@ -454,7 +453,6 @@ setMethod(
 				fragment_size_interval = as.integer(param$fragment_size_interval),
 				window_size = as.integer(param$window_size),
 				bin_size = as.integer(param$bin_size),
-				gaussian_kernel = gaussian_kernel(size = 10, mu = 1, std = 1),
 				num_clusters = as.integer(param$num_clusters),
 				gamma = param$gamma,
 				sigma = param$sigma
@@ -475,6 +473,39 @@ setMethod(
 				window_size = as.integer(param$window_size),
 				bin_size = as.integer(param$bin_size)
 			)
+
+		}else if (name == 'vplot_autoencoder_3d_model'){
+
+			model <- new(
+				name,
+				encoder = encoder_3d_model(
+					latent_dim = as.integer(param$latent_dim),
+					filters = c(32L, 32L, 32L),
+					kernel_size = c(3L, 3L, 3L),
+					window_strides = c(2L, 2L, 2L),
+					interval_strides = c(2L, 2L, 1L),
+				),
+				decoder = decoder_3d_model(
+					window_dim = as.integer(param$block_size / param$bin_size),
+					interval_dim = as.integer(param$n_intervals),
+					filters0 = 64,
+					filters = c(32L, 32L, 1L),
+					kernel_size = c(3L, 3L, 3L),
+					window_strides = c(2L, 2L, 2L),
+					interval_strides = c(2L, 2L, 2L),
+				),
+				n_bins_per_window = as.integer(param$n_bins_per_window),
+				n_intervals = as.integer(param$n_intervals),
+				latent_dim = as.integer(param$latent_dim),
+				fragment_size_range = as.integer(param$fragment_size_range),
+				fragment_size_interval = as.integer(param$fragment_size_interval),
+				window_size = as.integer(param$window_size),
+				bin_size = as.integer(param$bin_size),
+				block_size = as.integer(param$block_size)
+			)
+
+			model@n_bins_per_block <- as.integer(model@block_size / model@bin_size)
+			model@n_blocks_per_window <- as.integer(model@n_bins_per_window - model@n_bins_per_block + 1)
 
 		}else
 			stop(sprintf('unknown name: %s', name))

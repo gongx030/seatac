@@ -27,18 +27,16 @@ setMethod(
 		fragment_size_interval = 10
 	){
 
-		if (is.null(names(filenames)))
-			stop('filenames must be a named vector')
-
-		if (any(duplicated(names(filenames))))
-			stop('names(filenames) must be unique')
-
 		window_size <- width(x)
 
 		if (length(unique(window_size)) > 1)
 			stop('the window size of input data must be equal')
 
+
 		window_size <- window_size[1]
+
+		if (window_size %% bin_size != 0)
+			stop('window_size %% bin_size must be zero')
 
  		n_bins_per_window <- window_size / bin_size
 

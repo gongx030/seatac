@@ -23,8 +23,34 @@ setClass(
 )
 
 setClass(
+	'VplotsFitted',
+	slot = c(
+		model = 'vplot_model'
+	),
+	contains = 'Vplots'
+)
+
+setClass(
 	'VplotsList',
 	contains = 'GRangesList'
+)
+
+setClass(
+	'VplotsCluster',
+	slot = c(
+		fragment_size_range  = 'integer',
+		fragment_size_interval = 'integer',
+		bin_size = 'integer',
+		window_size = 'integer',
+		n_intervals = 'integer',
+		n_bins_per_window = 'integer',
+		breaks = 'numeric',
+		centers = 'numeric',
+		positions = 'numeric',
+		prototypes = 'array',
+		k = 'integer'
+	),
+	contains = 'Vplots'
 )
 
 
@@ -55,7 +81,11 @@ setClass(
 		bin_size = 'integer',
 		n_bins_per_window = 'integer',
 		n_intervals = 'integer',
-		gaussian_kernel = 'tensorflow.tensor'
+		n_bins_per_block = 'integer',
+		n_blocks_per_window = 'integer',
+		block_size = 'integer',
+		min_reads_per_block = 'numeric',
+		max_reads_per_pixel = 'numeric'
 	)
 )
 
@@ -211,4 +241,13 @@ setClass(
 	contains = 'vplot_model'
 )
 
+setClass(
+	'vplot_autoencoder_3d_model',
+	slot = c(
+		block_size = 'integer',
+		n_bins_per_block = 'integer',
+		n_blocks_per_window = 'integer'
+	),
+	contains = 'vplot_autoencoder_model'
+)
 

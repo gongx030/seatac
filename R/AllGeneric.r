@@ -32,9 +32,15 @@ setGeneric('smooth_vplot', function(x, ...) standardGeneric('smooth_vplot'))
 
 setGeneric('predict', function(model, x, ...) standardGeneric('predict'))
 
-setGeneric('results', function(control, treatment, ...) standardGeneric('results'))
+setGeneric('results', function(x, targets, ...) standardGeneric('results'))
 
 setGeneric('vplot', function(x, ...) standardGeneric('vplot'))
 
 setGeneric('simulate_vplot', function(x, ...) standardGeneric('simulate_vplot'))
+
+setGeneric('prepare_vplot', function(x, ...) standardGeneric('prepare_vplot'))
+
+setGeneric('prepare_blocks', function(x, model, ...) standardGeneric('prepare_blocks'))
+
+setGeneric('cluster', function(x, ...) standardGeneric('cluster'))
 

@@ -20,7 +20,6 @@
 #' @importFrom fields image.smooth
 #' @importFrom purrr pluck
 #' @importFrom BSgenome BSgenome
-#' @importFrom igraph cluster_louvain membership
 #' @importFrom irlba irlba
 #' @import flexmix
 #' @docType package

@@ -2,14 +2,16 @@
 setMethod(
 	'results',
 	signature(
-		control = 'Vplots',
-		treatment = 'Vplots'
+		x = 'Vplots',
+		targets = 'GRangesList'
 	),
   function(
-		control,
-		treatment,
+		x,
+		targets,
 		...
 	){
+
+		browser()
 
 		if (!all(granges(control) == granges(treatment)))
 			stop('genomic ranges in control and treatment must be equal')

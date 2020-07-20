@@ -128,3 +128,66 @@ vae_encoder_model <- function(
 } # vae_encoder_model
 
 
+#' encoder model for the vplot
+#'
+encoder_3d_model <- function(
+	latent_dim, 
+	filters = c(32L, 32L, 32L), 
+	kernel_size = c(3L, 3L, 3L), 
+	window_strides = c(2L, 2L, 2L), 
+	interval_strides = c(2L, 2L, 1L), 
+	name = NULL
+){
+
+	keras_model_custom(name = name, function(self){
+
+		self$conv_1 <- layer_conv_3d(
+			filters = filters[1],
+			kernel_size = c(1L, kernel_size[1], kernel_size[1]),
+			strides = c(1L, window_strides[1], interval_strides[1]),
+			activation = 'relu'
+		)
+
+		self$bn_1 <- layer_batch_normalization()
+
+		self$conv_2 <- layer_conv_3d(
+			filters = filters[2],
+			kernel_size = c(1L, kernel_size[2], kernel_size[2]),
+			strides = shape(1L, window_strides[2], interval_strides[2]),
+			activation = 'relu'
+		)
+
+		self$bn_2 <- layer_batch_normalization()
+
+		self$conv_3 <- layer_conv_3d(
+			filters = filters[3],
+			kernel_size = c(1L, kernel_size[3], kernel_size[3]),
+			strides = shape(1L, window_strides[3], interval_strides[3]),
+			activation = 'relu'
+		)
+
+		self$bn_3 <- layer_batch_normalization()
+
+		self$dense_1 <- layer_dense(
+			units = latent_dim
+		)
+
+		function(x, mask = NULL, training = TRUE){
+
+			y <- x %>% 
+				self$conv_1() %>%
+				self$bn_1(training = training) %>%
+				self$conv_2() %>%
+				self$bn_2(training = training) %>%
+				self$conv_3() %>%
+				self$bn_3(training = training) 
+
+			y <- y %>% 
+				layer_reshape(c(y$shape[1], y$shape[2] * y$shape[3] * y$shape[4])) %>%
+				self$dense_1()
+
+			y
+		}
+	})
+
+} # encoder_model
