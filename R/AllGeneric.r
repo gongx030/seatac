@@ -32,8 +32,6 @@ setGeneric('smooth_vplot', function(x, ...) standardGeneric('smooth_vplot'))
 
 setGeneric('predict', function(model, x, ...) standardGeneric('predict'))
 
-setGeneric('results', function(x, targets, ...) standardGeneric('results'))
-
 setGeneric('vplot', function(x, ...) standardGeneric('vplot'))
 
 setGeneric('simulate_vplot', function(x, ...) standardGeneric('simulate_vplot'))
@@ -42,5 +40,11 @@ setGeneric('prepare_vplot', function(x, ...) standardGeneric('prepare_vplot'))
 
 setGeneric('prepare_blocks', function(x, model, ...) standardGeneric('prepare_blocks'))
 
-setGeneric('cluster', function(x, ...) standardGeneric('cluster'))
+setGeneric('results', function(x, targets, ...) standardGeneric('results'))
+
+setGeneric('extract_blocks', function(x, ...) standardGeneric('extract_blocks'))
+
+setGeneric('find_nucleosome_signal', function(x, ...) standardGeneric('find_nucleosome_signal'))
+
+setGeneric('add_track', function(x, ...) standardGeneric('add_track'))
 

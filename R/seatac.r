@@ -21,7 +21,7 @@
 #' @importFrom purrr pluck
 #' @importFrom BSgenome BSgenome
 #' @importFrom irlba irlba
-#' @import flexmix
+#' @importFrom Hotelling hotelling.test
 #' @docType package
 #' @name seatac
 #'

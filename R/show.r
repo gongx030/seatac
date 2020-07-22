@@ -1,3 +1,4 @@
+
 #' show-Vplots
 #'
 setMethod(
@@ -15,5 +16,34 @@ setMethod(
 		cat(sprintf('## bin_size:%d\n', object@bin_size))
 		cat(sprintf('## window_size:%d\n', object@window_size))
 		cat(sprintf('## n_bins_per_window:%d\n', object@n_bins_per_window))
+	}
+)
+
+
+#' show-VplotsFitted
+#'
+setMethod(
+	'show',
+	signature(
+		object = 'VplotsFittedBlocksCluster'
+	),
+	function(object){
+		callNextMethod()
+
+		cat(sprintf('## clusters: %s\n', object@k))
+	}
+)
+
+#' show-VplotsFitted
+#'
+setMethod(
+	'show',
+	signature(
+		object = 'VplotsFitted'
+	),
+	function(object){
+		callNextMethod()
+
+		cat(sprintf('## model: %s\n', class(object@model)))
 	}
 )
