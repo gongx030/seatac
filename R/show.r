@@ -25,12 +25,17 @@ setMethod(
 setMethod(
 	'show',
 	signature(
-		object = 'VplotsFittedBlocksCluster'
+		object = 'VplotsFitted'
 	),
 	function(object){
 		callNextMethod()
 
-		cat(sprintf('## clusters: %s\n', object@k))
+		cat(sprintf('## model: %s\n', class(object@model)))
+		cat(sprintf('## block_size: %s\n', object@model@block_size))
+		cat(sprintf('## n_bins_per_block: %s\n', object@model@n_bins_per_block))
+		cat(sprintf('## min_reads_per_block: %s\n', object@model@min_reads_per_block))
+		cat(sprintf('## max_reads_per_pixel: %s\n', object@model@max_reads_per_pixel))
+		cat(sprintf('## latent_dim: %s\n', object@model@latent_dim))
 	}
 )
 
@@ -39,11 +44,24 @@ setMethod(
 setMethod(
 	'show',
 	signature(
-		object = 'VplotsFitted'
+		object = 'VplotsKmers'
 	),
 	function(object){
 		callNextMethod()
-
-		cat(sprintf('## model: %s\n', class(object@model)))
+		cat(sprintf('## kmers: %s\n', object@k))
 	}
 )
+
+#' show-VplotsFitted
+#'
+setMethod(
+	'show',
+	signature(
+		object = 'VplotsKmersFitted'
+	),
+	function(object){
+		callNextMethod()
+		cat(sprintf('## kmers: %s\n', object@k))
+	}
+)
+

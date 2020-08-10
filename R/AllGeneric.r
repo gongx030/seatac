@@ -44,7 +44,15 @@ setGeneric('results', function(x, targets, ...) standardGeneric('results'))
 
 setGeneric('extract_blocks', function(x, ...) standardGeneric('extract_blocks'))
 
-setGeneric('find_nucleosome_signal', function(x, ...) standardGeneric('find_nucleosome_signal'))
+setGeneric('add_nucleosome_signal', function(x, ...) standardGeneric('add_nucleosome_signal'))
 
 setGeneric('add_track', function(x, ...) standardGeneric('add_track'))
+
+setGeneric('save_results', function(x, dir, ...) standardGeneric('save_results'))
+
+setGeneric('load_results', function(dir, ...) standardGeneric('load_results'))
+
+setGeneric('add_kmers', function(x, k, genome, ...) standardGeneric('add_kmers'))
+
+setGeneric('save_hdf5', function(x, file, ...) standardGeneric('save_hdf5'))
 

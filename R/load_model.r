@@ -20,38 +20,51 @@ setMethod(
 		flog.info(sprintf('reading %s', model_file))
 		model <- readRDS(model_file)
 
+		if (class(model) == 'vplot_vae_model'){
+			networks <- c('encoder', 'decoder', 'prior')
+		}else if (class(model) == 'vplot_cvae_model'){
+			networks <- c('encoder', 'decoder', 'prior', 'embedder')
+		}else
+			stop(sprintf('unknown model class: %s', class(model)))
+
 		slot_names <- slotNames(model)
-		slot_names <- slot_names[!slot_names %in% c('encoder', 'decoder', 'prior')]
+		slot_names <- slot_names[!slot_names %in% networks]
 		param <- lapply(slot_names, function(x) slot(model, x))
 		names(param) <- slot_names
 
 		model <- do.call(build_model, c(name = class(model), x = NULL, param))
 
+
 		# initialize the weights
-		z <- k_random_uniform(c(1L, model@n_intervals, model@n_bins_per_window, 1L)) %>%
-			model@encoder() 
+		if (class(model) == 'vplot_vae_model'){
+
+			z <- k_random_uniform(c(1L, model@n_intervals, model@n_bins_per_block, 1L)) %>%
+				model@encoder() 
 		
-		z$sample() %>%
-			model@decoder_window()
+			z$sample() %>%
+				model@decoder()
 
-		z$sample() %>%
-			model@decoder_interval()
+		}else if (class(model) == 'vplot_cvae_model'){
 
-		encoder_file <- sprintf('%s/encoder.h5', dir)
-		model@encoder$load_weights(encoder_file)
-		flog.info(sprintf('reading %s', encoder_file))
+			x <- k_random_uniform(c(1L, model@n_intervals, model@n_bins_per_block, 1L)) 
 
-		prior_file <- sprintf('%s/prior.h5', dir)
-		model@prior$load_weights(prior_file)
-		flog.info(sprintf('reading %s', prior_file))
+			g <- k_zeros(c(1L, model@block_size), dtype = tf$int32)
 
-		decoder_window_file <- sprintf('%s/decoder_window.h5', dir)
-		model@decoder_window$load_weights(decoder_window_file)
-		flog.info(sprintf('reading %s', decoder_window_file))
+			h <- g %>% 
+				model@embedder()
 
-		decoder_interval_file <- sprintf('%s/decoder_interval.h5', dir)
-		model@decoder_interval$load_weights(decoder_interval_file)
-		flog.info(sprintf('reading %s', decoder_interval_file))
+			z <- list(x, h) %>%
+				model@encoder()
+
+			list(z$sample(), h) %>%
+				model@decoder()
+		}
+
+		for (s in networks){
+			s_file <- sprintf('%s/%s.h5', dir, s)
+			slot(model, s)$load_weights(s_file)
+			flog.info(sprintf('reading %s', s_file))
+		}
 
 		model	
 

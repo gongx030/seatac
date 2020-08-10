@@ -6,7 +6,7 @@ Author: Wuming Gong <gongx030@umn.edu>
 Maintainer: Wuming Gong <gongx030@umn.edu>
 Description: What the package does (one paragraph).
 Depends: 
-	R (>= 3.4.3),
+	R (>= 3.6.3),
 	methods,
 	BiocGenerics
 License: MIT License

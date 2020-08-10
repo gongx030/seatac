@@ -41,7 +41,14 @@ setClass(
 	contains = 'GRanges'
 )
 
-
+setClass(
+	'VplotsKmers',
+	slot = c(
+		kmers = 'character',
+		k = 'integer'
+	),
+	contains = 'Vplots'
+)
 
 setClass(
 	'VplotsFitted',
@@ -49,6 +56,14 @@ setClass(
 		model = 'vplot_modelOrNULL'
 	),
 	contains = 'Vplots'
+)
+
+setClass(
+	'VplotsKmersFitted',
+	slot = c(
+		model = 'vplot_modelOrNULL'
+	),
+	contains = c('VplotsFitted')
 )
 
 setClass(
@@ -60,15 +75,6 @@ setClass(
 	'VplotsList',
 	contains = 'GRangesList'
 )
-
-setClass(
-	'VplotsFittedBlocksCluster',
-	slot = c(
-		k = 'integer'
-	),
-	contains = 'VplotsFittedBlocks'
-)
-
 
 setClass(
 	'sparse_array',
@@ -86,6 +92,18 @@ setClass(
 		subs = 'numeric',
 		vals = 'numeric'
 	)
+)
+
+setClass(
+	'vplot_transformer_model',
+	slot = c(
+#		decoder = 'kerastools.model.RModel',
+#		encoder = 'kerastools.model.RModel',
+#		embedder = 'kerastools.model.RModel',
+#		prior = 'kerastools.model.RModel',
+		latent_dim = 'integer'
+	),
+	contains = 'vplot_model'
 )
 
 

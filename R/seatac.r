@@ -20,8 +20,9 @@
 #' @importFrom fields image.smooth
 #' @importFrom purrr pluck
 #' @importFrom BSgenome BSgenome
-#' @importFrom irlba irlba
-#' @importFrom Hotelling hotelling.test
+#' @importFrom BiocParallel bplapply
+#' @importFrom rhdf5 h5createFile h5createGroup h5write h5ls
+#' @import rtracklayer
 #' @docType package
 #' @name seatac
 #'

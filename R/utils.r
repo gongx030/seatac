@@ -141,4 +141,18 @@ reconstruct_vplot_from_blocks <- function(x){
 
 }
 
+scale01 <- function(x){
+	x <- (x - rowMins(x)) / (rowMaxs(x) - rowMins(x))
+	x[is.na(x)] <- 0
+	x
+}
+
+summarize_performance <- function(x, y){
+	tp <- sum(x & y)
+	tn <- sum(!x & !y)
+	fp <- sum(!x & y)
+	fn <- sum(x & !y)
+	data.frame(tp = tp, tn = tn, fp = fp, fn = fn, sensitivity = tp / (tp + fn), specificity = tn / (tn + fp), f1_score = 2 * tp / (2 * tp + fp + fn))
+}
+
 

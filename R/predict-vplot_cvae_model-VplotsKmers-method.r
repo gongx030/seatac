@@ -1,10 +1,9 @@
-#' vplot_parametric_vae_model
 #'
 setMethod(
 	'predict',
 	signature(
-		model = 'vplot_vae_model',
-		x = 'Vplots'
+		model = 'vplot_cvae_model',
+		x = 'VplotsKmers'
 	),
 	function(
 		model,
@@ -27,18 +26,19 @@ setMethod(
 
 			b <- starts[i]:ends[i]
 
-			xi <- x[b] %>%
-				prepare_vplot() %>%
-				extract_blocks_from_vplot(model@n_bins_per_block) %>%
-				tf$clip_by_value(clip_value_min = 0, clip_value_max = model@max_reads_per_pixel) %>%
-				tf$reshape(c(length(b) * model@n_blocks_per_window, model@n_intervals, model@n_bins_per_block, 1L))
+			inputs <- x[b] %>% prepare_blocks(model, min_reads = 0L)
+			xi <- inputs$vplots
+			gi <- inputs$kmers
 
-			posterior <- xi %>%
+			ci <- gi %>%
+				model@embedder()
+
+			posterior <- list(xi, ci) %>%
 				model@encoder()
 
 			zi <- posterior$mean() 
 
-			xi_pred <- zi %>%
+			xi_pred <- list(zi, ci) %>%
 				model@decoder()
 
 			xi_pred <- xi_pred$mean() %>%
@@ -62,7 +62,7 @@ setMethod(
 
 		mcols(x)$latent <- latent
 		mcols(x)$predicted_counts <- predicted_counts
-		class(x) <- 'VplotsFitted'
+		class(x) <- 'VplotsKmersFitted'
 		x@model <- model
 
 		x
