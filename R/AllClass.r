@@ -2,6 +2,8 @@ setOldClass('kerastools.model.RModel')
 
 setOldClass('tensorflow.tensor')
 
+setOldClass('keras.engine.training.Model')
+
 setClassUnion('listOrNULL', members = c('list', 'NULL'))
 
 setClassUnion('matrixOrNULL', members = c('matrix', 'NULL'))
@@ -51,27 +53,6 @@ setClass(
 )
 
 setClass(
-	'VplotsFitted',
-	slot = c(
-		model = 'vplot_modelOrNULL'
-	),
-	contains = 'Vplots'
-)
-
-setClass(
-	'VplotsKmersFitted',
-	slot = c(
-		model = 'vplot_modelOrNULL'
-	),
-	contains = c('VplotsFitted')
-)
-
-setClass(
-	'VplotsFittedBlocks',
-	contains = 'VplotsFitted'
-)
-
-setClass(
 	'VplotsList',
 	contains = 'GRangesList'
 )
@@ -93,19 +74,6 @@ setClass(
 		vals = 'numeric'
 	)
 )
-
-setClass(
-	'vplot_transformer_model',
-	slot = c(
-#		decoder = 'kerastools.model.RModel',
-#		encoder = 'kerastools.model.RModel',
-#		embedder = 'kerastools.model.RModel',
-#		prior = 'kerastools.model.RModel',
-		latent_dim = 'integer'
-	),
-	contains = 'vplot_model'
-)
-
 
 setClass(
 	'vplot_vae_model',
@@ -267,5 +235,21 @@ setClass(
 		n_blocks_per_window = 'integer'
 	),
 	contains = 'vplot_autoencoder_model'
+)
+
+
+setOldClass('rpytools.call.Encoder')
+setOldClass('python.builtin.Encoder')
+setClassUnion('rpytools.call.EncoderOrpython.builtin.Encoder', members = c('rpytools.call.Encoder', 'python.builtin.Encoder'))
+
+setOldClass('rpytools.call.Decoder')
+setOldClass('python.builtin.Decoder')
+setClassUnion('rpytools.call.DecoderOrpython.builtin.Decoder', members = c('rpytools.call.Decoder', 'python.builtin.Decoder'))
+setClass(
+	'vplot_cvae_model',
+	slot = c(
+		encoder = 'rpytools.call.EncoderOrpython.builtin.Encoder',
+		decoder = 'rpytools.call.DecoderOrpython.builtin.Decoder'
+	)
 )
 

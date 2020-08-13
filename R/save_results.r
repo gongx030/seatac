@@ -1,7 +1,7 @@
 setMethod(
 	'save_results',
 	signature(
-		x = 'VplotsFitted',
+		x = 'Vplots',
 		dir = 'character'
 	),
 	function(
@@ -17,8 +17,6 @@ setMethod(
 		flog.info(sprintf('writing %s', results_file))
 		saveRDS(x, results_file)
 
-		save_model(x@model, dir)
-		
 	}
 )
 

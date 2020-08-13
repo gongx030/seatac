@@ -38,8 +38,6 @@ setGeneric('simulate_vplot', function(x, ...) standardGeneric('simulate_vplot'))
 
 setGeneric('prepare_vplot', function(x, ...) standardGeneric('prepare_vplot'))
 
-setGeneric('prepare_blocks', function(x, model, ...) standardGeneric('prepare_blocks'))
-
 setGeneric('results', function(x, targets, ...) standardGeneric('results'))
 
 setGeneric('extract_blocks', function(x, ...) standardGeneric('extract_blocks'))
@@ -54,5 +52,4 @@ setGeneric('load_results', function(dir, ...) standardGeneric('load_results'))
 
 setGeneric('add_kmers', function(x, k, genome, ...) standardGeneric('add_kmers'))
 
-setGeneric('save_hdf5', function(x, file, ...) standardGeneric('save_hdf5'))
-
+setGeneric('prepare_blocks', function(x, model, ...) standardGeneric('prepare_blocks'))

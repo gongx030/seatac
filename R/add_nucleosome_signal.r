@@ -1,9 +1,12 @@
 setMethod(
 	'add_nucleosome_signal',
 	signature(
-		x = 'VplotsFitted'
+		x = 'Vplots'
 	),
 	function(x){
+
+		if (is.null(x$predicted_counts))
+			stop('predicted_counts field does not exist')
 
 		nfr <- which(x@centers > 0 & x@centers <= 100)
 		mono <- which(x@centers >= 180 & x@centers <= 247)

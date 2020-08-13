@@ -28,14 +28,14 @@ setMethod(
 			y[invalid] <- sample(nucleotides, sum(invalid), replace = TRUE)
 		}
 
-		z <- lapply(seq_len(x@window_size), function(start){
+		z <- lapply(1:x@window_size, function(start){
 			do.call('paste0', as.data.frame(y[, start:(start + k - 1)])) %>%
 				factor(kmers) %>%
 				as.numeric()
 		})
 		z <- do.call('cbind', z)
 		
-		mcols(x)$kmers <- z - 1 # change to zero-based
+		mcols(x)$kmers <- z - 1 # change to zero-based for embedding
 		class(x) <- 'VplotsKmers'
 		x@kmers <- kmers
 		x@k <- k

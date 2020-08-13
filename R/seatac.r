@@ -21,7 +21,6 @@
 #' @importFrom purrr pluck
 #' @importFrom BSgenome BSgenome
 #' @importFrom BiocParallel bplapply
-#' @importFrom rhdf5 h5createFile h5createGroup h5write h5ls
 #' @import rtracklayer
 #' @docType package
 #' @name seatac

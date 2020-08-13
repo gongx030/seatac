@@ -147,12 +147,25 @@ scale01 <- function(x){
 	x
 }
 
-summarize_performance <- function(x, y){
-	tp <- sum(x & y)
-	tn <- sum(!x & !y)
-	fp <- sum(!x & y)
-	fn <- sum(x & !y)
-	data.frame(tp = tp, tn = tn, fp = fp, fn = fn, sensitivity = tp / (tp + fn), specificity = tn / (tn + fp), f1_score = 2 * tp / (2 * tp + fp + fn))
+#' get_angles
+#' Adopted from https://www.tensorflow.org/tutorials/text/transformer
+#'
+get_angles <- function(pos, i, d_model){
+	angle_rates <- 1 / (10000^ ( (2 * i %/% 2) / d_model ))
+  pos %*% angle_rates
 }
 
+positional_encoding <- function(position, d_model){
+	angle_rads <- get_angles(
+		matrix(0:(position - 1), position, 1),
+		matrix(0:(d_model - 1), 1, d_model),
+		d_model
+	)
+	even <- seq(1, ncol(angle_rads), by = 2)
+	angle_rads[, even] <- sin(angle_rads[, even])
+	odd <- seq(2, ncol(angle_rads), by = 2)
+	angle_rads[, odd] <- cos(angle_rads[, odd])
+	angle_rads
+
+} # positional_encoding
 
