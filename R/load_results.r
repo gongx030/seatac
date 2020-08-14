@@ -17,7 +17,6 @@ setMethod(
 		flog.info(sprintf('reading %s', results_file))
 		x <- readRDS(results_file)
 
-		x@model <- load_model(dir)
 		x
 	}
 )

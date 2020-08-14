@@ -1,3 +1,19 @@
+setOldClass('rpytools.call.Encoder')
+setOldClass('python.builtin.Encoder')
+setClassUnion('rpytools.call.EncoderOrpython.builtin.Encoder', members = c('rpytools.call.Encoder', 'python.builtin.Encoder'))
+
+setOldClass('rpytools.call.Decoder')
+setOldClass('python.builtin.Decoder')
+setClassUnion('rpytools.call.DecoderOrpython.builtin.Decoder', members = c('rpytools.call.Decoder', 'python.builtin.Decoder'))
+
+setClass(
+	'vplot_cvae_model',
+	slot = c(
+		encoder = 'rpytools.call.EncoderOrpython.builtin.Encoder',
+		decoder = 'rpytools.call.DecoderOrpython.builtin.Decoder'
+	)
+)
+
 #' scaled_dot_product_attention
 #'
 #' Calculate the attention weights.

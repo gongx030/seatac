@@ -9,7 +9,7 @@ setMethod(
 	function(
 		model,
 		x,
-		batch_size = 32L # v-plot per batch
+		batch_size = 8L# v-plot per batch
 	){
 
 		starts <- seq(1, length(x), by = batch_size)
@@ -17,7 +17,11 @@ setMethod(
 		ends[ends > length(x)] <- length(x)
 		n_batch <- length(starts)
 
-		latent <- array(NA, c(length(x),  model@n_blocks_per_window, model@latent_dim))
+		block_size <- model@encoder$block_size
+		n_bins_per_block <- as.integer(block_size / x@bin_size)
+		n_blocks_per_window <- as.integer(x@n_bins_per_window - n_bins_per_block + 1)
+
+		latent <- array(NA, c(length(x),  n_blocks_per_window, model@encoder$latent_dim))
 		predicted_counts <- matrix(0, length(x), x@n_bins_per_window * x@n_intervals)
 
 		for (i in 1:n_batch){
@@ -27,22 +31,14 @@ setMethod(
 
 			b <- starts[i]:ends[i]
 
-			xi <- x[b] %>%
-				prepare_vplot() %>%
-				extract_blocks_from_vplot(model@n_bins_per_block) %>%
-				tf$clip_by_value(clip_value_min = 0, clip_value_max = model@max_reads_per_pixel) %>%
-				tf$reshape(c(length(b) * model@n_blocks_per_window, model@n_intervals, model@n_bins_per_block, 1L))
+			xi <- x[b] %>% prepare_blocks(model, min_reads = 0L)
+			posterior <- xi %>% model@encoder()
+			z <- posterior$mean() 
 
-			posterior <- xi %>%
-				model@encoder()
-
-			zi <- posterior$mean() 
-
-			xi_pred <- zi %>%
-				model@decoder()
+			xi_pred <- z %>% model@decoder()
 
 			xi_pred <- xi_pred$mean() %>%
-				tf$reshape(c(length(b), model@n_blocks_per_window, model@n_intervals, model@n_bins_per_block, 1L)) %>%
+				tf$reshape(c(length(b), n_blocks_per_window, x@n_intervals, n_bins_per_block, 1L)) %>%
 				reconstruct_vplot_from_blocks() %>%
 				tf$squeeze(-1L) %>%
 				as.array()
@@ -50,10 +46,10 @@ setMethod(
 			xi_pred <- aperm(xi_pred, c(1, 3, 2))
 			dim(xi_pred) <- c(length(b), x@n_bins_per_window * x@n_intervals)
 
-			zi <- zi %>%
-				tf$reshape(c(length(b), model@n_blocks_per_window, model@latent_dim))
+			z <- z %>%
+				tf$reshape(c(length(b), n_blocks_per_window, model@encoder$latent_dim))
 
-			latent[b, , ] <- zi %>%
+			latent[b, , ] <- z %>%
 				as.array()
 
 			predicted_counts[b, ] <- xi_pred
@@ -62,8 +58,6 @@ setMethod(
 
 		mcols(x)$latent <- latent
 		mcols(x)$predicted_counts <- predicted_counts
-		class(x) <- 'VplotsFitted'
-		x@model <- model
 
 		x
 	}

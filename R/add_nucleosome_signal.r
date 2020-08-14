@@ -17,7 +17,8 @@ setMethod(
 		x$predicted_nfr <- y[, , nfr] %>% rowMeans(dims = 2)
 		x$predicted_mono_nucleosome <- y[, , mono] %>% rowMeans(dims = 2)
 
-		x$nucleosome_signal <- (x$predicted_mono_nucleosome + 1e-3) / (x$predicted_nfr + 1e-3)
+#		x$nucleosome_signal <- (x$predicted_mono_nucleosome + 1e-3) / (x$predicted_nfr + 1e-3)
+		x$nucleosome_signal <- x$predicted_mono_nucleosome
 
 		x$nucleosome_signal <- (x$nucleosome_signal - rowMins(x$nucleosome_signal)) / (rowMaxs(x$nucleosome_signal) - rowMins(x$nucleosome_signal))
 		x

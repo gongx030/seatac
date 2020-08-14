@@ -8,7 +8,7 @@ setMethod(
 	function(
 		model,
 		x,
-		batch_size = 32L # v-plot per batch
+		batch_size = 8L# v-plot per batch
 	){
 
 		starts <- seq(1, length(x), by = batch_size)
