@@ -14,145 +14,10 @@ setClass(
 	)
 )
 
-#' scaled_dot_product_attention
-#'
-#' Calculate the attention weights.
-#'
-#' 	 q, k, v must have matching leading dimensions.
-#'   k, v must have matching penultimate dimension, i.e.: seq_len_k = seq_len_v.
-#'	 The mask has different shapes depending on its type(padding or look ahead) 
-#'	 but it must be broadcastable for addition.
-#' 
-#' @param q: query shape == (..., seq_len_q, depth)
-#' @param k: key shape == (..., seq_len_k, depth)
-#' @param v: value shape == (..., seq_len_v, depth_v)
-#' @param mask: Float tensor with shape broadcastable to (..., seq_len_q, seq_len_k). Defaults to None.
-#'
-#' @return output, attention_weights
-
-scaled_dot_product_attention <- function(q, k, v, mask = NULL){
-
-	matmul_qk <- tf$matmul(q, k, transpose_b = TRUE)  # (..., seq_len_q, seq_len_k)
-	dk <- tf$cast(tf$shape(k) %>% tail(1), tf$float32)
-	scaled_attention_logits <- matmul_qk / tf$math$sqrt(dk)
-
-	if (!is.null(mask)){
-		scaled_attention_logits <- scaled_attention_logits + (mask * -1e9)  
-	}
-	
-	attention_weights <- tf$nn$softmax(scaled_attention_logits, axis = -1)  # (..., seq_len_q, seq_len_k)
-
-	output <- tf$matmul(attention_weights, v)  # (..., seq_len_q, depth_v)
-
-	list(output = output, attention_weights = attention_weights)
-
-} # scaled_dot_product_attention
-
-MultiHeadAttention <- reticulate::PyClass(
-	'MultiHeadAttention',
-	inherit = tf$keras$layers$Layer,
-	list(
-		`__init__` = function(self, d_model, num_heads) {
-
-			super()$`__init__`()
-
-			self$num_heads <- num_heads
-			self$d_model <- d_model
-
-			stopifnot(d_model %% self$num_heads == 0)
-
-			self$depth <- as.integer(d_model / self$num_heads)
-
-			self$wv <- tf$keras$layers$Dense(d_model, name = 'v')
-			self$wq <- tf$keras$layers$Dense(d_model, name = 'q')
-			self$wk <- tf$keras$layers$Dense(d_model, name = 'k')
-
-			self$dense = tf$keras$layers$Dense(d_model, name = 'dense')
-
-			NULL
-
-		},
-		split_heads = function(self, x, batch_size){
-
-		  # Split the last dimension into (num_heads, depth).
-			#	Transpose the result such that the shape is (batch_size, num_heads, seq_len, depth)
-			x <- tf$reshape(x, c(batch_size, -1L, self$num_heads, self$depth))
-			tf$transpose(x, perm = c(0L, 2L, 1L, 3L))
-		},
-		call = function(self, v, k, q, mask = NULL, ...){
-
-			batch_size <- tf$shape(q)[1]
-			
-			q <- self$wq(q)
-			k <- self$wk(k)
-			v <- self$wv(v)
-
-			q <- self$split_heads(q, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
-			k <- self$split_heads(k, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
-			v <- self$split_heads(v, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
-
-			y <- scaled_dot_product_attention(q, k, v, mask)
-			scaled_attention <- y$output
-
-			scaled_attention <- tf$transpose(scaled_attention, perm = c(0L, 2L, 1L, 3L))  # (batch_size, seq_len_q, num_heads, depth)
-			concat_attention <- tf$reshape(scaled_attention, c(batch_size, -1L, self$d_model))  # (batch_size, seq_len_q, d_model)
-
-			output <- self$dense(concat_attention)  # (batch_size, seq_len_q, d_model)
-
-			list(output = output, attention_weights = y$attention_weights)
-		}
-	)
-)
 
 
-point_wise_feed_forward_network <- function(d_model, dff){
-	model <- tf$keras$Sequential()
-	model$add(tf$keras$layers$Dense(dff, activation = 'relu')) # (batch_size, seq_len, dff)
-	model$add(tf$keras$layers$Dense(d_model)) # (batch_size, seq_len, d_model)
-	model
-}
-
-
-EncoderLayer <- reticulate::PyClass(
-	'EncoderLayer',
-	inherit = tf$keras$layers$Layer,
-	list(
-		`__init__` = function(self, d_model, num_heads, dff, rate = 0.1) {
-
-			super()$`__init__`()
-
-			self$mha <- MultiHeadAttention(d_model, num_heads)
-			self$ffn <- point_wise_feed_forward_network(d_model, dff)
-
-			self$layernorm1 <- tf$keras$layers$LayerNormalization(epsilon=1e-6)
-			self$layernorm2 <- tf$keras$layers$LayerNormalization(epsilon=1e-6)
-						    
-			self$dropout1 <- tf$keras$layers$Dropout(rate)
-			self$dropout2 <- tf$keras$layers$Dropout(rate)
-
-			NULL
-
-		},
-		call = function(self, x, training, mask){
-
-			res <- self$mha(x, x, x, mask)  # (batch_size, input_seq_len, d_model)
-			attn_output <- res$output
-
-			attn_output <- self$dropout1(attn_output, training = training)
-			out1 <- self$layernorm1(x + attn_output)  # (batch_size, input_seq_len, d_model)
-				    
-			ffn_output <- self$ffn(out1)  # (batch_size, input_seq_len, d_model)
-			ffn_output = self$dropout2(ffn_output, training = training)
-			out2 <- self$layernorm2(out1 + ffn_output)  # (batch_size, input_seq_len, d_model)
-			out2
-						 
-		}
-	)
-)
-
-
-Encoder <- reticulate::PyClass(
-	'Encoder',
+CvaeEncoder <- reticulate::PyClass(
+	'CvaeEncoder',
 	inherit = tf$keras$layers$Layer,
 	list(
 		`__init__` = function(
@@ -186,7 +51,7 @@ Encoder <- reticulate::PyClass(
 
 			self$average_pooling_1d_1<- tf$keras$layers$AveragePooling1D(pool_size = bin_size)
 
-			self$enc_layers <- lapply(seq_len(num_layers), function(i) EncoderLayer(d_model, num_heads, dff, rate))
+			self$enc_layers <- lapply(seq_len(num_layers), function(i) TransformerEncoderLayer(d_model, num_heads, dff, rate))
 
 			self$conv1d <- tf$keras$layers$Conv1D(
 				filters = self$d_model, 
@@ -255,8 +120,8 @@ Encoder <- reticulate::PyClass(
 #' 
 #' A transformer decoder to recover an image
 #'
-Decoder <- reticulate::PyClass(
-	'Decoder',
+CvaeDecoder <- reticulate::PyClass(
+	'CvaeDecoder',
 	inherit = tf$keras$layers$Layer,
 	list(
 		`__init__` = function(
@@ -334,4 +199,167 @@ Decoder <- reticulate::PyClass(
 		}
 	)
 )
+
+#' fit
+#'
+setMethod(
+	'fit',
+	signature(
+		model = 'vplot_cvae_model',
+		x = 'VplotsKmers'
+	),
+	function(
+		model,
+		x,
+		learning_rate = 1e-3, 
+		batch_size = 32L,
+		batch_size_blocks = 256L,
+		steps_per_epoch = 16L,
+		epochs = 100L,
+		min_reads_per_block = 10
+	){
+
+		optimizer <- tf$keras$optimizers$Adam(learning_rate)
+
+		starts <- seq(1, length(x), by = batch_size)
+		ends <- starts + batch_size - 1
+		ends[ends > length(x)] <- length(x)
+		n_batch <- length(starts)
+
+		for (epoch in seq_len(epochs)){
+
+			for (j in seq_len(n_batch)){
+
+				total_loss <- 0
+				total_loss_reconstruction <- 0
+				total_loss_kl <- 0
+
+				h <- starts[j]:ends[j]
+
+				xs <- x[h] %>% prepare_blocks(model, min_reads_per_block) 
+				n_blocks <- xs$vplot$shape[0]
+
+				for (i in seq_len(steps_per_epoch)){
+
+					b <- sample(0:(n_blocks - 1), batch_size_blocks, replace = TRUE)
+					xi <- tf$gather(xs$vplot, b)
+					ci <- tf$gather(xs$kmers, b)
+
+					with(tf$GradientTape(persistent = TRUE) %as% tape, {
+
+						enc <- xi %>% model@encoder(ci)
+						z <- enc$posterior$sample()
+
+						xi_pred <- z %>%  
+							model@decoder(enc$context)
+
+						loss_kl <- (enc$posterior$log_prob(z) - enc$prior$log_prob(z)) %>%
+							tf$reduce_mean()
+
+						loss_reconstruction <- -xi_pred$log_prob(xi) %>%
+							tf$reduce_mean()
+
+						loss <- loss_reconstruction + loss_kl
+
+					})
+
+					total_loss_reconstruction  <- total_loss_reconstruction + loss_reconstruction
+					total_loss_kl <- total_loss_kl + loss_kl
+					total_loss <- total_loss + loss
+
+					encoder_gradients <- tape$gradient(loss, model@encoder$trainable_variables)
+					list(encoder_gradients, model@encoder$trainable_variables) %>%
+						purrr::transpose() %>%
+						optimizer$apply_gradients()
+
+					decoder_gradients <- tape$gradient(loss, model@decoder$trainable_variables)
+					list(decoder_gradients, model@decoder$trainable_variables) %>%
+						purrr::transpose() %>%
+						optimizer$apply_gradients()
+
+				}
+
+				flog.info(sprintf('training %s | epoch=%4.d/%4.d | window batch=%5.d/%5.d | n_blocks=%7.d | total_loss_reconstruction=%13.3f | total_loss_kl=%13.3f | total_loss=%13.3f', class(model), epoch, epochs, j, n_batch, n_blocks, total_loss_reconstruction, total_loss_kl, total_loss))
+			}
+
+			# evaluating the predicted performance
+			valid <- sample(which(rowMeans(x$mnase) > 0.5 & rowSums(x$counts) < 25), 50)
+			x_pred <- model %>% predict(x[valid])
+			x_pred <- add_nucleosome_signal(x_pred)
+			rmse <- sqrt(rowSums((x_pred$mnase_scaled - x_pred$nucleosome_signal)^2))
+			flog.info(sprintf('evaluating %s | epoch=%4.d/%4.d | rmse=%.3f',  class(model), epoch, epochs, mean(rmse)))
+
+		}
+		model
+	}
+)
+
+
+#'
+setMethod(
+	'predict',
+	signature(
+		model = 'vplot_cvae_model',
+		x = 'VplotsKmers'
+	),
+	function(
+		model,
+		x,
+		batch_size = 8L# v-plot per batch
+	){
+
+		starts <- seq(1, length(x), by = batch_size)
+		ends <- starts + batch_size - 1
+		ends[ends > length(x)] <- length(x)
+		n_batch <- length(starts)
+
+		block_size <- model@encoder$block_size
+		n_bins_per_block <- as.integer(block_size / x@bin_size)
+		n_blocks_per_window <- as.integer(x@n_bins_per_window - n_bins_per_block + 1)
+
+		latent <- array(NA, c(length(x),  n_blocks_per_window, model@encoder$latent_dim))
+		predicted_counts <- matrix(0, length(x), x@n_bins_per_window * x@n_intervals)
+
+		for (i in 1:n_batch){
+
+			if (i == 1 || i %% 100 == 0)
+				flog.info(sprintf('predicting %s | batch=%4.d/%4.d', class(model), i, n_batch))
+
+			b <- starts[i]:ends[i]
+
+			inputs <- x[b] %>% prepare_blocks(model, min_reads = 0L)
+			xi <- inputs$vplots
+			ci <- inputs$kmers
+
+			enc <- xi %>% model@encoder(ci)
+
+			z <- enc$posterior$mean() 
+
+			xi_pred <- z %>% model@decoder(enc$context)
+
+			xi_pred <- xi_pred$mean() %>%
+				tf$reshape(c(length(b), n_blocks_per_window, x@n_intervals, n_bins_per_block, 1L)) %>%
+				reconstruct_vplot_from_blocks() %>%
+				tf$squeeze(-1L) %>%
+				as.array()
+
+			xi_pred <- aperm(xi_pred, c(1, 3, 2))
+			dim(xi_pred) <- c(length(b), x@n_bins_per_window * x@n_intervals)
+
+			z <- z %>%
+				tf$reshape(c(length(b), n_blocks_per_window, model@encoder$latent_dim))
+
+			latent[b, , ] <- z %>%
+				as.array()
+
+			predicted_counts[b, ] <- xi_pred
+
+		}
+
+		mcols(x)$latent <- latent
+		mcols(x)$predicted_counts <- predicted_counts
+
+		x
+	}
+) # predict
 
