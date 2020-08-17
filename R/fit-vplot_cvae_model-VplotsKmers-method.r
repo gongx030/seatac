@@ -81,9 +81,8 @@ setMethod(
 			}
 
 			# evaluating the predicted performance
-			valid <- sample(which(rowMeans(x$mnase) > 0.5), 500L)
+			valid <- sample(which(rowMeans(x$mnase) > 0.5 & rowSums(x$counts) < 25), 50)
 			x_pred <- model %>% predict(x[valid])
-			vplot(x_pred, 'predicted_counts')
 			x_pred <- add_nucleosome_signal(x_pred)
 			rmse <- sqrt(rowSums((x_pred$mnase_scaled - x_pred$nucleosome_signal)^2))
 			flog.info(sprintf('evaluating %s | epoch=%4.d/%4.d | rmse=%.3f',  class(model), epoch, epochs, mean(rmse)))
