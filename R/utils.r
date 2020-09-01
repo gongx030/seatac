@@ -84,7 +84,7 @@ generate_random_vplots <- function(n, fsd, cd, n_bins_per_window){
 
 extract_blocks_from_vplot <- function(x, n_bins_per_block){
 
-	n_intervals <- x$shape[1]
+	n_intervals <- x$shape[[2]]
 
 	y <- x %>%
 		tf$image$extract_patches(
@@ -96,7 +96,7 @@ extract_blocks_from_vplot <- function(x, n_bins_per_block){
 		tf$squeeze(axis = 1L)
 
 	y <- y %>%
-		tf$reshape(c(y$shape[0], y$shape[1], n_intervals, n_bins_per_block)) %>%
+		tf$reshape(c(y$shape[[1]], y$shape[[2]], n_intervals, n_bins_per_block)) %>%
 		tf$expand_dims(-1L)
 
 	y
@@ -106,16 +106,19 @@ extract_blocks_from_vplot <- function(x, n_bins_per_block){
 #'
 reconstruct_vplot_from_blocks <- function(x){
 
-	n_blocks_per_window <- x$shape[1]
-	n_bins_per_block <- x$shape[3]
+	batch <- x$shape[[1]]
+	n_blocks_per_window <- x$shape[[2]]
+	n_intervals <- x$shape[[3]]
+	n_bins_per_block <- x$shape[[4]]
 	window_size <- as.integer(n_blocks_per_window + n_bins_per_block - 1)
-	n_intervals <- x$shape[2]
-	batch <- x$shape[0]
 
 	padding <- matrix(as.integer(c(0, 0, 0, 0, 0, n_blocks_per_window * n_intervals)), 3, 2, byrow = TRUE)
 	zeros <- tf$zeros(c(batch, n_blocks_per_window, n_intervals))
 
-	w <- c(1:n_bins_per_block, rep(n_bins_per_block, window_size - 2 * n_bins_per_block), n_bins_per_block:1)
+	w <- rep(n_bins_per_block, window_size)
+	w[1:n_bins_per_block] <- w[1:n_bins_per_block] - n_bins_per_block:1 + 1
+	w[(window_size - n_bins_per_block + 1):window_size] <- w[(window_size - n_bins_per_block + 1):window_size] - 1:n_bins_per_block + 1
+
 	w <- tf$constant(w, dtype = tf$float32) %>%
 		tf$reshape(c(1L, 1L, window_size, 1L))
 
@@ -126,7 +129,7 @@ reconstruct_vplot_from_blocks <- function(x){
 
 	y <- tf$concat(list(y, zeros), axis = 2L)
 	y <- y %>% tf$reshape(c(batch, -1L))
-	y <- y[, 1:(y$shape[1] - n_blocks_per_window * n_intervals)]
+	y <- y[, 1:(y$shape[[2]] - n_blocks_per_window * n_intervals)]
 	y <- y %>% tf$reshape(c(batch, n_blocks_per_window, window_size + 1L, n_intervals))
 	y <- y %>% tf$transpose(perm = c(0L, 1L, 3L, 2L))
 
@@ -169,3 +172,137 @@ positional_encoding <- function(position, d_model){
 
 } # positional_encoding
 
+
+create_look_ahead_mask <- function(size){
+  mask <- 1 - tf$linalg$band_part(tf$ones(shape(size, size)), -1L, 0L)
+  mask  # (seq_len, seq_len)
+}
+
+scale_vplot <- function(x){
+	w <- tf$reduce_sum(x, c(1L, 3L), keepdims = TRUE)  # number reads for each bar
+	w <- tf$where(w > 0, 1 / w, 1)  # compute the scale value
+	x <- x * w  # scale so that the sum of reads per bar is one (or zero, if no reads is available in that bar)
+	x
+}
+
+
+select_blocks <- function(x, block_size, min_reads, batch_size = 128, with_kmers = FALSE){
+
+	starts <- seq(1, length(x), by = batch_size)
+	ends <- starts + batch_size - 1
+	ends[ends > length(x)] <- length(x)
+	n_batch <- length(starts)
+
+	res <- lapply(seq_len(n_batch), function(j){
+		h <- starts[j]:ends[j]
+	  inputs <- x[h] %>% prepare_blocks(block_size, min_reads, with_kmers = with_kmers)
+		flog.info(sprintf('select blocks | n_batch=%5.d/%5.d | selected=%5.d', j, n_batch, inputs$vplots$shape[[1]]))
+		inputs
+	})
+
+	vplots <- tf$concat(lapply(res, function(xx) xx$vplots), axis = 0L)
+	flog.info(sprintf('select blocks | total selected=%5.d', vplots$shape[[1]]))
+
+	if (with_kmers){
+		kmers <- tf$concat(lapply(res, function(xx) xx$kmers), axis = 0L)
+	}else{
+		kmers <- NULL
+	}
+
+	list(vplots = vplots,  kmers = kmers)
+} # 
+
+#' prepare_blocks
+#'
+prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE){
+
+	n_bins_per_block <- as.integer(block_size / x@bin_size)
+
+	y <- x %>%
+		prepare_vplot() %>%
+		extract_blocks_from_vplot(n_bins_per_block) 
+	
+	y <- y %>%
+		tf$reshape(c(y$shape[[1]] * y$shape[[2]], y$shape[[3]], y$shape[[4]], 1L))
+
+	h <- y %>%
+		tf$math$count_nonzero(c(1L, 3L), dtype = tf$float32) %>% # number of non-zero pixel per bar
+		tf$math$count_nonzero(1L) %>% # number of bar that have non-zero pixels
+		tf$cast(tf$float32)
+
+	include <- h >= min_reads
+
+	y <- y %>% 
+		tf$boolean_mask(include, axis = 0L)
+
+	if (with_kmers){
+		g <- x$kmers %>%
+			tf$cast(tf$int32) %>%
+			tf$expand_dims(-1L) %>%
+			tf$expand_dims(-1L) %>%
+			tf$image$extract_patches(
+				sizes = c(1L, block_size, 1L, 1L),
+				strides = c(1L, x@bin_size, 1L, 1L),
+					rates = c(1L, 1L, 1L, 1L),
+				padding = 'VALID'
+			) %>%
+			tf$squeeze(axis = 2L)
+
+		g <- g %>%
+			tf$reshape(c(g$shape[[1]] * g$shape[[2]], block_size))
+
+		g <- g %>% tf$boolean_mask(include, axis = 0L)
+	}else{
+		g <- NULL
+	}
+
+	list(vplots = y, kmers = g)
+
+} # prepare_blocks
+#' prepare_blocks
+#'
+prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE){
+
+	n_bins_per_block <- as.integer(block_size / x@bin_size)
+
+	y <- x %>%
+		prepare_vplot() %>%
+		extract_blocks_from_vplot(n_bins_per_block) 
+	
+	y <- y %>%
+		tf$reshape(c(y$shape[[1]] * y$shape[[2]], y$shape[[3]], y$shape[[4]], 1L))
+
+	h <- y %>%
+		tf$math$count_nonzero(c(1L, 3L), dtype = tf$float32) %>% # number of non-zero pixel per bar
+		tf$math$count_nonzero(1L) %>% # number of bar that have non-zero pixels
+		tf$cast(tf$float32)
+
+	include <- h >= min_reads
+
+	y <- y %>% 
+		tf$boolean_mask(include, axis = 0L)
+
+	if (with_kmers){
+		g <- x$kmers %>%
+			tf$cast(tf$int32) %>%
+			tf$expand_dims(-1L) %>%
+			tf$expand_dims(-1L) %>%
+			tf$image$extract_patches(
+				sizes = c(1L, block_size, 1L, 1L),
+				strides = c(1L, x@bin_size, 1L, 1L),
+					rates = c(1L, 1L, 1L, 1L),
+				padding = 'VALID'
+			) %>%
+			tf$squeeze(axis = 2L)
+
+		g <- g %>%
+			tf$reshape(c(g$shape[[1]] * g$shape[[2]], block_size))
+
+		g <- g %>% tf$boolean_mask(include, axis = 0L)
+	}else{
+		g <- NULL
+	}
+
+	list(vplots = y, kmers = g)
+
+} # prepare_blocks

@@ -51,5 +51,3 @@ setGeneric('add_track', function(x, ...) standardGeneric('add_track'))
 #setGeneric('load_results', function(dir, ...) standardGeneric('load_results'))
 
 setGeneric('add_kmers', function(x, k, genome, ...) standardGeneric('add_kmers'))
-
-setGeneric('prepare_blocks', function(x, model, ...) standardGeneric('prepare_blocks'))
