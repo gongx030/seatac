@@ -46,8 +46,4 @@ setGeneric('add_nucleosome_signal', function(x, ...) standardGeneric('add_nucleo
 
 setGeneric('add_track', function(x, ...) standardGeneric('add_track'))
 
-#setGeneric('save_results', function(x, dir, ...) standardGeneric('save_results'))
-
-#setGeneric('load_results', function(dir, ...) standardGeneric('load_results'))
-
 setGeneric('add_kmers', function(x, k, genome, ...) standardGeneric('add_kmers'))

@@ -6,6 +6,7 @@
 #' @import BiocGenerics
 #' @import tfprobability
 #' @import tensorflow
+#' @import tfdatasets
 #' @import keras
 #' @import Matrix
 #' @import SummarizedExperiment

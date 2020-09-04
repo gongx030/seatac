@@ -14,8 +14,8 @@ setMethod(
 		y <- x$predicted_counts
 		dim(y) <- c(length(x), x@n_bins_per_window, x@n_intervals)
 
-		x$predicted_nfr <- y[, , nfr] %>% rowMeans(dims = 2)
-		x$predicted_mono_nucleosome <- y[, , mono] %>% rowMeans(dims = 2)
+		x$predicted_nfr <- y[, , nfr, drop = FALSE] %>% rowMeans(dims = 2)
+		x$predicted_mono_nucleosome <- y[, , mono, drop = FALSE] %>% rowMeans(dims = 2)
 
 		x$nucleosome_signal <- (x$predicted_mono_nucleosome + 1e-3) / (x$predicted_nfr + 1e-3)
 

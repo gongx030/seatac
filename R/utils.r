@@ -212,6 +212,7 @@ select_blocks <- function(x, block_size, min_reads, batch_size = 128, with_kmers
 	list(vplots = vplots,  kmers = kmers)
 } # 
 
+
 #' prepare_blocks
 #'
 prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE){
@@ -306,3 +307,5 @@ prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE){
 	list(vplots = y, kmers = g)
 
 } # prepare_blocks
+
+

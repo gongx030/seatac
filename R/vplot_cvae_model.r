@@ -23,8 +23,6 @@ CVaeEncoder <- reticulate::PyClass(
 			self$bin_size <- as.integer(bin_size)
 			self$kmers_size <- as.integer(kmers_size)
 
-			self$embedding <- tf$keras$layers$Embedding(self$kmers_size, 100L)
-
 			self$dropout_1 <- tf$keras$layers$Dropout(rate)
 
 			self$conv_1d <- tf$keras$layers$Conv1D(
@@ -46,11 +44,10 @@ CVaeEncoder <- reticulate::PyClass(
 		},
 		call = function(self, x, g, training = TRUE, mask = NULL){
 
-			# adding embedding and position encoding.
 			g <- g %>% 
-				self$embedding() %>%  # (batch_size, block_size, d_model)
+				tf$one_hot(depth = self$kmers_size) %>%	# one hot encoding of nucleotides or k-mers
 				self$conv_1d() %>%
-	    	self$dropout_1(training = training) %>%
+	    	self$dropout_1() %>%
 				tf$transpose(shape(0L, 2L, 1L)) %>%
 				tf$expand_dims(3L)
 
@@ -250,6 +247,7 @@ setMethod(
 					loss <- loss_reconstruction + loss_kl
 
 				})
+
 
 				total_loss_reconstruction  <- total_loss_reconstruction + loss_reconstruction
 				total_loss_kl <- total_loss_kl + loss_kl
