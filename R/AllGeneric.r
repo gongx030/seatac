@@ -32,18 +32,18 @@ setGeneric('encode', function(model, x, ...) standardGeneric('encode'))
 
 setGeneric('predict', function(model, x, ...) standardGeneric('predict'))
 
+setGeneric('evaluate', function(model, x, ...) standardGeneric('evaluate'))
+
+setGeneric('predict_nucleosome', function(model, x, ...) standardGeneric('predict_nucleosome'))
+
 setGeneric('vplot', function(x, ...) standardGeneric('vplot'))
-
-setGeneric('simulate_vplot', function(x, ...) standardGeneric('simulate_vplot'))
-
-setGeneric('prepare_vplot', function(x, ...) standardGeneric('prepare_vplot'))
 
 #setGeneric('results', function(x, targets, ...) standardGeneric('results'))
 
 setGeneric('extract_blocks', function(x, ...) standardGeneric('extract_blocks'))
 
-setGeneric('add_nucleosome_signal', function(x, ...) standardGeneric('add_nucleosome_signal'))
-
 setGeneric('add_track', function(x, ...) standardGeneric('add_track'))
 
 setGeneric('add_kmers', function(x, k, genome, ...) standardGeneric('add_kmers'))
+
+setGeneric('prepare_data', function(model, x, ...) standardGeneric('prepare_data'))

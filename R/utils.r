@@ -144,10 +144,14 @@ reconstruct_vplot_from_blocks <- function(x){
 
 }
 
+#' scale01
+#'
 scale01 <- function(x){
-	x <- (x - rowMins(x)) / (rowMaxs(x) - rowMins(x))
-	x[is.na(x)] <- 0
-	x
+	x_min <- tf$reduce_min(x, 1L, keepdims = TRUE)
+	x_max <- tf$reduce_max(x, 1L, keepdims = TRUE)
+	w <- x_max - x_min
+	w <- tf$where(w > 0, w, tf$ones_like(w))	# scale so that the sum of each bar is one
+	(x - x_min) / w
 }
 
 #' get_angles
@@ -178,55 +182,43 @@ create_look_ahead_mask <- function(size){
   mask  # (seq_len, seq_len)
 }
 
-scale_vplot <- function(x){
-	w <- tf$reduce_sum(x, c(1L, 3L), keepdims = TRUE)  # number reads for each bar
-	w <- tf$where(w > 0, 1 / w, 1)  # compute the scale value
-	x <- x * w  # scale so that the sum of reads per bar is one (or zero, if no reads is available in that bar)
-	x
-}
 
-
-select_blocks <- function(x, block_size, min_reads, batch_size = 128, with_kmers = FALSE, with_nucleoatac = FALSE){
-
-	kmers <- NULL
-	nucleoatac <- NULL
+#' select_blocks
+#'
+select_blocks <- function(x, batch_size = 512L, ...){
 
 	starts <- seq(1, length(x), by = batch_size)
 	ends <- starts + batch_size - 1
 	ends[ends > length(x)] <- length(x)
 	n_batch <- length(starts)
 
-	res <- lapply(seq_len(n_batch), function(j){
+	res <- list()
+	for (j in seq_len(n_batch)){
 		h <- starts[j]:ends[j]
-	  inputs <- x[h] %>% prepare_blocks(block_size, min_reads, with_kmers = with_kmers, with_nucleoatac = with_nucleoatac)
-		flog.info(sprintf('select blocks | n_batch=%5.d/%5.d | selected=%5.d', j, n_batch, inputs$vplots$shape[[1]]))
-		inputs
+	  res[[j]] <- x[h] %>% prepare_blocks(...)
+		flog.info(sprintf('select blocks | n_batch=%5.d/%5.d | selected=%5.d', j, n_batch, res[[j]]$vplots$shape[[1]]))
+	}
+
+	fields <- names(res[[1]])
+	fields <- fields[!sapply(res[[1]], is.null)]
+
+	res <- lapply(fields, function(f){
+		tf$concat(lapply(res, function(xx) xx[[f]]), axis = 0L)
 	})
+	names(res) <- fields
+	res
 
-	vplots <- tf$concat(lapply(res, function(xx) xx$vplots), axis = 0L)
-	flog.info(sprintf('select blocks | total selected=%5.d', vplots$shape[[1]]))
-
-	if (with_kmers){
-		kmers <- tf$concat(lapply(res, function(xx) xx$kmers), axis = 0L)
-	}
-
-	if (with_nucleoatac){
-		nucleoatac <- tf$concat(lapply(res, function(xx) xx$nucleoatac), axis = 0L)
-	}
-
-	list(vplots = vplots,  kmers = kmers)
 } # 
 
 
 #' prepare_blocks
 #'
-prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE, with_nucleoatac = FALSE){
+prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE, types = NULL){
+
+	res <- list()
 
 	if (with_kmers && is.null(x$kmers))
 		stop('x$kmers must be available if with_kmers=TRUE')
-
-	if (with_nucleoatac && is.null(x$nucleoatac))
-		stop('x$nucleoatac must be available if with_nucleoatac=TRUE')
 
 	n_bins_per_block <- as.integer(block_size / x@bin_size)
 
@@ -244,12 +236,12 @@ prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE, wit
 
 	include <- h >= min_reads
 
-	y <- y %>% 
-		tf$boolean_mask(include, axis = 0L)
+	w <- y %>% tf$reduce_max(shape(1L), keepdims = TRUE)	# max reads per v-plot
+	y <- y / tf$where(w > 0, w, tf$ones_like(w))	# scale so that the sum of each bar is one
+	y <- y %>% tf$boolean_mask(include, axis = 0L)
 
-	if (with_nucleoatac){
-		browser()
-	}
+	res$vplots <- y
+	res$n <- h %>% tf$boolean_mask(include, axis = 0L)
 
 	if (with_kmers){
 		g <- x$kmers %>%
@@ -268,34 +260,107 @@ prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE, wit
 			tf$reshape(c(g$shape[[1]] * g$shape[[2]], block_size))
 
 		g <- g %>% tf$boolean_mask(include, axis = 0L)
-	}else{
-		g <- NULL
+
+		res$kmers <- g
 	}
 
-	list(vplots = y, kmers = g)
+	if (!is.null(types)){
+		for (type in types){
+			if (is.null(mcols(x)[[type]])){
+				flog.warn(sprintf('field x$%s does not exist', type))
+			}else{
+				if (!is.matrix(mcols(x)[[type]])){
+					flog.warn(sprintf('x$%s is not in a matrix format', type))
+				}else{
+
+					if (x@n_bins_per_window != ncol(mcols(x)[[type]])){
+						flog.warn(sprintf('ncol(x$%s) must be equal to x@n_bins_per_window', type))
+					}else{
+
+						v <- mcols(x)[[type]] %>%
+							tf$cast(tf$float32) %>%
+							tf$expand_dims(-1L) %>%
+							tf$expand_dims(-1L) %>%
+							tf$image$extract_patches(
+								sizes = c(1L, n_bins_per_block, 1L, 1L),
+								strides = c(1L, 1L, 1L, 1L),
+								rates = c(1L, 1L, 1L, 1L),
+								padding = 'VALID'
+							) %>%
+							tf$squeeze(axis = 2L)
+
+						v <- v %>%
+							tf$reshape(c(v$shape[[1]] * v$shape[[2]], n_bins_per_block))
+						
+						v <- v %>% 
+							tf$boolean_mask(include, axis = 0L)
+
+						v <- scale01(v)
+						res[[type]] <- v
+					}
+				}
+			}
+		}
+	}
+
+	res
 
 } # prepare_blocks
 
-setMethod(
-	'prepare_vplot',
-	signature(
-		x = 'Vplots'
-	),
-	function(
-		x
-	){
+prepare_vplot <- function(x){
+	y <- x$counts %>%
+		as.matrix() %>%
+		reticulate::array_reshape(c(    # convert into a C-style array
+			length(x),
+			x@n_intervals,
+			x@n_bins_per_window,
+			1L
+		)) %>%
+		tf$cast(tf$float32)
 
-		y <- x$counts %>%
-			as.matrix() %>%
-			reticulate::array_reshape(c(    # convert into a C-style array
-				length(x),
-				x@n_intervals,
-				x@n_bins_per_window,
-				1L
-			)) %>%
-			tf$cast(tf$float32)
+	y
+} # prepare_vplot
 
-		y
 
-	}
-)
+#' add_track
+#'
+#' @param file a bigwig file
+#'
+add_track <- function(x, file, label){
+
+	cvg <- rtracklayer::import(file, which = reduce(x), as = 'RleList')
+
+	G <- sparseMatrix(
+		i = 1:x@window_size,
+		j = rep(1:x@n_bins_per_window, each = x@bin_size),
+		x = rep(1 / x@bin_size, x@window_size),
+		dims = c(x@window_size, x@n_bins_per_window)
+	)
+
+	y <- cvg[x] %>% as.matrix()
+	y <- (y %*% G) %>% as.matrix()	# average signal in each genomic bin
+	mcols(x)[[label]] <- y
+	x
+} # add_track
+
+
+#' split_dataset
+#'
+split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
+
+	n <- as.numeric(x$cardinality()) # total number of samples
+	n_train <- as.integer((1 - test_size) * n)  # train samples
+
+	train <- x %>%
+		dataset_take(n_train) %>%
+		dataset_batch(batch_size)
+
+	test <- x %>%
+		dataset_skip(n_train) %>%
+		dataset_batch(batch_size)
+
+	list(train = train, test = test)
+
+} # split_dataset
+
+
