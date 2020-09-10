@@ -29,18 +29,3 @@ setClass(
 	contains = 'Vplots'
 )
 
-setClass(
-	'VplotsList',
-	contains = 'GRangesList'
-)
-
-setClass(
-	'sparse_array',
-	slot = c(
-		subs = 'matrix',
-		vals = 'numeric',
-		dims = 'numeric',
-		dimnames = 'listOrNULL'
-	)
-)
-
