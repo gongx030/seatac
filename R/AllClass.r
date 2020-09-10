@@ -44,11 +44,3 @@ setClass(
 	)
 )
 
-setClass(
-	'sparse_vector',
-	slot = c(
-		subs = 'numeric',
-		vals = 'numeric'
-	)
-)
-
