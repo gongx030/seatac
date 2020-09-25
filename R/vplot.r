@@ -10,7 +10,9 @@ setMethod(
 	){
 
 		z <- mcols(x)[[field]]
-		z <- Diagonal(x = 1 / rowSums(z)) %*% z
+		w <- 1 / rowSums(z)
+		w[is.infinite(w)] <- 0
+		z <- Diagonal(x = w) %*% z
 		z <- colSums(z)
 		z <- z / sum(z)
 		z <- matrix(z, x@n_bins_per_window, x@n_intervals) 

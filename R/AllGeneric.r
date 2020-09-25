@@ -47,3 +47,4 @@ setGeneric('add_track', function(x, ...) standardGeneric('add_track'))
 setGeneric('add_kmers', function(x, k, genome, ...) standardGeneric('add_kmers'))
 
 setGeneric('prepare_data', function(model, x, ...) standardGeneric('prepare_data'))
+

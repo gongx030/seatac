@@ -94,45 +94,76 @@ TransformerDecoderModel <- reticulate::PyClass(
 	)
 )
 
+
+
+
+#' prepare_data
+#'
+setMethod(
+	'prepare_data',
+	signature(
+		model = 'TransformerDecoderModel',
+		x = 'VplotsKmers'
+	),
+	function(
+		 model,
+		 x,
+		 min_reads = 10
+	 ){
+
+		d <- select_blocks(
+			x,
+			block_size = model$block_size,
+			min_reads = min_reads,
+			with_kmers = TRUE,
+			with_predicted_counts = TRUE,
+			types = c('nucleoatac', 'full_nucleoatac')
+		) %>%
+		tensor_slices_dataset()
+		d
+	}
+)
+
+
+
 #' fit
 #'
 setMethod(
 	'fit',
 	signature(
 		model = 'TransformerDecoderModel',
-		x = 'VplotsKmers'
+		x = 'tf_dataset'
 	),
 	function(
 		model,
 		x,
 		batch_size = 32L,
-		batch_size_predict = 1L,
-		batch_size_select = 128L,
 		epochs = 100L,
-		min_reads_per_block = 10,
-		plot = FALSE
+		test_size = 0.15,
+		checkpoint_dir = NULL
 	){
 
 		# Adopted from https://www.tensorflow.org/tutorials/text/transformer#optimizer
-		learning_rate <- CustomSchedule(model$d_model)
-		optimizer <- tf$keras$optimizers$Adam(learning_rate, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
+#		learning_rate <- CustomSchedule(model$d_model)
+#		optimizer <- tf$keras$optimizers$Adam(learning_rate, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
+		optimizer <- tf$keras$optimizers$Adam(1e-4, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
+		train_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')
 		bce <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')
+
+		x <- x %>% 
+			dataset_shuffle(1000L) %>%
+			split_dataset(test_size = test_size, batch_size = batch_size)
 
 		# updating step
 		train_step <- function(x, y){
 
-			w <- tf$reduce_sum(y, 1L, keepdims = TRUE) > 0
-			w <- w %>% tf$cast(tf$float32)
-			w <- w %>% tf$squeeze(3L)
-
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
 
 				y_pred <- model(x)
-
-				loss <- (w * bce(y, y_pred))  %>%
+				loss <- train_loss(y, y_pred) %>%
 					tf$reduce_sum(shape(1L, 2L)) %>%
 					tf$reduce_mean()
-
+					
 			})
 
 			gradients <- tape$gradient(loss, model$trainable_variables)
@@ -140,55 +171,45 @@ setMethod(
 				purrr::transpose() %>%
 				optimizer$apply_gradients()
 
-			loss
+			list(loss = loss)
 
 		} # train_step
 
 		train_step <- tf_function(train_step) # convert to graph mode
 
-		inputs <- select_blocks(x, block_size = block_size, min_reads = min_reads_per_block, batch_size = batch_size_select, with_kmers = TRUE)
+		test_step <- function(x, y){
+			y_pred <- model(x)
+			loss <- train_loss(y, y_pred) %>%
+				tf$reduce_sum(shape(1L, 2L)) %>%
+				tf$reduce_mean()
+			list(loss = loss)
+		}
 
-		dataset <- tf$data$Dataset$from_tensor_slices(inputs) %>%
-			dataset_shuffle(1000) %>%
-			dataset_repeat() %>%
-			dataset_batch(batch_size)
+		test_step <- tf_function(test_step) # convert to graph mode
 
-		iter <- make_iterator_one_shot(dataset)
 
 		for (epoch in seq_len(epochs)){
 
-			batch <- iterator_get_next(iter)
-			xi <- batch$kmers
-			yi <- batch$vplot
+			loss_train <- NULL 
+			iter <- make_iterator_one_shot(x$train)
+			res <- until_out_of_range({
+				batch <- iterator_get_next(iter)
+				res <- train_step(batch$kmers, batch$predicted_vplots)
+				loss_train <- c(loss_train, as.numeric(res$loss))
+			})
 
-			loss <- train_step(xi, yi)
+			loss_test <- NULL
+			iter <- make_iterator_one_shot(x$test)
+			until_out_of_range({
+				batch <- iterator_get_next(iter)
+				res <- test_step(batch$kmers, batch$predicted_vplots)
+				loss_test <- c(loss_test, as.numeric(res$loss))
+			})
 
-			if (epoch %% 1000 == 0){
+			flog.info(sprintf('epoch=%6.d/%6.d | train_loss=%13.7f | test_loss=%13.7f', epoch, epochs, mean(loss_train), mean(loss_test)))
 
-				# evaluating the predicted performance
-				x_sample <- sample(x, 500)
-				x_pred <- model %>% predict(x_sample, batch_size = batch_size_predict, with_kmers = TRUE)
-				x_pred <- add_nucleosome_signal(x_pred)
-
-				if (plot){
-					vplot(x_pred, 'predicted_counts', main = sprintf('epoch=%d', epoch))
-				}
-
-				rmse_mnase_seatac <- sqrt(rowSums((x_pred$mnase_scaled - x_pred$nucleosome_signal)^2))
-				rmse_mnase_nucleoatac <- sqrt(rowSums((x_pred$mnase_scaled - x_pred$nucleoatac_scaled)^2))
-
-				if (!is.null(x_pred$full_nucleoatac_scaled)){
-					rmse_nucleoatac_seatac <- sqrt(rowSums((x_pred$full_nucleoatac_scaled - x_pred$nucleosome_signal)^2))
-					rmse_nucleoatac_nucleoatac <- sqrt(rowSums((x_pred$full_nucleoatac_scaled - x_pred$nucleoatac_scaled)^2))
-				}else{
-					rmse_nucleoatac_seatac <- 0
-					rmse_nucleoatac_nucleoatac <- 0
-				}
-
-				flog.info(sprintf('evaluating | epoch=%6.d/%6.d | loss=%13.7f | rmse_mnase=%.3f(%.3f) | rmse_nucleoatac=%.3f(%.3f)',  epoch, epochs, loss, mean(rmse_mnase_seatac), mean(rmse_mnase_nucleoatac), mean(rmse_nucleoatac_seatac), mean(rmse_nucleoatac_nucleoatac)))
-
-			}
 		}
+
 		model
 	}
 )
