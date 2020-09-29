@@ -580,3 +580,70 @@ setMethod(
 		x
 	}
 ) # predict
+#'
+
+setMethod(
+	'get_latent_representation',
+	signature(
+		model = 'VaeModel',
+		x = 'tensorflow.tensor'
+	),
+	function(
+		model,
+		x,
+		batch_size = 128L
+	){
+
+		starts <- seq(1, x$shape[[1]], by = batch_size)
+		ends <- starts + batch_size - 1
+		ends[ends > x$shape[[1]]] <- x$shape[[1]]
+		n_batch <- length(starts)
+
+		y_pred <- NULL
+		for (i in 1:n_batch){
+			b <- starts[i]:ends[i]
+			posterior <- model$encoder(x[b, , , ])
+			y_pred <- c(y_pred, posterior$mean())
+		}
+
+		y_pred <- tf$concat(y_pred, axis = 0L)
+		y_pred
+	}
+)
+
+setMethod(
+	'predict',
+	signature(
+		model = 'VaeModel',
+		x = 'tensorflow.tensor'
+	),
+	function(
+		model,
+		x,
+		batch_size = 128L
+	){
+
+		starts <- seq(1, x$shape[[1]], by = batch_size)
+		ends <- starts + batch_size - 1
+		ends[ends > x$shape[[1]]] <- x$shape[[1]]
+		n_batch <- length(starts)
+
+		y <- NULL
+		nucleosome <- NULL
+
+		for (i in 1:n_batch){
+			b <- starts[i]:ends[i]
+			posterior <- model$encoder(x[b, , , ])
+			z <-  posterior$mean()
+			res <- model$decoder(z)
+			y <- c(y, res$x_pred)
+			nucleosome <- c(nucleosome, res$nucleosome)
+		}
+
+		y <- tf$concat(y, axis = 0L)
+		nucleosome <- tf$concat(nucleosome, axis = 0L)
+
+		list(predicted_vplots = y, predicted_nucleosome = nucleosome)
+	}
+)
+

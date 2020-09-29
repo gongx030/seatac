@@ -40,11 +40,13 @@ setGeneric('vplot', function(x, ...) standardGeneric('vplot'))
 
 #setGeneric('results', function(x, targets, ...) standardGeneric('results'))
 
-setGeneric('extract_blocks', function(x, ...) standardGeneric('extract_blocks'))
+#setGeneric('extract_blocks', function(x, ...) standardGeneric('extract_blocks'))
 
 setGeneric('add_track', function(x, ...) standardGeneric('add_track'))
 
 setGeneric('add_kmers', function(x, k, genome, ...) standardGeneric('add_kmers'))
 
 setGeneric('prepare_data', function(model, x, ...) standardGeneric('prepare_data'))
+
+setGeneric('get_latent_representation', function(model, x, ...) standardGeneric('get_latent_representation'))
 

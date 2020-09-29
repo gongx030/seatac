@@ -32,6 +32,8 @@ scaled_dot_product_attention <- function(q, k, v, mask = NULL){
 
 } # scaled_dot_product_attention
 
+#' MultiHeadAttention
+#'
 MultiHeadAttention <- reticulate::PyClass(
 	'MultiHeadAttention',
 	inherit = tf$keras$layers$Layer,
@@ -47,11 +49,11 @@ MultiHeadAttention <- reticulate::PyClass(
 
 			self$depth <- as.integer(d_model / self$num_heads)
 
-			self$wv <- tf$keras$layers$Dense(d_model, name = 'v')
-			self$wq <- tf$keras$layers$Dense(d_model, name = 'q')
-			self$wk <- tf$keras$layers$Dense(d_model, name = 'k')
+			self$wv <- tf$keras$layers$Dense(d_model)
+			self$wq <- tf$keras$layers$Dense(d_model)
+			self$wk <- tf$keras$layers$Dense(d_model)
 
-			self$dense = tf$keras$layers$Dense(d_model, name = 'dense')
+			self$dense = tf$keras$layers$Dense(d_model)
 
 			NULL
 
@@ -63,7 +65,7 @@ MultiHeadAttention <- reticulate::PyClass(
 			x <- tf$reshape(x, c(batch_size, -1L, self$num_heads, self$depth))
 			tf$transpose(x, perm = c(0L, 2L, 1L, 3L))
 		},
-		call = function(self, v, k, q, mask = NULL, ...){
+		call = function(self, q, k, v, mask = NULL, ...){
 
 			batch_size <- tf$shape(q)[1]
 			

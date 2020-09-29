@@ -18,7 +18,7 @@ TransformerEncoderLayer <- reticulate::PyClass(
 			NULL
 
 		},
-		call = function(self, x, training, mask){
+		call = function(self, x, training = TRUE, mask = NULL){
 
 			res <- self$mha(x, x, x, mask)  # (batch_size, input_seq_len, d_model)
 			attn_output <- res$output
@@ -69,7 +69,7 @@ TransformerDecoderLayer <- reticulate::PyClass(
 			attn1 <- self$dropout1(attn1, training = training)
 		  out1 <- self$layernorm1(attn1 + x)
 				    
-			res <- self$mha2(enc_output, enc_output, out1, padding_mask)  # (batch_size, target_seq_len, d_model)
+			res <- self$mha2(out1, enc_output, enc_output, padding_mask)  # (batch_size, target_seq_len, d_model)
 	    attn2 <- res$output
 			attn_weights_block2 <- res$attention_weights
 																									         
