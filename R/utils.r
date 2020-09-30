@@ -179,23 +179,43 @@ positional_encoding <- function(position, d_model){
 
 #' select_blocks
 #'
-select_blocks <- function(x, batch_size = 512L, ...){
+select_blocks <- function(x, batch_size = 512L, min_reads = 0, n_blocks = NA, ...){
 
 	starts <- seq(1, length(x), by = batch_size)
 	ends <- starts + batch_size - 1
 	ends[ends > length(x)] <- length(x)
 	n_batch <- length(starts)
 
+	if (!is.na(n_blocks))
+		n_blocks_per_batch <- table(factor(sample(1:n_batch, n_blocks, replace = TRUE), 1:n_batch))
+
 	res <- list()
 	for (j in seq_len(n_batch)){
+
+		if (!is.na(n_blocks) && n_blocks_per_batch[j] == 0)
+			next
+
 		h <- starts[j]:ends[j]
-	  res[[j]] <- x[h] %>% prepare_blocks(...)
-#		flog.info(sprintf('select blocks | n_batch=%5.d/%5.d | selected=%5.d', j, n_batch, res[[j]]$vplots$shape[[1]]))
+	  res[[j]] <- x[h] %>% select_blocks_batch(...)
+
+		# select blocks with minimum reads
+		if (min_reads > 0 && !is.null(res[[j]]$vplots)){
+			include <- res[[j]]$n >= min_reads
+			res[[j]] <- lapply(res[[j]], function(r) tf$boolean_mask(r, include))
+		}
+
+		# randomly sample non-empty blocks
+		if (!is.na(n_blocks)){
+			ns <- res[[j]][[1]]$shape[[1]] # n total blocks in current batch
+			if (n_blocks_per_batch[j] < ns){
+				include <- tf$cast(seq_len(ns) %in% sample(ns, n_blocks_per_batch[j]), tf$bool)
+				res[[j]] <- lapply(res[[j]], function(r) tf$boolean_mask(r, include))
+			}
+		}
 	}
 
 	fields <- names(res[[1]])
 	fields <- fields[!sapply(res[[1]], is.null)]
-
 	res <- lapply(fields, function(f){
 		tf$concat(lapply(res, function(xx) xx[[f]]), axis = 0L)
 	})
@@ -205,9 +225,9 @@ select_blocks <- function(x, batch_size = 512L, ...){
 } # 
 
 
-#' prepare_blocks
+#' select_blocks_batch
 #'
-prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE, with_predicted_counts = FALSE, types = NULL){
+select_blocks_batch <- function(x, block_size, with_vplots = TRUE, with_kmers = FALSE, with_predicted_counts = FALSE, types = NULL){
 
 	res <- list()
 
@@ -215,40 +235,40 @@ prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE, wit
 		stop('x$kmers must be available if with_kmers=TRUE')
 
 	n_bins_per_block <- as.integer(block_size / x@bin_size)
+	n_blocks_per_window <- as.integer(x@n_bins_per_window - n_bins_per_block + 1)
+	n_blocks <- as.integer(n_blocks_per_window * length(x))
 
-	y <- x$counts %>%
-		as.matrix() %>%
-		reticulate::array_reshape(c(    # convert into a C-style array
-			length(x),
-			x@n_intervals,
-			x@n_bins_per_window,
-			1L
-		)) %>%
-		tf$cast(tf$float32) %>%
-		extract_blocks_from_vplot(n_bins_per_block) 
+	if (with_vplots){
 
+		y <- x$counts %>%
+			as.matrix() %>%
+			reticulate::array_reshape(c(    # convert into a C-style array
+				length(x),
+				x@n_intervals,
+				x@n_bins_per_window,
+				1L
+			)) %>%
+			tf$cast(tf$float32) %>%
+			extract_blocks_from_vplot(n_bins_per_block) 
 	
-	y <- y %>%
-		tf$reshape(c(y$shape[[1]] * y$shape[[2]], y$shape[[3]], y$shape[[4]], 1L))
+		y <- y %>%
+			tf$reshape(c(y$shape[[1]] * y$shape[[2]], y$shape[[3]], y$shape[[4]], 1L))
 
-	h <- y %>%
-		tf$math$count_nonzero(c(1L, 3L), dtype = tf$float32) %>% # number of non-zero pixel per bar
-		tf$math$count_nonzero(1L) %>% # number of bar that have non-zero pixels
-		tf$cast(tf$float32)
+		res$vplots <- y
 
-	include <- h >= min_reads
+		res$n <- y %>%
+			tf$math$count_nonzero(c(1L, 3L), dtype = tf$float32) %>% # number of non-zero pixel per bar
+			tf$math$count_nonzero(1L) %>% # number of bar that have non-zero pixels
+			tf$cast(tf$float32)
 
-	w <- y %>% tf$reduce_max(shape(1L), keepdims = TRUE)	# max reads per v-plot
-	y <- y / tf$where(w > 0, w, tf$ones_like(w))	# scale so that the sum of each bar is one
-	y <- y %>% tf$boolean_mask(include, axis = 0L)
+		w <- y %>% tf$reduce_max(shape(1L), keepdims = TRUE)	# max reads per v-plot
+		y <- y / tf$where(w > 0, w, tf$ones_like(w))	# scale so that the sum of each bar is one
 
-	res$vplots <- y
-	res$n <- h %>% tf$boolean_mask(include, axis = 0L)
-
-	# add weight for each genomic bin
-	w <- tf$reduce_sum(res$vplots, 1L, keepdims = TRUE) > 0
-	w <- w %>% tf$cast(tf$float32)
-	res$weight <- w
+		# add weight for each genomic bin
+		w <- tf$reduce_sum(res$vplots, 1L, keepdims = TRUE) > 0
+		w <- w %>% tf$cast(tf$float32)
+		res$weight <- w
+	}
 
 	if (with_kmers){
 		g <- x$kmers %>%
@@ -266,31 +286,7 @@ prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE, wit
 		g <- g %>%
 			tf$reshape(c(g$shape[[1]] * g$shape[[2]], block_size))
 
-		g <- g %>% tf$boolean_mask(include, axis = 0L)
-
 		res$kmers <- g
-	}
-
-	if (with_predicted_counts){
-
-		y_pred <- x$predicted_counts %>%
-	    as.matrix() %>%
-			reticulate::array_reshape(c(    # convert into a C-style array
-				length(x),
-				x@n_intervals,
-				x@n_bins_per_window,
-				1L
-			)) %>%
-			tf$cast(tf$float32) %>%
-			extract_blocks_from_vplot(n_bins_per_block)
-
-		y_pred <- y_pred %>%
-			tf$reshape(c(y_pred$shape[[1]] * y_pred$shape[[2]], y_pred$shape[[3]], y_pred$shape[[4]], 1L))
-
-		y_pred  <- y_pred  %>% tf$boolean_mask(include, axis = 0L)
-
-		res$predicted_vplots <- y_pred
-
 	}
 
 	if (!is.null(types)){
@@ -321,9 +317,6 @@ prepare_blocks <- function(x, block_size, min_reads = 0, with_kmers = FALSE, wit
 						v <- v %>%
 							tf$reshape(c(v$shape[[1]] * v$shape[[2]], n_bins_per_block))
 						
-						v <- v %>% 
-							tf$boolean_mask(include, axis = 0L)
-
 						v <- scale01(v)
 						res[[type]] <- v
 					}

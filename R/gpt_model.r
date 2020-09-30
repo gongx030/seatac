@@ -42,8 +42,7 @@ TransformerDecoderModel <- reticulate::PyClass(
 			dff, 
 			kmers_size,
 			vae,
-			rate = 0.1,
-			step_size = 2L
+			rate = 0.1
 		){
 			super()$`__init__`()
 
@@ -60,15 +59,11 @@ TransformerDecoderModel <- reticulate::PyClass(
 				tf$cast(tf$float32) %>%
 				tf$expand_dims(0L)
 
-			self$mask <- tf$constant(1:self$vae$block_size %in% seq(1, self$vae$block_size, by = step_size), tf$bool)
-
 			self$embedding <- tf$keras$layers$Embedding(as.integer(kmers_size), self$d_model)
 			self$dropout_1 <- tf$keras$layers$Dropout(rate)
-
 			self$enc_layers <- lapply(seq_len(num_layers), function(i) TransformerEncoderLayer(self$d_model, num_heads = num_heads, dff = dff, rate = rate))
-
-			self$dropout_2 <- tf$keras$layers$Dropout(rate)
-			self$dense <- tf$keras$layers$Dense(units = model_vae$encoder$latent_dim)
+			self$dense_1 <- tf$keras$layers$Dense(units = model_vae$decoder$vplot_decoder$vplot_height, activation = 'relu')
+			self$pool <- tf$keras$layers$MaxPooling1D(model$vae$bin_size, model$vae$bin_size)
 
 			NULL
 
@@ -76,19 +71,22 @@ TransformerDecoderModel <- reticulate::PyClass(
 		call = function(self, x, training = TRUE){
 
 			x <- x %>% self$embedding()
-			x <- x %>% tf$boolean_mask(self$mask, axis = 1L)
 			x <- x * tf$math$sqrt(tf$cast(self$d_model, tf$float32))
-			x <- x + tf$boolean_mask(self$pos_encoding, self$mask, axis = 1L)
+			x <- x + self$pos_encoding
 			x <- x %>% self$dropout_1()
-							    
+
 			for (i in seq_len(self$num_layers)){
 				x <- self$enc_layers[[i - 1]](x)	# zero-based
 			}
 
-			x <- x %>% tf$reduce_mean(1L)
-			x <- x %>% self$dropout_2()
-			z <- x %>% self$dense()
-			res  <- z %>% self$vae$decoder()
+			x <- x %>% self$dense_1()
+			x <- x %>% self$pool()
+			x <- x %>% tf$transpose(shape(0L, 2L, 1L))
+			x <- x %>% tf$expand_dims(3L)
+			posterior <- model$vae$encoder(x)
+			z <- posterior$mean()
+			res <- model$vae$decoder(z)
+			res$z <- z
 			res
 		}
 	)
@@ -108,20 +106,21 @@ setMethod(
 	function(
 		 model,
 		 x,
-		 min_reads = 10
+		 ...
 	 ){
 
-		flog.info(sprintf('prepare_data | min_reads=%d', min_reads))
-
 		d <- select_blocks(
-			x,
-			block_size = model$vae$block_size,
-			min_reads = min_reads,
-			with_kmers = TRUE,
-			types = c('nucleoatac', 'full_nucleoatac')
-		) 
-
+			x, 
+			block_size = model$vae$block_size, 
+			with_vplots = TRUE, 
+			with_kmers = TRUE, 
+			...
+		)
 		flog.info(sprintf('prepare_data | number of samples=%d', d$vplots$shape[[1]]))
+
+		res <- model$vae %>% predict(d$vplots)
+		d$predicted_vplots <- res$x_pred
+		d$z <- res$z
 
 		d <- d %>%
 			tensor_slices_dataset()
@@ -151,18 +150,25 @@ setMethod(
 		# Adopted from https://www.tensorflow.org/tutorials/text/transformer#optimizer
 		learning_rate <- CustomSchedule(model$d_model)
 		optimizer <- tf$keras$optimizers$Adam(learning_rate, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
-		train_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')
+
+		train_loss <- tf$keras$losses$MeanSquaredError(reduction = 'none')
+
+		if (!is.null(checkpoint_dir)){
+			if (!file.exists(checkpoint_dir))
+				dir.create(checkpoint_dir, recursive = TRUE)
+			ckpt <- tf$train$Checkpoint(model = model, optimizer = optimizer)
+			ckpt_manager <- tf$train$CheckpointManager(ckpt, checkpoint_dir, max_to_keep = 5)
+		}
 
 		x <- x %>% 
 			dataset_shuffle(1000L) %>%
 			split_dataset(test_size = test_size, batch_size = batch_size)
 
 		# updating step
-		train_step <- function(x, y, w){
+		train_step <- function(x, y){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
 				res <- model(x)
-				loss <- (tf$squeeze(w, 3L) * train_loss(res$x_pred, y)) %>%
-					tf$reduce_sum(shape(1L, 2L)) %>%
+				loss <- train_loss(res$z, y) %>%
 					tf$reduce_mean()
 					
 			})
@@ -170,15 +176,14 @@ setMethod(
 			list(gradients, model$trainable_variables) %>%
 				purrr::transpose() %>%
 				optimizer$apply_gradients()
-			list(loss = loss)
+			list(loss = loss, predicted_vplots = res$x_pred)
 		} # train_step
 
-		test_step <- function(x, y, w){
+		test_step <- function(x, y){
 			res <- model(x)
-			loss <- (tf$squeeze(w, 3L) * train_loss(res$x_pred, y)) %>%
-				tf$reduce_sum(shape(1L, 2L)) %>%
+			loss <- train_loss(res$z, y) %>%
 				tf$reduce_mean()
-			list(loss = loss)
+			list(loss = loss, predicted_vplots = res$x_pred)
 		}
 
 		train_step <- tf_function(train_step) # convert to graph mode
@@ -188,9 +193,9 @@ setMethod(
 
 			loss_train <- NULL 
 			iter <- make_iterator_one_shot(x$train)
-			res <- until_out_of_range({
+			until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- train_step(batch$kmers, batch$vplots, batch$weight)
+				res <- train_step(batch$kmers, batch$z)
 				loss_train <- c(loss_train, as.numeric(res$loss))
 			})
 
@@ -198,11 +203,16 @@ setMethod(
 			iter <- make_iterator_one_shot(x$test)
 			until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- test_step(batch$kmers, batch$vplots, batch$weight)
+				res <- test_step(batch$kmers, batch$z)
 				loss_test <- c(loss_test, as.numeric(res$loss))
 			})
 
-			flog.info(sprintf('epoch=%6.d/%6.d | train_loss=%13.7f | test_loss=%13.7f', epoch, epochs, mean(loss_train), mean(loss_test)))
+#			if (epoch %% 10 == 0){
+#				batch$predicted_vplots[1, , , 1] %>% as.matrix() %>% t() %>% image(main = epoch)
+#				res$predicted_vplots[1, , , 1] %>% as.matrix() %>% t() %>% image(main = epoch)
+#			}
+
+			flog.info(sprintf('fit | epoch=%6.d/%6.d | train_loss=%13.7f | test_loss=%13.7f', epoch, epochs, mean(loss_train), mean(loss_test)))
 
 			if (epoch %% 5 == 0 && !is.null(checkpoint_dir)){
 				ckpt_save_path <- ckpt_manager$save()
@@ -242,7 +252,7 @@ setMethod(
 		for (i in 1:n_batch){
 
 			if (i == 1 || i %% 100 == 0)
-				flog.info(sprintf('predicting | batch=%4.d/%4.d', i, n_batch))
+				flog.info(sprintf('predict | batch=%4.d/%4.d', i, n_batch))
 
 			b <- starts[i]:ends[i]
 
@@ -250,6 +260,7 @@ setMethod(
 				x[b],
 				block_size = model$vae$block_size,
 				min_reads = 0,
+				with_vplots = FALSE,
 				with_kmers = TRUE
 			)
 

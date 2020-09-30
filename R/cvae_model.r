@@ -1,156 +1,31 @@
-setOldClass('rpytools.call.VaeModel')
-setOldClass('python.builtin.VaeModel')
-setClassUnion('VaeModel', members = c('rpytools.call.VaeModel', 'python.builtin.VaeModel'))
+setOldClass('rpytools.call.CVaeModel')
+setOldClass('python.builtin.CVaeModel')
+setClassUnion('CVaeModel', members = c('rpytools.call.CVaeModel', 'python.builtin.CVaeModel'))
 
 VplotEncoder <- reticulate::PyClass(
-	'VplotEncoder',
+	'KmersEncoder',
 	inherit = tf$keras$Model,
 	list(
 		`__init__` = function(
 			self,
-			filters = c(32L, 32L, 32L),
-			kernel_size = c(3L, 3L, 3L),
-			window_strides = c(2L, 2L, 2L),
-			interval_strides = c(2L, 2L, 2L)
+			kmers_size
 		){
 			super()$`__init__`()
 
-			self$filters <- filters
-			self$kernel_size <- kernel_size
-			self$window_strides <-  window_strides
-			self$interval_strides <-  interval_strides
-
-			self$conv1d_1 <- tf$keras$layers$Conv2D(
-				filters = filters[1],
-				kernel_size = kernel_size[1],
-				strides = shape(interval_strides[1], window_strides[1]),
-				activation = 'relu'
-			)
-
-			self$conv1d_2 <- tf$keras$layers$Conv2D(
-				filters = filters[2],
-				kernel_size = kernel_size[2],
-				strides = shape(interval_strides[2], window_strides[2]),
-				activation = 'relu'
-			)
-
-			self$conv1d_3 <- tf$keras$layers$Conv2D(
-				filters = filters[3],
-				kernel_size = kernel_size[3],
-				strides = shape(interval_strides[3], window_strides[3]),
-				activation = 'relu'
-			)
-
-			self$bn_1 <- tf$keras$layers$BatchNormalization()
-			self$bn_2 <- tf$keras$layers$BatchNormalization()
-			self$bn_3 <- tf$keras$layers$BatchNormalization()
-
-			self$flatten_1 <- tf$keras$layers$Flatten()
+			self$kmers_size <- kmers_size
 
 			NULL
 
 		},
 		call = function(self, x, training = TRUE, mask = NULL){
 
-			y <- x %>%
-				self$conv1d_1() %>% 
-				self$bn_1() %>%
-				self$conv1d_2() %>% 
-				self$bn_2() %>%
-				self$conv1d_3() %>% 
-				self$bn_3() %>%
-				self$flatten_1()
-			y
-		}
-	)
-)
-
-VplotDecoder <- reticulate::PyClass(
-	'VplotDecoder',
-	inherit = tf$keras$Model,
-	list(
-		`__init__` = function(
-			self, 
-			vplot_width,	# width of the image
-			vplot_height, # height of the image
-			filters0 = 64L,
-			filters = c(32L, 32L, 1L),
-			kernel_size = c(3L, 3L, 3L),
-			window_strides = c(2L, 2L, 2L),
-			interval_strides = c(2L, 2L, 1L)
-		){
-			super()$`__init__`()
-
-			self$vplot_width <- vplot_width
-			self$vplot_height <- vplot_height
-
-			if (vplot_width %% prod(window_strides) != 0)
-				stop(sprintf('vplot_width must be a multiple of %d', prod(window_strides)))
-
-			window_dim0 <- as.integer(vplot_width / prod(window_strides))
-			interval_dim0 <- as.integer(vplot_height / prod(interval_strides))
-			output_dim0 <- as.integer(window_dim0 * interval_dim0 * filters0)
-
-			self$dense_1 <- tf$keras$layers$Dense(
-				units = output_dim0,
-				activation = 'relu'
-			)
-
-			self$dropout_1 <- tf$keras$layers$Dropout(0.8)
-
-			self$deconv_1 <- tf$keras$layers$Conv2DTranspose(
-				filters = filters[1],
-				kernel_size = kernel_size[1],
-				strides = shape(interval_strides[1], window_strides[1]),
-				padding = 'same',
-				activation = 'relu'
-			)
-
-			self$deconv_2 <- tf$keras$layers$Conv2DTranspose(
-				filters = filters[2],
-				kernel_size = kernel_size[2],
-				strides = shape(interval_strides[2], window_strides[2]),
-				padding = 'same',
-				activation = 'relu'
-			)
-
-			self$deconv_3 <- tf$keras$layers$Conv2DTranspose(
-				filters = filters[3],
-				kernel_size = kernel_size[3],
-				strides = shape(interval_strides[3], window_strides[3]),
-				padding = 'same'
-			)
-
-			self$bn_1 <- tf$keras$layers$BatchNormalization()
-			self$bn_2 <- tf$keras$layers$BatchNormalization()
-
-			self$reshape_1 <- tf$keras$layers$Reshape(target_shape = c(interval_dim0, window_dim0, filters0))
-
-			NULL
-
-		},
-		call = function(self, x, training = TRUE, mask = NULL){
-
-			y <- x %>%
-				self$dense_1() %>%
-				self$dropout_1() %>%
-				self$reshape_1() %>%
-				self$deconv_1() %>%
-				self$bn_1() %>%
-				self$deconv_2() %>%
-				self$bn_2() %>%
-				self$deconv_3() 
-			y
 		}
 	)
 )
 
 
-#' Decoder
-
-
-VaeEncoder <- reticulate::PyClass(
-	'VaeEncoder',
+CVaeEncoder <- reticulate::PyClass(
+	'CVaeEncoder',
 	inherit = tf$keras$Model,
 	list(
 		`__init__` = function(
@@ -192,8 +67,8 @@ VaeEncoder <- reticulate::PyClass(
 #' 
 #' A transformer decoder to recover an image
 #'
-VaeDecoder <- reticulate::PyClass(
-	'VaeDecoder',
+CVaeDecoder <- reticulate::PyClass(
+	'CVaeDecoder',
 	inherit = tf$keras$Model,
 	list(
 		`__init__` = function(
@@ -241,8 +116,8 @@ VaeDecoder <- reticulate::PyClass(
 
 #' VaeModel
 #'
-VaeModel <- reticulate::PyClass(
-	'VaeModel',
+CVaeModel <- reticulate::PyClass(
+	'CVaeModel',
 	inherit = tf$keras$Model,
 	list(
 		`__init__` = function(
@@ -252,7 +127,8 @@ VaeModel <- reticulate::PyClass(
 			bin_size,
 			block_size,
 			filters0 = 64L,
-			rate = 0.1
+			rate = 0.1,
+			kmers_size
 		){
 
 			super()$`__init__`()
@@ -263,6 +139,10 @@ VaeModel <- reticulate::PyClass(
 			self$block_size <- block_size
 			self$bin_size <- bin_size
 			self$n_bins_per_block <- as.integer(block_size / bin_size)
+
+			self$kmers_encoder <- KmersEncoder(
+				kmers_size = kmers_size
+			)
 
 			self$encoder <- VaeEncoder(
 				latent_dim = latent_dim
@@ -282,7 +162,10 @@ VaeModel <- reticulate::PyClass(
 
 			NULL
 		},
-		call = function(self, x, training = TRUE){
+		call = function(self, x, g, training = TRUE){
+
+			y <- g %>% self$kmers_encoder()
+			browser()
 
 			posterior <- x %>% self$encoder()
 			z <- posterior$sample()
@@ -303,8 +186,8 @@ VaeModel <- reticulate::PyClass(
 setMethod(
 	'prepare_data',
 	signature(
-		model = 'VaeModel',
-		x = 'Vplots'
+		model = 'CVaeModel',
+		x = 'VplotsKmers'
 	),
 	function(
 		model,
@@ -316,10 +199,9 @@ setMethod(
 			x,
 			block_size = model$block_size,
 			min_reads = min_reads,
-			with_kmers = FALSE,
+			with_kmers = TRUE,
 			types = c('nucleoatac', 'mnase', 'full_nucleoatac')
 		) %>%
-#			dataset_cache() %>% # https://www.tensorflow.org/guide/data_performance#reducing_memory_footprint
 			tensor_slices_dataset()
 		d
 	}
@@ -333,7 +215,7 @@ setMethod(
 setMethod(
 	'fit',
 	signature(
-		model = 'VaeModel',
+		model = 'CVaeModel',
 		x = 'tf_dataset'
 	),
 	function(
@@ -451,7 +333,7 @@ setMethod(
 setMethod(
 	'evaluate',
 	signature(
-		model = 'VaeModel',
+		model = 'CVaeModel',
 		x = 'tf_dataset'
 	),
 	function(
@@ -500,8 +382,8 @@ setMethod(
 setMethod(
 	'predict',
 	signature(
-		model = 'VaeModel',
-		x = 'Vplots'
+		model = 'CVaeModel',
+		x = 'VplotsKmers'
 	),
 	function(
 		model,
@@ -580,37 +462,3 @@ setMethod(
 		x
 	}
 ) # predict
-#'
-
-setMethod(
-	'predict',
-	signature(
-		model = 'VaeModel',
-		x = 'tensorflow.tensor'
-	),
-	function(
-		model,
-		x,
-		batch_size = 128L
-	){
-
-		starts <- seq(1, x$shape[[1]], by = batch_size)
-		ends <- starts + batch_size - 1
-		ends[ends > x$shape[[1]]] <- x$shape[[1]]
-		n_batch <- length(starts)
-
-		res <- list()
-
-		for (i in 1:n_batch){
-			b <- starts[i]:ends[i]
-			res[[i]] <- model(x[b, , , ])
-		}
-
-		x_pred <- tf$concat(lapply(res, function(r) r$x_pred), axis = 0L)
-		nucleosome <- tf$concat(lapply(res, function(r) r$nucleosome), axis = 0L)
-		z <- tf$concat(lapply(res, function(r) r$z), axis = 0L)
-
-		list(x_pred = x_pred, nucleosome = nucleosome, z = z)
-	}
-)
-
