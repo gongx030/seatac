@@ -5,19 +5,17 @@ Date: 2020-06-08
 Author: Wuming Gong <gongx030@umn.edu>
 Maintainer: Wuming Gong <gongx030@umn.edu>
 Description: What the package does (one paragraph).
-Depends: 
-	R (>= 3.6.3),
-	methods,
-	BiocGenerics
 License: MIT License
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.1.0
+Depends: 
+	R (>= 3.6.3),
+	reticulate,
+	tensorflow,
+	tfprobability
 biocViews:
 Imports:
-	tensorflow,
-	tfprobability,
-	keras,
 	Matrix,
 	SummarizedExperiment,
 	matrixStats,
@@ -27,9 +25,5 @@ Imports:
 	Rsamtools,
 	GenomicAlignments,
 	gplots,
-	abind,
-	fields,
 	purrr,
-	BSgenome,
-	igraph,
-	flexmix
+	BSgenome

@@ -2,11 +2,12 @@
 #'
 #' ATAC-seq V-plot analysis
 #'
+#' @import reticulate
 #' @import methods
 #' @import BiocGenerics
-#' @import tfprobability
 #' @import tensorflow
 #' @import tfdatasets
+#' @import tfprobability
 #' @import keras
 #' @import Matrix
 #' @import SummarizedExperiment
@@ -17,9 +18,6 @@
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam indexBam
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments GAlignmentsList
 #' @importFrom gplots colorpanel
-#' @importFrom abind abind
-#' @importFrom fields image.smooth
-#' @importFrom purrr pluck
 #' @importFrom BSgenome BSgenome
 #' @importFrom BiocParallel bplapply
 #' @import rtracklayer
