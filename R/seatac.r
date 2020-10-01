@@ -14,7 +14,6 @@
 #' @importFrom gplots colorpanel
 #' @importFrom BSgenome BSgenome
 #' @importFrom BiocParallel bplapply
-#' @import rtracklayer
 #' @docType package
 #' @name seatac
 #'
