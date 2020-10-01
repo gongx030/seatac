@@ -247,11 +247,11 @@ VaeModel <- reticulate::PyClass(
 	list(
 		`__init__` = function(
 			self,
-			latent_dim,
+			latent_dim = 10L,
 			n_intervals,
-			bin_size,
+			bin_size = 5L,
 			block_size,
-			filters0 = 64L,
+			filters0 = 128L,
 			rate = 0.1
 		){
 

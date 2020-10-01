@@ -17,13 +17,11 @@ Depends:
 biocViews:
 Imports:
 	Matrix,
-	SummarizedExperiment,
-	matrixStats,
+	dplyr,
 	futile.logger,
 	GenomicRanges,
 	GenomeInfoDb,
 	Rsamtools,
 	GenomicAlignments,
 	gplots,
-	purrr,
 	BSgenome

@@ -2,18 +2,12 @@
 #'
 #' ATAC-seq V-plot analysis
 #'
-#' @import reticulate
 #' @import methods
-#' @import BiocGenerics
-#' @import tensorflow
 #' @import tfdatasets
-#' @import tfprobability
-#' @import keras
 #' @import Matrix
-#' @import SummarizedExperiment
-#' @importFrom matrixStats rowSds rowVars rowMedians rowMins rowMaxs colVars
 #' @import futile.logger 
-#' @importFrom GenomicRanges tileGenome resize intersect reduce
+#' @import dplyr
+#' @importFrom GenomicRanges resize reduce
 #' @importFrom GenomeInfoDb seqlengths
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam indexBam
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments GAlignmentsList
@@ -26,4 +20,3 @@
 #'
 NULL
 # > NULL
-

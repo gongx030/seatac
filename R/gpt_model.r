@@ -61,9 +61,13 @@ TransformerDecoderModel <- reticulate::PyClass(
 
 			self$embedding <- tf$keras$layers$Embedding(as.integer(kmers_size), self$d_model)
 			self$dropout_1 <- tf$keras$layers$Dropout(rate)
-			self$enc_layers <- lapply(seq_len(num_layers), function(i) TransformerEncoderLayer(self$d_model, num_heads = num_heads, dff = dff, rate = rate))
-			self$dense_1 <- tf$keras$layers$Dense(units = model_vae$decoder$vplot_decoder$vplot_height, activation = 'relu')
-			self$pool <- tf$keras$layers$MaxPooling1D(model$vae$bin_size, model$vae$bin_size)
+
+			if (num_layers > 0){
+				self$enc_layers <- lapply(seq_len(num_layers), function(i) TransformerEncoderLayer(self$d_model, num_heads = num_heads, dff = dff, rate = rate))
+			}
+
+			self$dense_1 <- tf$keras$layers$Dense(units = self$vae$decoder$vplot_decoder$vplot_height, activation = 'relu')
+			self$pool <- tf$keras$layers$MaxPooling1D(self$vae$bin_size, self$vae$bin_size)
 
 			NULL
 
@@ -75,17 +79,19 @@ TransformerDecoderModel <- reticulate::PyClass(
 			x <- x + self$pos_encoding
 			x <- x %>% self$dropout_1()
 
-			for (i in seq_len(self$num_layers)){
-				x <- self$enc_layers[[i - 1]](x)	# zero-based
+			if (num_layers > 0){
+				for (i in seq_len(self$num_layers)){
+					x <- self$enc_layers[[i - 1]](x)	# zero-based
+				}
 			}
 
 			x <- x %>% self$dense_1()
 			x <- x %>% self$pool()
 			x <- x %>% tf$transpose(shape(0L, 2L, 1L))
 			x <- x %>% tf$expand_dims(3L)
-			posterior <- model$vae$encoder(x)
+			posterior <- self$vae$encoder(x)
 			z <- posterior$mean()
-			res <- model$vae$decoder(z)
+			res <- self$vae$decoder(z)
 			res$z <- z
 			res
 		}
@@ -118,8 +124,7 @@ setMethod(
 		)
 		flog.info(sprintf('prepare_data | number of samples=%d', d$vplots$shape[[1]]))
 
-		res <- model$vae %>% predict(d$vplots)
-		d$predicted_vplots <- res$x_pred
+		res <- model$vae %>% predict(d$vplots, batch_size = 128L)
 		d$z <- res$z
 
 		d <- d %>%
@@ -207,11 +212,6 @@ setMethod(
 				loss_test <- c(loss_test, as.numeric(res$loss))
 			})
 
-#			if (epoch %% 10 == 0){
-#				batch$predicted_vplots[1, , , 1] %>% as.matrix() %>% t() %>% image(main = epoch)
-#				res$predicted_vplots[1, , , 1] %>% as.matrix() %>% t() %>% image(main = epoch)
-#			}
-
 			flog.info(sprintf('fit | epoch=%6.d/%6.d | train_loss=%13.7f | test_loss=%13.7f', epoch, epochs, mean(loss_train), mean(loss_test)))
 
 			if (epoch %% 5 == 0 && !is.null(checkpoint_dir)){
@@ -293,5 +293,4 @@ setMethod(
 		x
 	}
 ) # predict
-
 

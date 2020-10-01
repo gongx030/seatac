@@ -1,87 +1,5 @@
-#' Specify a Guassian kernel
-#' Adopted from https://stackoverflow.com/questions/52012657/how-to-make-a-2d-gaussian-filter-in-tensorflow
+#' extract_blocks_from_vplot
 #'
-gaussian_kernel <- function(size = 10, mu = 1, std = 1){
-	# Make Gaussian Kernel with desired specs.
-
-	d <- tfd_normal(mu, std)
-	vals <- d$prob(tf$range(start = -size, limit = size + 1, dtype = tf$float32))
-	gauss_kernel <- tf$einsum('i,j->ij', vals, vals)
-	gauss_kernel <- gauss_kernel / tf$reduce_sum(gauss_kernel)
-
-	# Expand dimensions of `gauss_kernel` for `tf.nn.conv2d` signature.
-	gauss_kernel <- gauss_kernel[, , tf$newaxis, tf$newaxis]
-	gauss_kernel
-}
-
-
-find_fragment_size_mixture <- function(x){
-
-	x <- Reduce('c', x)
-
-	fs <- colSums(x$counts) %>%
-		matrix(x@n_bins_per_window, x@n_intervals) %>%
-		colSums()
-
-	d <- data.frame(
-		fragment_size = rep(x@centers, fs)
-	)
-
-	m <- flexmix(
-		fragment_size ~ 1,
-		data = d,
-		k = 2,
-		model = list(FLXMRglm(family = 'Gamma'), FLXMRglm(family = 'gaussian'))
-	)
-	
-	if (parameters(m, component = 1, model = 2)[1, ] > parameters(m, component = 2, model = 2)[1, ]){
-		nfr_component <- 2
-		mono_component <- 1
-	}else{
-		nfr_component <- 1
-		mono_component <- 2
-	}
-
-	mu <- parameters(m, component = mono_component, model = 2)[1, ]
-	sigma <- parameters(m, component = mono_component, model = 2)[2, ]
-	shape <-  parameters(m, component = nfr_component, model = 1)[2, ]
-	scale <-  1 / parameters(m, component = nfr_component, model = 1)[1, ] / shape
-
-	list(mu = mu, sigma = sigma, shape = shape, scale = scale)
-	
-}
-
-generate_random_vplots <- function(n, fsd, cd, n_bins_per_window){
-
-	n_intervals <- length(fsd)
-
-	# sampling total number of counts per vplot
-	counts <- sample(1:length(cd), n, replace = TRUE, prob = cd)
-
-	id <- rep(1:n, counts)
-
-	# sampling fragment size for each read in each vplot
-	fs <- sample(1:n_intervals, sum(counts), replace = TRUE, prob = fsd)
-
-	# sampling window positions
-	pos <- sample(1:n_bins_per_window, sum(counts), replace = TRUE)
-
-	df <- data.frame(id = id, fragment_size = fs, position = pos) %>%
-		group_by(id, fragment_size, position) %>%
-		tally()
-
-	x <- tf$SparseTensor(
-		indices = cbind(df$id - 1, df$fragment_size - 1, df$position - 1), 
-		values = df$n,
-		dense_shape = c(as.integer(n), as.integer(n_intervals), as.integer(n_bins_per_window))
-	) %>%
-		tf$sparse$to_dense() %>%
-		tf$cast(tf$float32) %>%
-		tf$expand_dims(3L)
-
-	x
-}
-
 extract_blocks_from_vplot <- function(x, n_bins_per_block){
 
 	n_intervals <- x$shape[[2]]
@@ -102,6 +20,8 @@ extract_blocks_from_vplot <- function(x, n_bins_per_block){
 	y
 }
 
+#' reconstruct_vplot_from_blocks
+#'
 #' https://stackoverflow.com/questions/50706431/please-how-to-do-this-basic-thing-with-tensorflow
 #'
 reconstruct_vplot_from_blocks <- function(x){
@@ -177,159 +97,6 @@ positional_encoding <- function(position, d_model){
 } # positional_encoding
 
 
-#' select_blocks
-#'
-select_blocks <- function(x, batch_size = 512L, min_reads = 0, n_blocks = NA, ...){
-
-	starts <- seq(1, length(x), by = batch_size)
-	ends <- starts + batch_size - 1
-	ends[ends > length(x)] <- length(x)
-	n_batch <- length(starts)
-
-	if (!is.na(n_blocks))
-		n_blocks_per_batch <- table(factor(sample(1:n_batch, n_blocks, replace = TRUE), 1:n_batch))
-
-	res <- list()
-	for (j in seq_len(n_batch)){
-
-		if (!is.na(n_blocks) && n_blocks_per_batch[j] == 0)
-			next
-
-		h <- starts[j]:ends[j]
-	  res[[j]] <- x[h] %>% select_blocks_batch(...)
-
-		# select blocks with minimum reads
-		if (min_reads > 0 && !is.null(res[[j]]$vplots)){
-			include <- res[[j]]$n >= min_reads
-			res[[j]] <- lapply(res[[j]], function(r) tf$boolean_mask(r, include))
-		}
-
-		# randomly sample non-empty blocks
-		if (!is.na(n_blocks)){
-			ns <- res[[j]][[1]]$shape[[1]] # n total blocks in current batch
-			if (n_blocks_per_batch[j] < ns){
-				include <- tf$cast(seq_len(ns) %in% sample(ns, n_blocks_per_batch[j]), tf$bool)
-				res[[j]] <- lapply(res[[j]], function(r) tf$boolean_mask(r, include))
-			}
-		}
-	}
-
-	fields <- names(res[[1]])
-	fields <- fields[!sapply(res[[1]], is.null)]
-	res <- lapply(fields, function(f){
-		tf$concat(lapply(res, function(xx) xx[[f]]), axis = 0L)
-	})
-	names(res) <- fields
-	res
-
-} # 
-
-
-#' select_blocks_batch
-#'
-select_blocks_batch <- function(x, block_size, with_vplots = TRUE, with_kmers = FALSE, with_predicted_counts = FALSE, types = NULL){
-
-	res <- list()
-
-	if (with_kmers && is.null(x$kmers))
-		stop('x$kmers must be available if with_kmers=TRUE')
-
-	n_bins_per_block <- as.integer(block_size / x@bin_size)
-	n_blocks_per_window <- as.integer(x@n_bins_per_window - n_bins_per_block + 1)
-	n_blocks <- as.integer(n_blocks_per_window * length(x))
-
-	if (with_vplots){
-
-		y <- x$counts %>%
-			as.matrix() %>%
-			reticulate::array_reshape(c(    # convert into a C-style array
-				length(x),
-				x@n_intervals,
-				x@n_bins_per_window,
-				1L
-			)) %>%
-			tf$cast(tf$float32) %>%
-			extract_blocks_from_vplot(n_bins_per_block) 
-	
-		y <- y %>%
-			tf$reshape(c(y$shape[[1]] * y$shape[[2]], y$shape[[3]], y$shape[[4]], 1L))
-
-		res$vplots <- y
-
-		res$n <- y %>%
-			tf$math$count_nonzero(c(1L, 3L), dtype = tf$float32) %>% # number of non-zero pixel per bar
-			tf$math$count_nonzero(1L) %>% # number of bar that have non-zero pixels
-			tf$cast(tf$float32)
-
-		w <- y %>% tf$reduce_max(shape(1L), keepdims = TRUE)	# max reads per v-plot
-		y <- y / tf$where(w > 0, w, tf$ones_like(w))	# scale so that the sum of each bar is one
-
-		# add weight for each genomic bin
-		w <- tf$reduce_sum(res$vplots, 1L, keepdims = TRUE) > 0
-		w <- w %>% tf$cast(tf$float32)
-		res$weight <- w
-	}
-
-	if (with_kmers){
-		g <- x$kmers %>%
-			tf$cast(tf$int32) %>%
-			tf$expand_dims(-1L) %>%
-			tf$expand_dims(-1L) %>%
-			tf$image$extract_patches(
-				sizes = c(1L, block_size, 1L, 1L),
-				strides = c(1L, x@bin_size, 1L, 1L),
-					rates = c(1L, 1L, 1L, 1L),
-				padding = 'VALID'
-			) %>%
-			tf$squeeze(axis = 2L)
-
-		g <- g %>%
-			tf$reshape(c(g$shape[[1]] * g$shape[[2]], block_size))
-
-		res$kmers <- g
-	}
-
-	if (!is.null(types)){
-		for (type in types){
-			if (is.null(mcols(x)[[type]])){
-				flog.warn(sprintf('field x$%s does not exist', type))
-			}else{
-				if (!is.matrix(mcols(x)[[type]])){
-					flog.warn(sprintf('x$%s is not in a matrix format', type))
-				}else{
-
-					if (x@n_bins_per_window != ncol(mcols(x)[[type]])){
-						flog.warn(sprintf('ncol(x$%s) must be equal to x@n_bins_per_window', type))
-					}else{
-
-						v <- mcols(x)[[type]] %>%
-							tf$cast(tf$float32) %>%
-							tf$expand_dims(-1L) %>%
-							tf$expand_dims(-1L) %>%
-							tf$image$extract_patches(
-								sizes = c(1L, n_bins_per_block, 1L, 1L),
-								strides = c(1L, 1L, 1L, 1L),
-								rates = c(1L, 1L, 1L, 1L),
-								padding = 'VALID'
-							) %>%
-							tf$squeeze(axis = 2L)
-
-						v <- v %>%
-							tf$reshape(c(v$shape[[1]] * v$shape[[2]], n_bins_per_block))
-						
-						v <- scale01(v)
-						res[[type]] <- v
-					}
-				}
-			}
-		}
-	}
-
-	res
-
-} # prepare_blocks
-
-
 #' add_track
 #'
 #' @param file a bigwig file
@@ -372,3 +139,23 @@ split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 } # split_dataset
 
 
+#' load_pretrained_vae_model
+#'
+#' Load pretrained sequence agnostic VAE model for V-plot
+#'
+load_pretrained_vplot_vae_model <- function(
+	n_intervals = 48L, 
+	block_size = 240L
+){
+	model_file <- system.file('extdata', 'model.h5', package = 'seatac')
+
+	flog.info(sprintf('load_pretrained_vplot_vae_model | model file=%s', model_file))
+	model <- VaeModel(block_size = block_size, n_intervals = n_intervals)
+	res <- model(tf$random$uniform(shape(1L, n_intervals, model$n_bins_per_block, 1L)))
+	model$load_weights(model_file)
+
+	flog.info(sprintf('load_pretrained_vplot_vae_model | width=%d | height=%d | bin size=%d', model$decoder$vplot_decoder$vplot_width, model$decoder$vplot_decoder$vplot_height, model$bin_size))
+
+	model
+
+} # load_pretrained_vplot_vae_model

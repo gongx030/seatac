@@ -30,4 +30,3 @@ setClass(
 	),
 	contains = 'Vplots'
 )
-

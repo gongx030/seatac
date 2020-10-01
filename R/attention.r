@@ -13,7 +13,6 @@
 #' @param mask: Float tensor with shape broadcastable to (..., seq_len_q, seq_len_k). Defaults to None.
 #'
 #' @return output, attention_weights
-
 scaled_dot_product_attention <- function(q, k, v, mask = NULL){
 
 	matmul_qk <- tf$matmul(q, k, transpose_b = TRUE)  # (..., seq_len_q, seq_len_k)
@@ -31,6 +30,7 @@ scaled_dot_product_attention <- function(q, k, v, mask = NULL){
 	list(output = output, attention_weights = attention_weights)
 
 } # scaled_dot_product_attention
+
 
 #' MultiHeadAttention
 #'
