@@ -1,3 +1,7 @@
+setOldClass('rpytools.call.VaeModel')
+setOldClass('python.builtin.VaeModel')
+setClassUnion('VaeModel', members = c('rpytools.call.VaeModel', 'python.builtin.VaeModel'))
+
 VplotEncoder <- PyClass(
 	'VplotEncoder',
 	inherit = tf$keras$Model,
@@ -278,7 +282,6 @@ VaeModel <- PyClass(
 				scale_identity_multiplier = 1
 			)
 
-
 			NULL
 		},
 		call = function(self, x, training = TRUE){
@@ -295,8 +298,7 @@ VaeModel <- PyClass(
 			)
 		}
 	)
-)
-
+) # VaeModel
 
 
 #' prepare_data
@@ -320,7 +322,6 @@ setMethod(
 			with_kmers = FALSE,
 			types = c('nucleoatac', 'mnase', 'full_nucleoatac')
 		) %>%
-#			dataset_cache() %>% # https://www.tensorflow.org/guide/data_performance#reducing_memory_footprint
 			tensor_slices_dataset()
 		d
 	}

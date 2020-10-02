@@ -1,15 +1,8 @@
 setOldClass('tensorflow.tensor')
-setOldClass('rpytools.call.VaeModel')
-setOldClass('python.builtin.VaeModel')
 setOldClass('tf_dataset')
 
 setClassUnion('listOrNULL', members = c('list', 'NULL'))
 setClassUnion('matrixOrNULL', members = c('matrix', 'NULL'))
-
-#' VaeModel
-#'
-#' @export
-setClassUnion('VaeModel', members = c('rpytools.call.VaeModel', 'python.builtin.VaeModel'))
 
 
 #' Vplots
@@ -42,5 +35,3 @@ setClass(
 	),
 	contains = 'Vplots'
 )
-
-
