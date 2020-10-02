@@ -6,11 +6,13 @@ setOldClass('tf_dataset')
 setClassUnion('listOrNULL', members = c('list', 'NULL'))
 setClassUnion('matrixOrNULL', members = c('matrix', 'NULL'))
 
+#' VaeModel
 #'
 #' @export
 setClassUnion('VaeModel', members = c('rpytools.call.VaeModel', 'python.builtin.VaeModel'))
 
 
+#' Vplots
 #'
 #' @export
 setClass(
@@ -29,6 +31,7 @@ setClass(
 	contains = 'GRanges'
 )
 
+#' VplotsKmers
 #'
 #' @export
 setClass(
