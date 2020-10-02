@@ -3,6 +3,8 @@
 export(VaeModel)
 export(load_pretrained_vplot_vae_model)
 exportClasses(VaeModel)
+exportClasses(Vplots)
+exportClasses(VplotsKmers)
 exportMethods(read_vplot)
 import(Matrix)
 import(dplyr)

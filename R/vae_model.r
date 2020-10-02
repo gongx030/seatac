@@ -4,7 +4,7 @@ setOldClass('python.builtin.VaeModel')
 #' @export
 setClassUnion('VaeModel', members = c('rpytools.call.VaeModel', 'python.builtin.VaeModel'))
 
-VplotEncoder <- reticulate::PyClass(
+VplotEncoder <- PyClass(
 	'VplotEncoder',
 	inherit = tf$keras$Model,
 	list(
@@ -67,7 +67,7 @@ VplotEncoder <- reticulate::PyClass(
 	)
 )
 
-VplotDecoder <- reticulate::PyClass(
+VplotDecoder <- PyClass(
 	'VplotDecoder',
 	inherit = tf$keras$Model,
 	list(
@@ -151,7 +151,7 @@ VplotDecoder <- reticulate::PyClass(
 #' Decoder
 
 
-VaeEncoder <- reticulate::PyClass(
+VaeEncoder <- PyClass(
 	'VaeEncoder',
 	inherit = tf$keras$Model,
 	list(
@@ -194,7 +194,7 @@ VaeEncoder <- reticulate::PyClass(
 #' 
 #' A transformer decoder to recover an image
 #'
-VaeDecoder <- reticulate::PyClass(
+VaeDecoder <- PyClass(
 	'VaeDecoder',
 	inherit = tf$keras$Model,
 	list(
