@@ -1,7 +1,7 @@
 Package: seatac
 Title: Segmentation of ATAC-seq data
-Version: 0.2.1
-Date: 2020-06-08
+Version: 0.2.2
+Date: 2020-10-02
 Author: Wuming Gong <gongx030@umn.edu>
 Maintainer: Wuming Gong <gongx030@umn.edu>
 Description: What the package does (one paragraph).
@@ -11,7 +11,6 @@ LazyData: true
 RoxygenNote: 7.1.0
 Depends: 
 	R (>= 3.6.3),
-	reticulate,
 	tensorflow,
 	tfprobability
 biocViews:

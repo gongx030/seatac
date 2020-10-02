@@ -1,3 +1,23 @@
+#' add_track
+#'
+#' @param file a bigwig file
+#'
+add_track <- function(x, file, label){
+	cvg <- rtracklayer::import(file, which = reduce(x), as = 'RleList')
+  G <- sparseMatrix(
+		i = 1:x@window_size,
+		j = rep(1:x@n_bins_per_window, each = x@bin_size),
+		x = rep(1 / x@bin_size, x@window_size),
+		dims = c(x@window_size, x@n_bins_per_window)
+	)
+	y <- cvg[x] %>% as.matrix()
+	y <- (y %*% G) %>% as.matrix()  # average signal in each genomic bin
+	mcols(x)[[label]] <- y
+	x
+} # add_track
+
+
+
 #' extract_blocks_from_vplot
 #'
 extract_blocks_from_vplot <- function(x, n_bins_per_block){
@@ -121,10 +141,7 @@ split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 #'
 #' Load pretrained sequence agnostic VAE model for V-plot
 #'
-load_pretrained_vplot_vae_model <- function(
-	n_intervals = 48L, 
-	block_size = 240L
-){
+load_pretrained_vplot_vae_model <- function(n_intervals = 48L, block_size = 240L){
 	model_file <- system.file('extdata', 'model.h5', package = 'seatac')
 
 	flog.info(sprintf('load_pretrained_vplot_vae_model | model file=%s', model_file))

@@ -42,6 +42,7 @@ TransformerDecoderModel <- reticulate::PyClass(
 			dff, 
 			kmers_size,
 			vae,
+			step_size = 2L,
 			rate = 0.1
 		){
 			super()$`__init__`()
@@ -73,6 +74,8 @@ TransformerDecoderModel <- reticulate::PyClass(
 
 		},
 		call = function(self, x, training = TRUE){
+
+			browser()
 
 			x <- x %>% self$embedding()
 			x <- x * tf$math$sqrt(tf$cast(self$d_model, tf$float32))
