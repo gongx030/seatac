@@ -241,6 +241,9 @@ VaeDecoder <- reticulate::PyClass(
 
 #' VaeModel
 #'
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
 VaeModel <- reticulate::PyClass(
 	'VaeModel',
 	inherit = tf$keras$Model,
