@@ -1,5 +1,7 @@
 setOldClass('rpytools.call.VaeModel')
 setOldClass('python.builtin.VaeModel')
+
+#' @export
 setClassUnion('VaeModel', members = c('rpytools.call.VaeModel', 'python.builtin.VaeModel'))
 
 VplotEncoder <- reticulate::PyClass(
@@ -300,6 +302,7 @@ VaeModel <- reticulate::PyClass(
 		}
 	)
 )
+
 
 #' prepare_data
 #'
