@@ -3,7 +3,6 @@
 #' ATAC-seq V-plot analysis
 #'
 #' @import methods
-#' @import tfdatasets
 #' @import Matrix
 #' @import futile.logger 
 #' @import dplyr
