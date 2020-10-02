@@ -241,7 +241,7 @@ VaeDecoder <- reticulate::PyClass(
 
 #' VaeModel
 #'
-#' @export
+#' @exportClass VaeModel
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 VaeModel <- reticulate::PyClass(
