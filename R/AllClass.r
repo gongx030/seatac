@@ -1,6 +1,3 @@
-setOldClass('tensorflow.tensor')
-setOldClass('tf_dataset')
-
 setClassUnion('listOrNULL', members = c('list', 'NULL'))
 setClassUnion('matrixOrNULL', members = c('matrix', 'NULL'))
 

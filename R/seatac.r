@@ -7,7 +7,6 @@
 #' @import futile.logger 
 #' @import dplyr
 #' @importFrom GenomicRanges resize reduce
-#' @importFrom reticulate PyClass
 #' @importFrom GenomeInfoDb seqlengths
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam indexBam
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments GAlignmentsList
