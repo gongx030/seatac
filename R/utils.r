@@ -141,6 +141,8 @@ split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 #'
 #' Load pretrained sequence agnostic VAE model for V-plot
 #'
+#' @export
+#'
 load_pretrained_vplot_vae_model <- function(n_intervals = 48L, block_size = 240L){
 	model_file <- system.file('extdata', 'model.h5', package = 'seatac')
 
