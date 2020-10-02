@@ -246,7 +246,7 @@ VaeDecoder <- reticulate::PyClass(
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
-VaeModel <- reticulate::PyClass(
+VaeModel <- PyClass(
 	'VaeModel',
 	inherit = tf$keras$Model,
 	list(
@@ -302,6 +302,7 @@ VaeModel <- reticulate::PyClass(
 		}
 	)
 )
+
 
 
 #' prepare_data
