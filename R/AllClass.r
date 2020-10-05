@@ -18,7 +18,7 @@ setClass(
 		centers = 'numeric',
 		positions = 'numeric'
 	),
-	contains = 'GRanges'
+	contains = 'RangedSummarizedExperiment'
 )
 
 #' VplotsKmers

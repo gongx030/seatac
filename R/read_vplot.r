@@ -83,11 +83,14 @@ setMethod(
 
 		counts <- Reduce('+', counts)
 
-		x$counts <- counts
+		se <- SummarizedExperiment(
+			assays = list(counts = counts)
+		)
+		SummarizedExperiment::rowRanges(se) <- x
 
 		new(
 			'Vplots', 
-			x, 
+			se, 
 			fragment_size_range  = as.integer(fragment_size_range),
 			fragment_size_interval = as.integer(fragment_size_interval),
 			bin_size = as.integer(bin_size),

@@ -1,3 +1,6 @@
+#' vplot
+#'
+#' @export
 setMethod(
 	'vplot',
 	signature(
@@ -9,6 +12,7 @@ setMethod(
 		...
 	){
 
+		browser()
 		z <- mcols(x)[[field]]
 		w <- 1 / rowSums(z)
 		w[is.infinite(w)] <- 0

@@ -6,7 +6,9 @@
 #' @import Matrix
 #' @import futile.logger 
 #' @import dplyr
-#' @importFrom GenomicRanges resize reduce
+#' @import rhdf5
+#' @importFrom SummarizedExperiment SummarizedExperiment rowRanges rowData colData assays
+#' @importFrom GenomicRanges resize reduce granges
 #' @importFrom GenomeInfoDb seqlengths
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam indexBam
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments GAlignmentsList

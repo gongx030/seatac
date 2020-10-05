@@ -34,8 +34,10 @@ setMethod(
 				as.numeric()
 		})
 		z <- do.call('cbind', z)
-		
-		mcols(x)$kmers <- z - 1 # change to zero-based for embedding
+		z <- z - 1 # change to zero-based for embedding
+		class(z) <- 'integer'
+
+		SummarizedExperiment::rowData(x)$kmers <- z
 		class(x) <- 'VplotsKmers'
 		x@kmers <- kmers
 		x@k <- k

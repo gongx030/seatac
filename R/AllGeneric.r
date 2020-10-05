@@ -3,3 +3,4 @@ setGeneric('read_vplot', function(x, filenames, genome, ...) standardGeneric('re
 setGeneric('vplot', function(x, ...) standardGeneric('vplot'))
 setGeneric('add_track', function(x, ...) standardGeneric('add_track'))
 setGeneric('add_kmers', function(x, k, genome, ...) standardGeneric('add_kmers'))
+setGeneric('save_h5', function(x, filename, ...) standardGeneric('save_h5'))

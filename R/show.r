@@ -1,6 +1,7 @@
 
 #' show-Vplots
 #'
+#' @export
 setMethod(
 	'show',
 	signature(
@@ -22,6 +23,7 @@ setMethod(
 
 #' show-VplotsFitted
 #'
+#' @export
 setMethod(
 	'show',
 	signature(
