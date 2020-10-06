@@ -11,8 +11,12 @@ LazyData: true
 RoxygenNote: 7.1.1
 Depends: 
 	R (>= 3.6.3),
+	tensorflow,
+	tfprobability
 biocViews:
 Imports:
+	keras,
+	tfdatasets,
 	SummarizedExperiment,
 	Matrix,
 	dplyr,

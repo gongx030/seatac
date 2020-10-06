@@ -2,11 +2,14 @@
 #'
 #' ATAC-seq V-plot analysis
 #'
+#' @import reticulate
 #' @import methods
 #' @import Matrix
 #' @import futile.logger 
 #' @import dplyr
 #' @import rhdf5
+#' @importFrom keras keras_model_custom
+#' @importFrom tensorflow shape
 #' @importFrom SummarizedExperiment SummarizedExperiment rowRanges rowData colData assays
 #' @importFrom GenomicRanges resize reduce granges
 #' @importFrom GenomeInfoDb seqlengths

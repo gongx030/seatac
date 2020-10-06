@@ -1,5 +1,6 @@
 setClassUnion('listOrNULL', members = c('list', 'NULL'))
 setClassUnion('matrixOrNULL', members = c('matrix', 'NULL'))
+setOldClass('kerastools.model.RModel')
 
 
 #' Vplots
@@ -32,3 +33,12 @@ setClass(
 	),
 	contains = 'Vplots'
 )
+
+setClass(
+	'VaeModel',
+	slot = c(
+		model = 'kerastools.model.RModel'
+	)
+)
+
+		
