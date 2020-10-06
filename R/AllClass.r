@@ -1,6 +1,7 @@
 setClassUnion('listOrNULL', members = c('list', 'NULL'))
 setClassUnion('matrixOrNULL', members = c('matrix', 'NULL'))
 setOldClass('kerastools.model.RModel')
+setOldClass('tf_dataset')
 
 
 #' Vplots
