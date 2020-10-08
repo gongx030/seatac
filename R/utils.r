@@ -124,17 +124,24 @@ split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 load_pretrained_vplot_vae_model <- function(n_intervals = 48L, block_size = 240L){
-
-	model_file <- system.file('extdata', 'model.h5', package = 'seatac')
-
-	flog.info(sprintf('load_pretrained_vplot_vae_model | model file=%s', model_file))
+	flog.info('load_pretrained_vplot_vae_model | a pretrained model on GM12878')
+	dir <- system.file('extdata', package = 'seatac')
 	model <- VaeModel(block_size = block_size, n_intervals = n_intervals)
-	browser()
 	res <- model(tf$random$uniform(shape(1L, n_intervals, model$n_bins_per_block, 1L)))
-	model$load_weights(model_file)
-
-	flog.info(sprintf('load_pretrained_vplot_vae_model | width=%d | height=%d | bin size=%d', model$decoder$vplot_decoder$vplot_width, model$decoder$vplot_decoder$vplot_height, model$bin_size))
-
-	model
-
+	load_model_weights_tf(model, sprintf('%s/model', dir))
+	new('VaeModel', model = model)
 } # load_pretrained_vplot_vae_model
+
+
+#' 
+#'
+cut_data <- function(n, batch_size){
+	starts <- seq(1, n, by = batch_size)
+	ends <- starts + batch_size - 1
+	ends[ends > n] <- n
+	n_batch <- length(starts)
+	lapply(1:n_batch, function(i) starts[i]:ends[i])
+}
+
+
+

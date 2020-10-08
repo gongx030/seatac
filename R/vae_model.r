@@ -402,10 +402,7 @@ setMethod(
 		batch_size = 1L # v-plot per batch
 	){
 
-		starts <- seq(1, length(x), by = batch_size)
-		ends <- starts + batch_size - 1
-		ends[ends > length(x)] <- length(x)
-		n_batch <- length(starts)
+		batches <- cut_data(length(x), batch_size)
 
 		n_blocks_per_window <- as.integer(x@n_bins_per_window - model@model$n_bins_per_block + 1)
 		predicted_counts <- matrix(0, length(x), x@n_bins_per_window * x@n_intervals)
@@ -417,12 +414,12 @@ setMethod(
 			res
 		}
 
-		for (i in 1:n_batch){
+		for (i in 1:length(batches)){
 			if (i == 1 || i %% 100 == 0){
-				flog.info(sprintf('predicting | batch=%4.d/%4.d', i, n_batch))
+				flog.info(sprintf('predicting | batch=%4.d/%4.d', i, length(batches)))
 			}
 
-			b <- starts[i]:ends[i]
+			b <- batches[[i]]
 			d <- select_blocks(
 				x[b],
 				block_size = model@model$block_size,
@@ -489,15 +486,11 @@ setMethod(
 		batch_size = 128L
 	){
 
-		starts <- seq(1, x$shape[[1]], by = batch_size)
-		ends <- starts + batch_size - 1
-		ends[ends > x$shape[[1]]] <- x$shape[[1]]
-		n_batch <- length(starts)
-
 		res <- list()
+		batches <- cut_data(length(x), batch_size)
 
-		for (i in 1:n_batch){
-			b <- starts[i]:ends[i]
+		for (i in 1:length(batches)){
+			b <- batches[[i]]
 			res[[i]] <- model@model(x[b, , , ])
 		}
 
@@ -505,6 +498,37 @@ setMethod(
 		nucleosome <- tf$concat(lapply(res, function(r) r$nucleosome), axis = 0L)
 		z <- tf$concat(lapply(res, function(r) r$z), axis = 0L)
 
-		list(x_pred = x_pred, nucleosome = nucleosome, z = z)
+		list(vplots = vplots, nucleosome = nucleosome, z = z)
 	}
 )
+
+#' 
+#' @export
+#'
+setMethod(
+	'encode',
+	signature(
+		model = 'VaeModel',
+		x = 'tensorflow.tensor'
+	),
+	function(
+		model,
+		x,
+		batch_size = 128L
+	){
+
+		batches <- cut_data(x$shape[[1]], batch_size)
+		res <- list()
+
+		for (i in 1:length(batches)){
+			b <- batches[[i]]
+			posterior <- model@model$encoder(x[b, ,  , ])
+			z <- posterior$mean()
+			res[[i]] <- z
+		}
+
+		z <- tf$concat(res, axis = 0L)
+		z
+	}
+)
+
