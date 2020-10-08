@@ -4,6 +4,9 @@
 #' @param filename BAM file names 
 #' @param peaks a GRange object that define a set of genomic regions.
 #' @param genome a BSgenome for genome information
+#'
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
 #'  
 setMethod(
 	'read_bam',
