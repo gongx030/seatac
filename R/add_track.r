@@ -1,6 +1,8 @@
 #' add_track
 #'
 #' @param file a bigwig file
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
 	'add_track',

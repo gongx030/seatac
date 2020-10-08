@@ -1,6 +1,10 @@
 #' Seq2VplotModel
+#' 
+#' @param
 #'
-
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
 setMethod(
 	'Seq2VplotModel',
 	signature(
