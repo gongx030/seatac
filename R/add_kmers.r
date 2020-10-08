@@ -1,3 +1,6 @@
+#' add_kmers
+#'
+#' @export
 setMethod(
 	'add_kmers',
 	signature(
