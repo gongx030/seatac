@@ -1,4 +1,6 @@
 #' select_blocks
+#' 
+#' Select blocks
 #'
 select_blocks <- function(x, batch_size = 128L, min_reads = 0, n_blocks = NA, ...){
 
@@ -35,8 +37,9 @@ select_blocks <- function(x, batch_size = 128L, min_reads = 0, n_blocks = NA, ..
 		}
 	}
 
+	empty <- sapply(res, is.null)
+	res <- res[!empty]
 	fields <- names(res[[1]])
-	fields <- fields[!sapply(res[[1]], is.null)]
 	res <- lapply(fields, function(f){
 		tf$concat(lapply(res, function(xx) xx[[f]]), axis = 0L)
 	})
