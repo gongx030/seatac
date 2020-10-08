@@ -129,6 +129,7 @@ load_pretrained_vplot_vae_model <- function(n_intervals = 48L, block_size = 240L
 
 	flog.info(sprintf('load_pretrained_vplot_vae_model | model file=%s', model_file))
 	model <- VaeModel(block_size = block_size, n_intervals = n_intervals)
+	browser()
 	res <- model(tf$random$uniform(shape(1L, n_intervals, model$n_bins_per_block, 1L)))
 	model$load_weights(model_file)
 

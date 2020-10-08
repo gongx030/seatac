@@ -143,4 +143,4 @@ select_blocks_batch <- function(x, block_size, with_vplots = TRUE, with_kmers = 
 		}
 	}
 	res
-} # prepare_blocks
+} 

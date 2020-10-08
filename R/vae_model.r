@@ -388,3 +388,123 @@ setMethod(
 		model
 	}
 )
+
+#'
+setMethod(
+	'predict',
+	signature(
+		model = 'VaeModel',
+		x = 'Vplots'
+	),
+	function(
+		model,
+		x,
+		batch_size = 1L # v-plot per batch
+	){
+
+		starts <- seq(1, length(x), by = batch_size)
+		ends <- starts + batch_size - 1
+		ends[ends > length(x)] <- length(x)
+		n_batch <- length(starts)
+
+		n_blocks_per_window <- as.integer(x@n_bins_per_window - model@model$n_bins_per_block + 1)
+		predicted_counts <- matrix(0, length(x), x@n_bins_per_window * x@n_intervals)
+		predicted_nucleosome <- matrix(0, length(x), x@n_bins_per_window)
+
+		predict_step <- function(x){
+			posterior <- x %>% model@model$encoder()
+			res <- posterior$mean() %>% model@model$decoder()
+			res
+		}
+
+		for (i in 1:n_batch){
+			if (i == 1 || i %% 100 == 0){
+				flog.info(sprintf('predicting | batch=%4.d/%4.d', i, n_batch))
+			}
+
+			b <- starts[i]:ends[i]
+			d <- select_blocks(
+				x[b],
+				block_size = model@model$block_size,
+				min_reads = 0,
+				with_kmers = FALSE
+			)
+
+			res <- predict_step(d$vplots)
+
+			# whether the block has read
+			# the blocks without any reads will be ignored when aggregating the blocks for a window
+			# note that VAE will give a V-plot prediction even the block has no reads at all
+			include <- tf$cast(d$n > 0, tf$float32)
+
+			w <- tf$reshape(include, shape(d$n$shape[[1]], 1L, 1L, 1L))
+			x_pred <- tf$multiply(d$vplots, 1 - w) + tf$multiply(res$x_pred, w)
+
+			x_pred <- x_pred %>%
+				tf$reshape(c(length(b), n_blocks_per_window, x@n_intervals, model@model$n_bins_per_block, 1L)) %>%
+				reconstruct_vplot_from_blocks() %>%
+				tf$squeeze(-1L) %>%
+				as.array()
+
+			x_pred <- aperm(x_pred, c(1, 3, 2))
+			dim(x_pred) <- c(length(b), x@n_bins_per_window * x@n_intervals)
+			predicted_counts[b, ] <- x_pred
+
+			nucleosome0 <- tf$zeros_like(res$nucleosome)
+			w <- tf$reshape(include, shape(d$n$shape[[1]], 1L))
+
+			nucleosome_pred <- tf$multiply(nucleosome0, 1 - w) + tf$multiply(res$nucleosome, w)
+
+			predicted_nucleosome[b, ] <- nucleosome_pred %>%
+				tf$expand_dims(2L) %>%
+				tf$expand_dims(3L) %>%
+				tf$transpose(shape(0L, 2L, 1L, 3L)) %>% 
+				tf$reshape(c(length(b), n_blocks_per_window, 1L, model@model$n_bins_per_block, 1L)) %>%
+				reconstruct_vplot_from_blocks()  %>%
+				tf$squeeze(shape(1L, 3L)) %>%
+				as.matrix()
+		}
+
+		SummarizedExperiment::assays(x)$predicted_counts <- predicted_counts
+		SummarizedExperiment::rowData(x)$predicted_nucleosome <- predicted_nucleosome
+		x
+	}
+) # predict
+#'
+
+
+
+#' 
+#' @export
+#'
+setMethod(
+	'predict',
+	signature(
+		model = 'VaeModel',
+		x = 'tensorflow.tensor'
+	),
+	function(
+		model,
+		x,
+		batch_size = 128L
+	){
+
+		starts <- seq(1, x$shape[[1]], by = batch_size)
+		ends <- starts + batch_size - 1
+		ends[ends > x$shape[[1]]] <- x$shape[[1]]
+		n_batch <- length(starts)
+
+		res <- list()
+
+		for (i in 1:n_batch){
+			b <- starts[i]:ends[i]
+			res[[i]] <- model@model(x[b, , , ])
+		}
+
+		x_pred <- tf$concat(lapply(res, function(r) r$x_pred), axis = 0L)
+		nucleosome <- tf$concat(lapply(res, function(r) r$nucleosome), axis = 0L)
+		z <- tf$concat(lapply(res, function(r) r$z), axis = 0L)
+
+		list(x_pred = x_pred, nucleosome = nucleosome, z = z)
+	}
+)

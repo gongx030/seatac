@@ -2,6 +2,7 @@ setClassUnion('listOrNULL', members = c('list', 'NULL'))
 setClassUnion('matrixOrNULL', members = c('matrix', 'NULL'))
 setOldClass('kerastools.model.RModel')
 setOldClass('tf_dataset')
+setOldClass('tensorflow.tensor')
 
 
 #' Vplots
@@ -35,11 +36,8 @@ setClass(
 	contains = 'Vplots'
 )
 
-setClass(
-	'VaeModel',
-	slot = c(
-		model = 'kerastools.model.RModel'
-	)
-)
+setClass('Model', slot = c(model = 'kerastools.model.RModel'))
+setClass('VaeModel', contains = 'Model')
+setClass('Seq2VplotModel', contains = 'Model')
 
 		

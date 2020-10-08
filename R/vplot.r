@@ -12,7 +12,7 @@ setMethod(
 		...
 	){
 
-		z <- mcols(x)[[field]]
+		z <- assays(x)[[field]]
 		w <- 1 / rowSums(z)
 		w[is.infinite(w)] <- 0
 		z <- Diagonal(x = w) %*% z
