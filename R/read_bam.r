@@ -1,4 +1,4 @@
-#' read_bam
+#' Read BAM file(s)
 #'
 #' Read the aligned paired-end reads over the given peaks. 
 #' @param filename BAM file names 
