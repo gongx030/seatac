@@ -88,6 +88,7 @@ setMethod(
 	){
 		d <- x %>% 
 			select_blocks(
+				batch_size = 64L,	# for windows
 				block_size = model@model$vae$block_size, 
 				with_vplots = TRUE, 
 				with_kmers = TRUE, 
@@ -96,7 +97,8 @@ setMethod(
 		flog.info(sprintf('prepare_data | number of samples=%d', d$vplots$shape[[1]]))
 
 		d$z <- new('VaeModel', model = model@model$vae) %>% 
-			encode(d$vplots, batch_size = 128L)
+			encode(d$vplots, batch_size = 256L)
+
 		d <- d %>%
 			tensor_slices_dataset()
 		d

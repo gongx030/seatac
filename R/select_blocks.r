@@ -4,37 +4,35 @@
 #'
 select_blocks <- function(x, batch_size = 128L, min_reads = 0, n_blocks = NA, ...){
 
-	starts <- seq(1, nrow(x), by = batch_size)
-	ends <- starts + batch_size - 1
-	ends[ends > nrow(x)] <- nrow(x)
-	n_batch <- length(starts)
+	batches <- cut_data(nrow(x), batch_size)
 
 	if (!is.na(n_blocks))
-		n_blocks_per_batch <- table(factor(sample(1:n_batch, n_blocks, replace = TRUE), 1:n_batch))
+		n_blocks_per_batch <- table(factor(sample(1:length(batches), n_blocks, replace = TRUE), 1:length(batches)))
 
 	res <- list()
-	for (j in seq_len(n_batch)){
+	for (j in seq_len(length(batches))){
 
 		if (!is.na(n_blocks) && n_blocks_per_batch[j] == 0)
 			next
 
-		h <- starts[j]:ends[j]
-		res[[j]] <- x[h] %>% select_blocks_batch(...)
+		h <- batches[[j]]
+		y <- x[h] %>% select_blocks_batch(...)
 
 		# select blocks with minimum reads
-		if (min_reads > 0 && !is.null(res[[j]]$vplots)){
-			include <- res[[j]]$n >= min_reads
-			res[[j]] <- lapply(res[[j]], function(r) tf$boolean_mask(r, include))
+		if (min_reads > 0 && !is.null(y$vplots)){
+			include <- y$n >= min_reads
+			y <- lapply(y, function(r) tf$boolean_mask(r, include))
 		}
 
 		# randomly sample non-empty blocks
 		if (!is.na(n_blocks)){
-			ns <- res[[j]][[1]]$shape[[1]] # n total blocks in current batch
+			ns <- y[[1]]$shape[[1]] # n total blocks in current batch
 			if (n_blocks_per_batch[j] < ns){
 				include <- tf$cast(seq_len(ns) %in% sample(ns, n_blocks_per_batch[j]), tf$bool)
-				res[[j]] <- lapply(res[[j]], function(r) tf$boolean_mask(r, include))
+				y <- lapply(y, function(r) tf$boolean_mask(r, include))
 			}
 		}
+		res[[j]] <- y
 	}
 
 	empty <- sapply(res, is.null)
