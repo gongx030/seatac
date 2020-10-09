@@ -86,6 +86,11 @@ setMethod(
 		x,
 		...
 	){
+
+		# remove windows that have no reads
+		empty <- rowSums(SummarizedExperiment::assays(x)$counts) == 0
+		x <- x[!empty]
+
 		d <- x %>% 
 			select_blocks(
 				batch_size = 64L,	# for windows

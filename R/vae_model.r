@@ -273,6 +273,10 @@ setMethod(
 		...
 	){
 
+		# remove windows that have no reads
+		empty <- rowSums(SummarizedExperiment::assays(x)$counts) == 0
+		x <- x[!empty]
+
 		d <- x %>% 
 			select_blocks(
 				block_size = model@model$block_size,
