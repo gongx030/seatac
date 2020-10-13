@@ -2,6 +2,7 @@
 
 export(VaeModel)
 export(load_pretrained_vplot_vae_model)
+export(select_blocks)
 exportClasses(Vplots)
 exportClasses(VplotsKmers)
 exportMethods(Seq2VplotModel)
