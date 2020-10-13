@@ -1,6 +1,10 @@
 #' select_blocks
 #' 
-#' Select blocks
+#' Prepare tf_dataset for model fitting
+#' 
+#' @return a `tf_dataset` object
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
 #'
 select_blocks <- function(x, batch_size = 128L, min_reads = 0, n_blocks = NA, ...){
 
