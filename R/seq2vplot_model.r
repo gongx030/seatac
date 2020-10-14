@@ -173,7 +173,7 @@ setMethod(
 				res <- test_step(batch$kmers, batch$z)
 				loss_test <- c(loss_test, as.numeric(res$loss))
 			})
-			flog.info(sprintf('fit | epoch=%6.d/%6.d | train_loss=%13.7f | test_loss=%13.7f', epoch, epochs, mean(loss_train), mean(loss_test)))
+			message(sprintf('fit | epoch=%6.d/%6.d | train_loss=%13.7f | test_loss=%13.7f', epoch, epochs, mean(loss_train), mean(loss_test)))
 		}
 		model
 	}
