@@ -5,23 +5,25 @@
 #' 
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
-CustomSchedule <- reticulate::PyClass(
-	'CustomSchedule',
-	inherit = tf$keras$optimizers$schedules$LearningRateSchedule,
-	list(
-		`__init__` = function(self, d_model, warmup_steps = 4000L){
-			self$d_model <- d_model
-			self$d_model <- tf$cast(self$d_model, tf$float32)
-			self$warmup_steps <- warmup_steps
-			NULL
-		},
-		`__call__` = function(self, step){
-			arg1 <- tf$math$rsqrt(step)
-			arg2 <- step * (self$warmup_steps^(-1.5))
-			tf$math$rsqrt(self$d_model) * tf$math$minimum(arg1, arg2)
-		}
+CustomSchedule <- function(d_model, warmup_steps = 4000L){
+	reticulate::PyClass(
+		'CustomSchedule',
+		inherit = tf$keras$optimizers$schedules$LearningRateSchedule,
+		list(
+			`__init__` = function(self, d_model, warmup_steps = 4000L){
+				self$d_model <- d_model
+				self$d_model <- tf$cast(self$d_model, tf$float32)
+				self$warmup_steps <- warmup_steps
+				NULL
+			},
+			`__call__` = function(self, step){
+				arg1 <- tf$math$rsqrt(step)
+				arg2 <- step * (self$warmup_steps^(-1.5))
+				tf$math$rsqrt(self$d_model) * tf$math$minimum(arg1, arg2)
+			}
+		)
 	)
-)
+}
 
 #' Seq2VplotModel
 #' 
@@ -147,7 +149,8 @@ setMethod(
 		x,
 		batch_size = 32L,
 		epochs = 100L,
-		test_size = 0.15
+		test_size = 0.15,
+		learning_rate = 1e-4
 	){
 
 		# Adopted from https://www.tensorflow.org/tutorials/text/transformer#optimizer
