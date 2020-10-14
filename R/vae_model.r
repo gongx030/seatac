@@ -285,7 +285,7 @@ setMethod(
 				types = c('nucleoatac'),
 				...
 			)
-		flog.info(sprintf('prepare_data | number of samples=%d', d$vplots$shape[[1]]))
+		message(sprintf('prepare_data | number of samples=%d', d$vplots$shape[[1]]))
 		
 		d <- d %>%
 			tensor_slices_dataset()
@@ -386,7 +386,7 @@ setMethod(
 				metric_nucleoatac <- c(metric_nucleoatac, as.numeric(res$metric_nucleoatac))
 			})
 
-			flog.info(sprintf('epoch=%6.d/%6.d | train_recon_loss=%13.7f | train_kl_loss=%13.7f | train_nucleosome_loss=%13.7f | train_loss=%13.7f | test_recon_loss=%13.7f | test_nucleosome=%13.7f', epoch, epochs, mean(loss_train_reconstruction), mean(loss_train_kl), mean(loss_train_nucleosome), mean(loss_train), mean(metric_test), mean(metric_nucleoatac)))
+			message(sprintf('epoch=%6.d/%6.d | train_recon_loss=%13.7f | train_kl_loss=%13.7f | train_nucleosome_loss=%13.7f | train_loss=%13.7f | test_recon_loss=%13.7f | test_nucleosome=%13.7f', epoch, epochs, mean(loss_train_reconstruction), mean(loss_train_kl), mean(loss_train_nucleosome), mean(loss_train), mean(metric_test), mean(metric_nucleoatac)))
 
 		}
 		model
@@ -420,7 +420,7 @@ setMethod(
 
 		for (i in 1:length(batches)){
 			if (i == 1 || i %% 100 == 0){
-				flog.info(sprintf('predicting | batch=%4.d/%4.d', i, length(batches)))
+				message(sprintf('predicting | batch=%4.d/%4.d', i, length(batches)))
 			}
 
 			b <- batches[[i]]

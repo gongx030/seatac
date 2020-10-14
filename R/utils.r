@@ -124,7 +124,7 @@ split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 load_pretrained_vplot_vae_model <- function(n_intervals = 48L, block_size = 240L){
-	flog.info('load_pretrained_vplot_vae_model | a pretrained model on GM12878')
+	message('load_pretrained_vplot_vae_model | a pretrained model on GM12878')
 	dir <- system.file('extdata', package = 'seatac')
 	model <- VaeModel(block_size = block_size, n_intervals = n_intervals)
 	res <- model(tf$random$uniform(shape(1L, n_intervals, model$n_bins_per_block, 1L)))

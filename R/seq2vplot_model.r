@@ -99,7 +99,7 @@ setMethod(
 				with_kmers = TRUE, 
 				...
 			)
-		flog.info(sprintf('prepare_data | number of samples=%d', d$vplots$shape[[1]]))
+		message(sprintf('prepare_data | number of samples=%d', d$vplots$shape[[1]]))
 
 		d$z <- new('VaeModel', model = model@model$vae) %>% 
 			encode(d$vplots, batch_size = 256L)	# for blocks
@@ -200,7 +200,7 @@ setMethod(
 
 		for (i in 1:length(batches)){
 			if (i == 1 || i %% 100 == 0)
-				flog.info(sprintf('predict | batch=%4.d/%4.d', i, length(batches)))
+				message(sprintf('predict | batch=%4.d/%4.d', i, length(batches)))
 
 			b <- batches[[i]]
 			d <- select_blocks(

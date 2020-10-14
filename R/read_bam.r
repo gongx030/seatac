@@ -40,7 +40,7 @@ setMethod(
  		param <- ScanBamParam(which = reduce(peaks), flag = flag, what = 'isize')
 
 		# Read the PE reads 
-		flog.info(sprintf('reading %s', filename))
+		message(sprintf('reading %s', filename))
 		x <- readGAlignments(filename, param = param)
 		x
 	}

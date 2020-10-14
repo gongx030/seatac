@@ -5,7 +5,6 @@
 #' @import reticulate
 #' @import methods
 #' @import Matrix
-#' @import futile.logger 
 #' @import dplyr
 #' @import tfdatasets
 #' @importFrom keras keras_model_custom save_model_weights_tf load_model_weights_tf

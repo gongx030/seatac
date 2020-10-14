@@ -11,7 +11,7 @@ validate_bam <- function(filenames){
 	index_files <- sprintf('%s.bai', filenames)
   existed <- file.exists(index_files)
   if (any(!existed)){
-		flog.info(sprintf('indexing bam files: %s', paste(filenames[!existed], collapse = ',')))
+		message(sprintf('indexing bam files: %s', paste(filenames[!existed], collapse = ',')))
 		indexBam(filenames[!existed])
 	}
 
