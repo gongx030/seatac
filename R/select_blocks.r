@@ -6,7 +6,7 @@
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
-select_blocks <- function(x, batch_size = 128L, min_reads = 0, n_blocks = NA, ...){
+select_blocks <- function(x, batch_size = 128L, min_reads = 0, max_reads = 100000, n_blocks = NA, ...){
 
 	batches <- cut_data(nrow(x), batch_size)
 
@@ -27,6 +27,9 @@ select_blocks <- function(x, batch_size = 128L, min_reads = 0, n_blocks = NA, ..
 			include <- y$n >= min_reads
 			y <- lapply(y, function(r) tf$boolean_mask(r, include))
 		}
+
+		include <- y$n <= max_reads  
+		y <- lapply(y, function(r) tf$boolean_mask(r, include))
 
 		# randomly sample non-empty blocks
 		if (!is.na(n_blocks)){
