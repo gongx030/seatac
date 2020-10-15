@@ -7,10 +7,11 @@
 setMethod(
 	'add_track',
 	signature(
-		x = 'Vplots'
+		x = 'Vplots',
+		object = 'character'
 	),
-	function(x, file, label){
-		cvg <- rtracklayer::import(file, which = reduce(x@rowRanges), as = 'RleList')
+	function(x, object, label){
+		cvg <- rtracklayer::import(object, which = reduce(x@rowRanges), as = 'RleList')
 	  G <- sparseMatrix(
 			i = 1:x@window_size,
 			j = rep(1:x@n_bins_per_window, each = x@bin_size),
