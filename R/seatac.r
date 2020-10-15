@@ -16,7 +16,6 @@
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments GAlignmentsList
 #' @importFrom gplots colorpanel
 #' @importFrom BSgenome BSgenome
-#' @importFrom BiocParallel bplapply
 #' @docType package
 #' @name seatac
 #'

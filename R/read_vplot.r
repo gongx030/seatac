@@ -54,7 +54,7 @@ setMethod(
 		# compute the center point between PE reads
 		# this is faster than using GAlignmentPairs
 
-		counts <- bplapply(filenames, function(file){	
+		counts <- lapply(filenames, function(file){	
 			
 			g <- read_bam(file, peaks = resize(x, fix = 'center', width = window_size + 2000), genome = genome)
 		
