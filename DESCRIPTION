@@ -1,7 +1,7 @@
 Package: seatac
 Title: Segmentation of ATAC-seq data
-Version: 0.2.28
-Date: 2020-10-12
+Version: 0.3.00
+Date: 2020-10-15
 Author: Wuming Gong <gongx030@umn.edu>
 Maintainer: Wuming Gong <gongx030@umn.edu>
 Description: What the package does (one paragraph).
@@ -13,14 +13,14 @@ Depends:
 	R (>= 3.6.3),
 	tensorflow,
 	tfprobability,
-	tfdatasets
+	tfdatasets,
+	GenomicRanges
 biocViews:
 Imports:
 	keras,
 	SummarizedExperiment,
 	Matrix,
 	dplyr,
-	GenomicRanges,
 	GenomeInfoDb,
 	Rsamtools,
 	GenomicAlignments,

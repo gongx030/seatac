@@ -35,6 +35,9 @@ setMethod(
 				tf$cast(tf$float32) %>%
 				tf$expand_dims(0L)
 
+			self$annotation_encoding_1 <- tf$keras$layers$Dense(8L, activation = 'relu')
+			self$annotation_encoding_2 <- tf$keras$layers$Dense(self$d_model)
+
 			self$embedding <- tf$keras$layers$Embedding(as.integer(kmers_size), self$d_model)
 			self$dropout_1 <- tf$keras$layers$Dropout(rate)
 		
@@ -45,11 +48,17 @@ setMethod(
 			self$dense_1 <- tf$keras$layers$Dense(units = self$vae$decoder$vplot_decoder$vplot_height, activation = 'relu')
 			self$pool <- tf$keras$layers$MaxPooling1D(self$vae$bin_size, self$vae$bin_size)
 	
-			function(x, training = TRUE){
+			function(x, h, training = TRUE){
 
 				x <- x %>% self$embedding()
 				x <- x * tf$math$sqrt(tf$cast(self$d_model, tf$float32))
-				x <- x + self$pos_encoding
+
+				annotation <- h %>% 
+					self$annotation_encoding_1() %>%
+					self$annotation_encoding_2()
+
+#				x <- x + self$pos_encoding + annotation
+				x <- x + self$pos_encoding 
 				x <- x %>% self$dropout_1()
 		
 				if (num_layers > 0){
@@ -73,6 +82,11 @@ setMethod(
 )
 
 #' prepare_data
+#' 
+#' Prepare data for training/testing Seq2VplotModel model
+#'
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
 	'prepare_data',
@@ -83,23 +97,37 @@ setMethod(
 	function(
 		model,
 		x,
-		batch_size = 64L,
-		...
+		annotation
 	){
 
-		# remove windows that have no reads
-		empty <- rowSums(SummarizedExperiment::assays(x)$counts) == 0
-		x <- x[!empty]
+		d <- list()
 
-		d <- x %>% 
-			select_blocks(
-				batch_size = batch_size,	# for windows
-				block_size = model@model$vae$block_size, 
-				with_vplots = TRUE, 
-				with_kmers = TRUE, 
-				...
-			)
-		message(sprintf('prepare_data | number of samples=%d', d$vplots$shape[[1]]))
+		y <- assays(x)$counts %>%
+			as.matrix() %>%
+			reticulate::array_reshape(c(    # convert into a C-style array
+				length(x),
+				x@n_intervals,
+				x@n_bins_per_window,
+				1L
+			)) %>%
+			tf$cast(tf$float32)
+
+		w <- y %>% tf$reduce_sum(shape(1L), keepdims = TRUE)	# sum of reads per bin
+		y <- y / tf$where(w > 0, w, tf$ones_like(w))	# scale so that the sum of each bar is one (softmax)
+
+		d$vplots <- y
+
+		d$kmers <- rowData(x)$kmers %>%
+			tf$cast(tf$int32)
+
+		g <- lapply(annotation, function(a){ 
+			rowData(x)[[a]] %>%
+				as.matrix() %>%
+				tf$cast(tf$float32) %>%
+				tf$expand_dims(2L)
+		})
+		g <- tf$concat(g, axis = 2L)
+		d$annotation <- g
 
 		d$z <- new('VaeModel', model = model@model$vae) %>% 
 			encode(d$vplots, batch_size = 256L)	# for blocks
@@ -135,9 +163,9 @@ setMethod(
 			split_dataset(test_size = test_size, batch_size = batch_size)
 
 		# updating step
-		train_step <- function(x, y){
+		train_step <- function(x, y, h){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
-				 res <- model@model(x)
+				 res <- model@model(x, h)
 				 loss <- train_loss(res$z, y) %>%
 				 tf$reduce_mean()
 			})
@@ -148,8 +176,8 @@ setMethod(
 			list(loss = loss, predicted_vplots = res$x_pred)
 		} # train_step
 
-		test_step <- function(x, y){
-			res <- model@model(x)
+		test_step <- function(x, y, h){
+			res <- model@model(x, h)
 			loss <- train_loss(res$z, y) %>%
 			tf$reduce_mean()
 			list(loss = loss, predicted_vplots = res$x_pred)
@@ -163,14 +191,14 @@ setMethod(
 			iter <- make_iterator_one_shot(x$train)
 			until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- train_step(batch$kmers, batch$z)
+				res <- train_step(batch$kmers, batch$z, batch$annotation)
 				loss_train <- c(loss_train, as.numeric(res$loss))
 			})
 			loss_test <- NULL
 			iter <- make_iterator_one_shot(x$test)
 			until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- test_step(batch$kmers, batch$z)
+				res <- test_step(batch$kmers, batch$z, batch$annotation)
 				loss_test <- c(loss_test, as.numeric(res$loss))
 			})
 			message(sprintf('fit | epoch=%6.d/%6.d | train_loss=%13.7f | test_loss=%13.7f', epoch, epochs, mean(loss_train), mean(loss_test)))

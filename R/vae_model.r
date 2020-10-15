@@ -259,6 +259,8 @@ VaeModel <- function(
 
 #' prepare_data
 #'
+#' Prepare tfdataset for training and testing a VaeModel model
+#'
 #' @export
 #'
 setMethod(
@@ -269,24 +271,40 @@ setMethod(
 	),
 	function(
 		model,
-		x,
-		...
+		x
 	){
 
-		# remove windows that have no reads
-		empty <- rowSums(SummarizedExperiment::assays(x)$counts) == 0
-		x <- x[!empty]
+		d <- list()
 
-		d <- x %>% 
-			select_blocks(
-				block_size = model@model$block_size,
-				with_vplot = TRUE,
-				with_kmers = FALSE,
-				types = c('nucleoatac'),
-				...
-			)
-		message(sprintf('prepare_data | number of samples=%d', d$vplots$shape[[1]]))
-		
+		y <- assays(x)$counts %>%
+			as.matrix() %>%
+			reticulate::array_reshape(c(    # convert into a C-style array
+				length(x),
+				x@n_intervals,
+				x@n_bins_per_window,
+				1L
+			)) %>%
+			tf$cast(tf$float32)
+
+		w <- y %>% tf$reduce_sum(shape(1L), keepdims = TRUE)  # sum of reads per bin
+		y <- y / tf$where(w > 0, w, tf$ones_like(w))  # scale so that the sum of each bar is one (softmax)
+		d$vplots <- y
+
+		# add weight for each genomic bin
+		w <- tf$reduce_sum(d$vplots, 1L, keepdims = TRUE) > 0
+		w <- w %>% tf$cast(tf$float32)
+		d$weight <- w
+
+		y <- rowData(x)$nucleoatac %>%
+			as.matrix() %>%
+			tf$cast(tf$float32) %>%
+			tf$expand_dims(2L) %>%
+			tf$nn$avg_pool1d(ksize = x@bin_size, strides = x@bin_size, padding = 'VALID') %>%
+			tf$squeeze(2L) %>%
+			scale01()
+
+		d$nucleoatac  <- y
+
 		d <- d %>%
 			tensor_slices_dataset()
 		d
@@ -329,7 +347,7 @@ setMethod(
 					tf$reduce_mean()
 				loss_nucleosome <- train_loss(y, res$nucleosome) %>%
 					tf$reduce_mean()
-				loss <- loss_reconstruction + loss_kl + 100 * loss_nucleosome
+				loss <- loss_reconstruction + loss_kl + loss_nucleosome
 	 		})
 			gradients <- tape$gradient(loss, model@model$trainable_variables)
 			list(gradients, model@model$trainable_variables) %>%

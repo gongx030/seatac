@@ -1,6 +1,6 @@
 #' add_track
 #'
-#' @param file a bigwig file
+#' @param object a bigwig file
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
@@ -11,15 +11,41 @@ setMethod(
 		object = 'character'
 	),
 	function(x, object, label){
-		cvg <- rtracklayer::import(object, which = reduce(x@rowRanges), as = 'RleList')
-	  G <- sparseMatrix(
-			i = 1:x@window_size,
-			j = rep(1:x@n_bins_per_window, each = x@bin_size),
-			x = rep(1 / x@bin_size, x@window_size),
-			dims = c(x@window_size, x@n_bins_per_window)
-		)
+
+		if (!file.exists(object))
+			stop(sprintf('%s does not exist', object))
+
+		cvg <- tryCatch({
+			rtracklayer::import(object, which = reduce(x@rowRanges), as = 'RleList')
+		}, error = function(e){
+			stop(sprintf('%s cannot be imported by rtracklayer::import', objecct))
+		})
+
 		y <- cvg[x@rowRanges] %>% as.matrix()
-		y <- (y %*% G) %>% as.matrix()  # average signal in each genomic bin
+		SummarizedExperiment::rowData(x)[[label]] <- y
+		x
+	}
+) # add_track
+
+
+#' add_track
+#'
+#' @param object a GRange object
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
+setMethod(
+	'add_track',
+	signature(
+		x = 'Vplots',
+		object = 'GRanges'
+	),
+	function(x, object, label){
+
+		cvg <- coverage(object)
+		y <- cvg[x@rowRanges] %>% as.matrix()
+		y[y > 0] <- 1
+		y <- as(y, 'dgCMatrix')
 		SummarizedExperiment::rowData(x)[[label]] <- y
 		x
 	}
