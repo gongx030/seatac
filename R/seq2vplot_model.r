@@ -57,8 +57,7 @@ setMethod(
 					self$annotation_encoding_1() %>%
 					self$annotation_encoding_2()
 
-#				x <- x + self$pos_encoding + annotation
-				x <- x + self$pos_encoding 
+				x <- x + self$pos_encoding + annotation
 				x <- x %>% self$dropout_1()
 		
 				if (num_layers > 0){
