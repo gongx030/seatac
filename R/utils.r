@@ -65,6 +65,7 @@ reconstruct_vplot_from_blocks <- function(x){
 }
 
 #' scale01
+#' @export
 #'
 scale01 <- function(x){
 	x_min <- tf$reduce_min(x, 1L, keepdims = TRUE)
