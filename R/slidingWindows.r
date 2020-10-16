@@ -65,7 +65,7 @@ setMethod(
 			for (h in fields){
 				y <- rowData(x)[[h]] %>%
 					as.matrix() %>%
-					tf$cast(tf$int32) %>%
+					tf$cast(tf$float32) %>%
 					tf$expand_dims(-1L) %>%
 					tf$expand_dims(-1L) %>%
 					tf$image$extract_patches(
