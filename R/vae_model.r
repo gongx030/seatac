@@ -508,17 +508,24 @@ setMethod(
 		batch_size = 128L
 	){
 
-		res <- list()
-		batches <- cut_data(length(x), batch_size)
+		z <- list()
+		nucleosome <- list()
+		vplots <- list()	
+
+		batches <- cut_data(x$shape[[1]], batch_size)
 
 		for (i in 1:length(batches)){
 			b <- batches[[i]]
-			res[[i]] <- model@model(x[b, , , ])
+			posterior <- model@model$encoder(x[b, ,  , ])
+			z[[i]] <- posterior$mean()
+			res <- model@model$decoder(z[[i]])
+			nucleosome[[i]] <- res$nucleosome
+			vplots[[i]] <- res$x_pred
 		}
 
-		x_pred <- tf$concat(lapply(res, function(r) r$x_pred), axis = 0L)
-		nucleosome <- tf$concat(lapply(res, function(r) r$nucleosome), axis = 0L)
-		z <- tf$concat(lapply(res, function(r) r$z), axis = 0L)
+		z <- tf$concat(z, axis = 0L)
+		nucleosome <- tf$concat(nucleosome, axis = 0L)
+		vplots <- tf$concat(vplots, axis = 0L)
 
 		list(vplots = vplots, nucleosome = nucleosome, z = z)
 	}

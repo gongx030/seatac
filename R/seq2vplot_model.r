@@ -45,7 +45,7 @@ setMethod(
 				self$enc_layers <- lapply(seq_len(num_layers), function(i) TransformerEncoderLayer(self$d_model, num_heads = num_heads, dff = dff, rate = rate))
 			}
 	
-			self$dense_1 <- tf$keras$layers$Dense(units = self$vae$decoder$vplot_decoder$vplot_height, activation = 'relu')
+			self$dense_1 <- tf$keras$layers$Dense(units = self$vae$decoder$vplot_decoder$vplot_height, activation = 'softmax')
 			self$pool <- tf$keras$layers$MaxPooling1D(self$vae$bin_size, self$vae$bin_size)
 	
 			function(x, h, training = TRUE){
@@ -114,7 +114,8 @@ setMethod(
 		w <- y %>% tf$reduce_sum(shape(1L), keepdims = TRUE)	# sum of reads per bin
 		y <- y / tf$where(w > 0, w, tf$ones_like(w))	# scale so that the sum of each bar is one (softmax)
 
-		d$vplots <- y
+		d$z <- new('VaeModel', model = model@model$vae) %>% 
+			encode(y, batch_size = 256L)	# for blocks
 
 		d$kmers <- rowData(x)$kmers %>%
 			tf$cast(tf$int32)
@@ -127,9 +128,6 @@ setMethod(
 		})
 		g <- tf$concat(g, axis = 2L)
 		d$annotation <- g
-
-		d$z <- new('VaeModel', model = model@model$vae) %>% 
-			encode(d$vplots, batch_size = 256L)	# for blocks
 
 		d <- d %>%
 			tensor_slices_dataset()
@@ -200,7 +198,7 @@ setMethod(
 				res <- test_step(batch$kmers, batch$z, batch$annotation)
 				loss_test <- c(loss_test, as.numeric(res$loss))
 			})
-			message(sprintf('fit | epoch=%6.d/%6.d | train_loss=%13.7f | test_loss=%13.7f', epoch, epochs, mean(loss_train), mean(loss_test)))
+			message(sprintf('%s | fit | epoch=%6.d/%6.d | train_loss=%13.7f | test_loss=%13.7f', Sys.time(), epoch, epochs, mean(loss_train), mean(loss_test)))
 		}
 		model
 	}
