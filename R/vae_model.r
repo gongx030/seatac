@@ -328,7 +328,8 @@ setMethod(
 	 ){
 
 		optimizer <- tf$keras$optimizers$Adam(1e-4, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
-		train_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')
+#		train_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')
+		train_loss <- tf$keras$losses$MeanSquaredError(reduction = 'none')
 
 		x <- x %>% 
 			dataset_shuffle(1000L) %>%
