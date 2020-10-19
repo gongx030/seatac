@@ -328,8 +328,9 @@ setMethod(
 	 ){
 
 		optimizer <- tf$keras$optimizers$Adam(1e-4, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
-		reconstrution_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')
-		nucleosome_loss <- tf$keras$losses$MeanSquaredError(reduction = 'none')
+
+		reconstrution_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')	# loss for the V-plot
+		nucleosome_loss <- tf$keras$losses$MeanSquaredError(reduction = 'none')	# loss for the nucleosome signal
 
 		x <- x %>% 
 			dataset_shuffle(1000L) %>%
