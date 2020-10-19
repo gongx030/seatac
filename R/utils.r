@@ -124,12 +124,22 @@ split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
-load_pretrained_vplot_vae_model <- function(n_intervals = 48L, block_size = 240L){
-	message('load_pretrained_vplot_vae_model | a pretrained model on GM12878')
+load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L, filters0 = 128L, min_reads = 5L){
+
+	n_intervals <- 48L
+
+	message(sprintf('load_pretrained_vplot_vae_model | a pretrained model on GM12878 | block_size=%d', block_size))
+
 	dir <- system.file('extdata', package = 'seatac')
+	model_file <- sprintf('%s/model=Vae_block_size=%d_latent_dim=%d_filters0=%d_min_reads=%d', dir, block_size, latent_dim, filters0, min_reads)
+
+	model_index_file <- sprintf('%s.index', model_file)
+	if (!file.exists(model_index_file))
+		stop(sprintf('%s does not exist', model_index_file))
+
 	model <- VaeModel(block_size = block_size, n_intervals = n_intervals)
 	res <- model(tf$random$uniform(shape(1L, n_intervals, model$n_bins_per_block, 1L)))
-	load_model_weights_tf(model, sprintf('%s/model', dir))
+	load_model_weights_tf(model, model_file)
 	new('VaeModel', model = model)
 } # load_pretrained_vplot_vae_model
 
