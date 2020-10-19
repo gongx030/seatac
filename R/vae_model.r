@@ -409,6 +409,44 @@ setMethod(
 	}
 )
 
+#'
+setMethod(
+	'predict',
+	signature(
+		model = 'VaeModel',
+		x = 'Vplots'
+	),
+	function(
+		model,
+		x,
+		batch_size = 1L # v-plot per batch
+	){
+
+		y <- assays(x)$counts %>%
+			as.matrix() %>%
+			reticulate::array_reshape(c(    # convert into a C-style array
+				length(x),
+				x@n_intervals,
+				x@n_bins_per_window,
+				1L
+			)) %>%
+			tf$cast(tf$float32)
+
+		res <- model %>% predict(y)
+
+		x@assays[['predicted_counts']]  <- res$vplots %>%
+			tf$reshape(c(res$vplots$shape[[1]], -1L)) %>%
+			as.matrix()
+
+		SummarizedExperiment::rowData(x)$predicted_nucleosome <- tf[['repeat']](res$nucleosome, 5L, axis = 1L) %>% as.matrix()
+
+		x
+	}
+) # predict
+#'
+
+
+
 #' 
 #' @export
 #'
