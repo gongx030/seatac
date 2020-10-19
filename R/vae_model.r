@@ -181,7 +181,7 @@ VaeDecoder <- function(
 	
 		self$final_layer <- tf$keras$layers$Dense(
 			units = 1L,
-			activation = 'relu'
+			activation = 'sigmoid'
 		)
 	
 		function(x, training = TRUE){
@@ -344,7 +344,7 @@ setMethod(
 					tf$reduce_mean()
 				loss_nucleosome <- train_loss(y, res$nucleosome) %>%
 					tf$reduce_mean()
-				loss <- loss_reconstruction + loss_kl + 1 * loss_nucleosome
+				loss <- loss_reconstruction + loss_kl + 100 * loss_nucleosome
 	 		})
 			gradients <- tape$gradient(loss, model@model$trainable_variables)
 			list(gradients, model@model$trainable_variables) %>%
