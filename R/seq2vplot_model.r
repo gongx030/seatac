@@ -170,14 +170,14 @@ setMethod(
 			list(gradients, model@model$trainable_variables) %>%
 				purrr::transpose() %>%
 				optimizer$apply_gradients()
-			list(loss = loss, predicted_vplots = res$x_pred)
+			list(loss = loss, predicted_vplots = res$vplots)
 		} # train_step
 
 		test_step <- function(x, y, h){
 			res <- model@model(x, h)
 			loss <- train_loss(res$z, y) %>%
 			tf$reduce_mean()
-			list(loss = loss, predicted_vplots = res$x_pred)
+			list(loss = loss, predicted_vplots = res$vplots)
 		}
 
 		train_step <- tf_function(train_step) # convert to graph mode
@@ -203,64 +203,4 @@ setMethod(
 		model
 	}
 )
-
-#'
-setMethod(
-	'predict',
-	signature(
-		model = 'Seq2VplotModel',
-		x = 'VplotsKmers'
-	),
-	function(
-		model,
-		x,
-		batch_size = 1L # v-plot per batch
-	){
-
-		batches <- cut_data(length(x), batch_size)
-
-		n_blocks_per_window <- as.integer(x@n_bins_per_window - model@model$vae$n_bins_per_block + 1)
-		predicted_counts <- matrix(0, length(x), x@n_bins_per_window * x@n_intervals)
-		predicted_nucleosome <- matrix(0, length(x), x@n_bins_per_window)
-
-		for (i in 1:length(batches)){
-			if (i == 1 || i %% 100 == 0)
-				message(sprintf('predict | batch=%4.d/%4.d', i, length(batches)))
-
-			b <- batches[[i]]
-			d <- select_blocks(
-				 x[b],
-				 block_size = model@model$vae$block_size,
-				 min_reads = 0,
-				 with_vplots = FALSE,
-				 with_kmers = TRUE
-			 )
-
-			res <- model@model(d$kmers)
-
-			y_pred <- res$x_pred %>%
-				tf$reshape(c(length(b), n_blocks_per_window, x@n_intervals, model@model$vae$n_bins_per_block, 1L)) %>%
-				reconstruct_vplot_from_blocks() %>%
-				tf$squeeze(-1L) %>%
-				as.array()
-
-			y_pred <- aperm(y_pred, c(1, 3, 2))
-			dim(y_pred) <- c(length(b), x@n_bins_per_window * x@n_intervals)
-			predicted_counts[b, ] <- y_pred
-
-			predicted_nucleosome[b, ] <- res$nucleosome %>%
-				tf$expand_dims(2L) %>%
-				tf$expand_dims(3L) %>%
-				tf$transpose(shape(0L, 2L, 1L, 3L)) %>%
-				tf$reshape(c(length(b), n_blocks_per_window, 1L, model@model$vae$n_bins_per_block, 1L)) %>%
-				reconstruct_vplot_from_blocks()  %>%
-				tf$squeeze(shape(1L, 3L)) %>%
-				as.matrix()
-		}
-
-		SummarizedExperiment::assays(x)$predicted_counts <- predicted_counts
-		SummarizedExperiment::rowData(x)$predicted_nucleosome <- predicted_nucleosome
-		x
-	}
-) # predict
 

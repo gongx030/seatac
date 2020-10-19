@@ -181,7 +181,7 @@ VaeDecoder <- function(
 	
 		self$final_layer <- tf$keras$layers$Dense(
 			units = 1L,
-			activation = 'sigmoid'
+			activation = 'relu'
 		)
 	
 		function(x, training = TRUE){
@@ -197,7 +197,7 @@ VaeDecoder <- function(
 				self$final_layer() %>%
 				tf$squeeze(2L)
 
-			list(x_pred = x_pred, nucleosome = nucleosome)
+			list(vplots = x_pred, nucleosome = nucleosome)
 		}
 	})
 }
@@ -249,7 +249,7 @@ VaeModel <- function(
 			list(
 				posterior = posterior, 
 				z = z, 
-				x_pred = res$x_pred,
+				vplots = res$vplots,
 				nucleosome = res$nucleosome
 			)
 		}
@@ -295,15 +295,13 @@ setMethod(
 		w <- w %>% tf$cast(tf$float32)
 		d$weight <- w
 
-		y <- rowData(x)$nucleoatac %>%
+		d$nucleoatac <- rowData(x)$nucleoatac %>%
 			as.matrix() %>%
 			tf$cast(tf$float32) %>%
 			tf$expand_dims(2L) %>%
 			tf$nn$avg_pool1d(ksize = x@bin_size, strides = x@bin_size, padding = 'VALID') %>%
 			tf$squeeze(2L) %>%
 			scale01()
-
-		d$nucleoatac  <- y
 
 		d <- d %>%
 			tensor_slices_dataset()
@@ -331,7 +329,6 @@ setMethod(
 
 		optimizer <- tf$keras$optimizers$Adam(1e-4, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
 		train_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')
-		bce <- tf$keras$losses$BinaryCrossentropy()
 
 		x <- x %>% 
 			dataset_shuffle(1000L) %>%
@@ -340,14 +337,14 @@ setMethod(
 		train_step <- function(x, w, y){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
 				res <- model@model(x)
-				loss_reconstruction <- (tf$squeeze(w, 3L) * train_loss(x, res$x_pred)) %>%
+				loss_reconstruction <- (tf$squeeze(w, 3L) * train_loss(x, res$vplots)) %>%
 					tf$reduce_sum(shape(1L, 2L)) %>%
 					tf$reduce_mean()
 				loss_kl <- (res$posterior$log_prob(res$z) - model@model$prior$log_prob(res$z)) %>%
 					tf$reduce_mean()
 				loss_nucleosome <- train_loss(y, res$nucleosome) %>%
 					tf$reduce_mean()
-				loss <- loss_reconstruction + loss_kl + loss_nucleosome
+				loss <- loss_reconstruction + loss_kl + 1 * loss_nucleosome
 	 		})
 			gradients <- tape$gradient(loss, model@model$trainable_variables)
 			list(gradients, model@model$trainable_variables) %>%
@@ -364,8 +361,9 @@ setMethod(
 
 		test_step <- function(x, w, y){
 			res <- model@model(x)
-			metric_nucleoatac <- bce(y, res$nucleosome)
-			metric_test <- (tf$squeeze(w, 3L) * train_loss(x, res$x_pred)) %>%
+			metric_nucleoatac <- train_loss(y, res$nucleosome) %>%
+				tf$reduce_mean()
+			metric_test <- (tf$squeeze(w, 3L) * train_loss(x, res$vplots)) %>%
 				tf$reduce_sum(shape(1L, 2L)) %>%
 				tf$reduce_mean()
 			list(
@@ -457,7 +455,7 @@ setMethod(
 			include <- tf$cast(d$n > 0, tf$float32)
 
 			w <- tf$reshape(include, shape(d$n$shape[[1]], 1L, 1L, 1L))
-			x_pred <- tf$multiply(d$vplots, 1 - w) + tf$multiply(res$x_pred, w)
+			x_pred <- tf$multiply(d$vplots, 1 - w) + tf$multiply(res$vplots, w)
 
 			x_pred <- x_pred %>%
 				tf$reshape(c(length(b), n_blocks_per_window, x@n_intervals, model@model$n_bins_per_block, 1L)) %>%
@@ -520,7 +518,7 @@ setMethod(
 			z[[i]] <- posterior$mean()
 			res <- model@model$decoder(z[[i]])
 			nucleosome[[i]] <- res$nucleosome
-			vplots[[i]] <- res$x_pred
+			vplots[[i]] <- res$vplots
 		}
 
 		z <- tf$concat(z, axis = 0L)
