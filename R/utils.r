@@ -124,7 +124,7 @@ split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
-load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L, filters0 = 128L, min_reads = 5L){
+load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L, filters0 = 128L, min_reads = 15L){
 
 	n_intervals <- 48L
 
