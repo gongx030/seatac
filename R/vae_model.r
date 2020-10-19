@@ -328,8 +328,8 @@ setMethod(
 	 ){
 
 		optimizer <- tf$keras$optimizers$Adam(1e-4, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
-#		train_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')
-		train_loss <- tf$keras$losses$MeanSquaredError(reduction = 'none')
+		reconstrution_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')
+		nucleosome_loss <- tf$keras$losses$MeanSquaredError(reduction = 'none')
 
 		x <- x %>% 
 			dataset_shuffle(1000L) %>%
@@ -338,12 +338,12 @@ setMethod(
 		train_step <- function(x, w, y){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
 				res <- model@model(x)
-				loss_reconstruction <- (tf$squeeze(w, 3L) * train_loss(x, res$vplots)) %>%
+				loss_reconstruction <- (tf$squeeze(w, 3L) * reconstrution_loss(x, res$vplots)) %>%
 					tf$reduce_sum(shape(1L, 2L)) %>%
 					tf$reduce_mean()
 				loss_kl <- (res$posterior$log_prob(res$z) - model@model$prior$log_prob(res$z)) %>%
 					tf$reduce_mean()
-				loss_nucleosome <- train_loss(y, res$nucleosome) %>%
+				loss_nucleosome <- nucleosome_loss(y, res$nucleosome) %>%
 					tf$reduce_mean()
 				loss <- loss_reconstruction + loss_kl + 100 * loss_nucleosome
 	 		})
@@ -362,9 +362,9 @@ setMethod(
 
 		test_step <- function(x, w, y){
 			res <- model@model(x)
-			metric_nucleoatac <- train_loss(y, res$nucleosome) %>%
+			metric_nucleoatac <- nucleosome_loss(y, res$nucleosome) %>%
 				tf$reduce_mean()
-			metric_test <- (tf$squeeze(w, 3L) * train_loss(x, res$vplots)) %>%
+			metric_test <- (tf$squeeze(w, 3L) * reconstrution_loss(x, res$vplots)) %>%
 				tf$reduce_sum(shape(1L, 2L)) %>%
 				tf$reduce_mean()
 			list(
