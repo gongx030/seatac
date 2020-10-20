@@ -355,7 +355,7 @@ setMethod(
 					tf$reduce_mean()
 				loss_nucleosome <- nucleosome_loss(y, res$nucleosome) %>%
 					tf$reduce_mean()
-				loss <- loss_reconstruction + loss_kl + 100 * loss_nucleosome
+				loss <- loss_reconstruction + loss_kl + tf$cast(model@model$decoder$vplot_decoder$vplot_height, tf$float32) * loss_nucleosome
 	 		})
 			gradients <- tape$gradient(loss, model@model$trainable_variables)
 			list(gradients, model@model$trainable_variables) %>%
