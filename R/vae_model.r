@@ -179,7 +179,15 @@ VaeDecoder <- function(
 			vplot_height = vplot_height
 		)
 	
-		self$final_layer <- tf$keras$layers$Dense(
+		# dense layers from the V-plot to nucleosome signal
+		self$dense_1 <- tf$keras$layers$Dense(
+			activation = 'relu',
+			units = 8L
+		)
+		self$dropout_1 <- tf$keras$layers$Dropout(0.1)
+
+		self$dense_2 <- tf$keras$layers$Dense(
+			activation = 'sigmoid',
 			units = 1L
 		)
 
@@ -193,7 +201,9 @@ VaeDecoder <- function(
 			nucleosome <- y %>%
 				tf$squeeze(3L) %>%
 				tf$transpose(shape(0L, 2L, 1L)) %>%
-				self$final_layer() %>%
+				self$dense_1() %>%
+				self$dropout_1() %>%
+				self$dense_2() %>%
 				tf$squeeze(2L)
 			
 			list(vplots = x_pred, nucleosome = nucleosome)
@@ -294,16 +304,13 @@ setMethod(
 		w <- w %>% tf$cast(tf$float32)
 		d$weight <- w
 
-		y <- rowData(x)$nucleoatac %>%
+		d$nucleoatacy <- rowData(x)$nucleoatac %>%
 			as.matrix() %>%
 			tf$cast(tf$float32) %>%
 			tf$expand_dims(2L) %>%
 			tf$nn$avg_pool1d(ksize = x@bin_size, strides = x@bin_size, padding = 'VALID') %>%
-			tf$squeeze(2L)
-
-		# standarize the nucleosome signal to mean of zero and standard deviation of one
-		y <- (y - tf$reduce_mean(y, 0L, keepdims = TRUE)) / tf$math$reduce_std(y, 0L, keepdims = TRUE)
-		d$nucleoatac <- y
+			tf$squeeze(2L) %>%
+			scale01()
 
 		d <- d %>%
 			tensor_slices_dataset()
