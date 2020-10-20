@@ -180,10 +180,9 @@ VaeDecoder <- function(
 		)
 	
 		self$final_layer <- tf$keras$layers$Dense(
-			units = 1L,
-			activation = 'sigmoid'
+			units = 1L
 		)
-	
+
 		function(x, training = TRUE){
 
 			y <- x %>%
@@ -196,7 +195,7 @@ VaeDecoder <- function(
 				tf$transpose(shape(0L, 2L, 1L)) %>%
 				self$final_layer() %>%
 				tf$squeeze(2L)
-
+			
 			list(vplots = x_pred, nucleosome = nucleosome)
 		}
 	})
@@ -295,13 +294,16 @@ setMethod(
 		w <- w %>% tf$cast(tf$float32)
 		d$weight <- w
 
-		d$nucleoatac <- rowData(x)$nucleoatac %>%
+		y <- rowData(x)$nucleoatac %>%
 			as.matrix() %>%
 			tf$cast(tf$float32) %>%
 			tf$expand_dims(2L) %>%
 			tf$nn$avg_pool1d(ksize = x@bin_size, strides = x@bin_size, padding = 'VALID') %>%
-			tf$squeeze(2L) %>%
-			scale01()
+			tf$squeeze(2L)
+
+		# standarize the nucleosome signal to mean of zero and standard deviation of one
+		y <- (y - tf$reduce_mean(y, 0L, keepdims = TRUE)) / tf$math$reduce_std(y, 0L, keepdims = TRUE)
+		d$nucleoatac <- y
 
 		d <- d %>%
 			tensor_slices_dataset()
