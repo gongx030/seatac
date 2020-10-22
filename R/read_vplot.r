@@ -3,7 +3,7 @@
 #' Read the V-plot from BAM files within a set of genomic regions
 #'
 #' @param x a GRange object that define a set of genomic regions.
-#' @param filenames BAM file names
+#' @param filename BAM file name
 #' @param bin_size The bin size
 #' @param fragment_size_range fragment_size_range
 #' @param fragment_size_interval fragment_size_interval
@@ -15,12 +15,12 @@ setMethod(
 	'read_vplot',
 	signature(
 		x = 'GRanges',
-		filenames = 'character',
+		filename = 'character',
 		genome = 'BSgenome'
 	), 
 	function(
 		x, 
-		filenames, 
+		filename, 
 		genome,
 		bin_size = 5,
 		fragment_size_range = c(50, 690), 
@@ -32,11 +32,9 @@ setMethod(
 		if (length(unique(window_size)) > 1)
 			stop('the window size of input data must be equal')
 
-
 		window_size <- window_size[1]
 
-		if (window_size %% bin_size != 0)
-			stop('window_size %% bin_size must be zero')
+		stopifnot(window_size %% bin_size == 0)
 
  		n_bins_per_window <- window_size / bin_size
 
@@ -53,35 +51,27 @@ setMethod(
 
 		# compute the center point between PE reads
 		# this is faster than using GAlignmentPairs
+		g <- read_bam(filename, peaks = resize(x, fix = 'center', width = window_size + 2000), genome = genome)
+	
+		g <- g[strand(g) == '+']
+		g <- GRanges(
+			seqnames = seqnames(g), 
+			range = IRanges(start(g) + round(mcols(g)$isize / 2), width = 1), 
+			isize = mcols(g)$isize
+		)
 
-		counts <- lapply(filenames, function(file){	
-			
-			g <- read_bam(file, peaks = resize(x, fix = 'center', width = window_size + 2000), genome = genome)
-		
-			g <- g[strand(g) == '+']
-			g <- GRanges(
-				seqnames = seqnames(g), 
-				range = IRanges(start(g) + round(mcols(g)$isize / 2), width = 1), 
-				isize = mcols(g)$isize
-			)
+		g$fragment_size <- as.numeric(cut(g$isize, breaks))	# discretize the fragment size
+		g <- g[!is.na(g$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
 
-			g$fragment_size <- as.numeric(cut(g$isize, breaks))	# discretize the fragment size
-			g <- g[!is.na(g$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
-
-			CF <- sparseMatrix(i = 1:length(g), j = g$fragment_size, dims = c(length(g), n_intervals))  # read center ~ fragment size
-			BC <- as.matrix(findOverlaps(bins, g))	# bins ~ read center
-			BC <- as(sparseMatrix(BC[, 1], BC[, 2], dims = c(length(bins), length(g))), 'dgCMatrix') # bins ~ read center
-			BF <- BC %*% CF  # bins ~ fragment size
-			BF <- as.matrix(BF[wb[, 2], ])
-			dim(BF) <- c(n_bins_per_window, length(x), n_intervals)	# convert BF into an array with n_bins_per_window ~ batch_size ~ n_intervals
-			BF <- aperm(BF, c(2, 1, 3)) # batch_size, n_bins_per_window ~ n_intervals
-			dim(BF) <- c(length(x), n_bins_per_window * n_intervals)
-
-			as(BF, 'dgCMatrix')
-
-		})	# batch_size ~ n_bins_per_window * n_intervals 
-
-		counts <- Reduce('+', counts)
+		CF <- sparseMatrix(i = 1:length(g), j = g$fragment_size, dims = c(length(g), n_intervals))  # read center ~ fragment size
+		BC <- as.matrix(findOverlaps(bins, g))	# bins ~ read center
+		BC <- as(sparseMatrix(BC[, 1], BC[, 2], dims = c(length(bins), length(g))), 'dgCMatrix') # bins ~ read center
+		BF <- BC %*% CF  # bins ~ fragment size
+		BF <- as.matrix(BF[wb[, 2], ])
+		dim(BF) <- c(n_bins_per_window, length(x), n_intervals)	# convert BF into an array with n_bins_per_window ~ batch_size ~ n_intervals
+		BF <- aperm(BF, c(2, 1, 3)) # batch_size, n_bins_per_window ~ n_intervals
+		dim(BF) <- c(length(x), n_bins_per_window * n_intervals)
+		counts <- as(BF, 'dgCMatrix')	# batch_size ~ n_bins_per_window * n_intervals 
 
 		se <- SummarizedExperiment(
 			assays = list(counts = counts)
@@ -101,7 +91,6 @@ setMethod(
 			centers = centers,
 			positions = seq(bin_size, window_size, by = bin_size) - (window_size / 2)
 		)
-
 	}
 
 ) # read_vplot
