@@ -113,10 +113,8 @@ setMethod(
 		w <- y %>% tf$reduce_sum(shape(1L), keepdims = TRUE)	# sum of reads per bin
 		y <- y / tf$where(w > 0, w, tf$ones_like(w))	# scale so that the sum of each bar is one (softmax)
 
-		res <- new('VaeModel', model = model@model$vae) %>% 
-			predict(y, batch_size = 256L)	# for blocks
-
-		d$z <- res$z
+		d$z <- new('VaeModel', model = model@model$vae) %>% 
+			encode(y, batch_size = 256L)	# for blocks
 
 		d$kmers <- rowData(x)$kmers %>%
 			tf$cast(tf$int32)
