@@ -35,29 +35,25 @@ setMethod(
 				tf$cast(tf$float32) %>%
 				tf$expand_dims(0L)
 
-			self$annotation_encoding_1 <- tf$keras$layers$Dense(8L, activation = 'relu')
-			self$annotation_encoding_2 <- tf$keras$layers$Dense(self$d_model)
-
 			self$embedding <- tf$keras$layers$Embedding(as.integer(kmers_size), self$d_model)
 			self$dropout_1 <- tf$keras$layers$Dropout(rate)
 		
 			if (num_layers > 0){
 				self$enc_layers <- lapply(seq_len(num_layers), function(i) TransformerEncoderLayer(self$d_model, num_heads = num_heads, dff = dff, rate = rate))
 			}
-	
-			self$dense_1 <- tf$keras$layers$Dense(units = self$vae$decoder$vplot_decoder$vplot_height, activation = 'softmax')
+
+			self$dense_1 <- tf$keras$layers$Dense(units = 8L, activation = 'relu')
+			self$dropout_2 <- tf$keras$layers$Dropout(0.1)
+			self$dense_2 <- tf$keras$layers$Dense(units = self$vae$decoder$vplot_decoder$vplot_height, activation = 'softmax')
+
 			self$pool <- tf$keras$layers$MaxPooling1D(self$vae$bin_size, self$vae$bin_size)
 	
-			function(x, h, training = TRUE){
+			function(x, training = TRUE){
 
 				x <- x %>% self$embedding()
 				x <- x * tf$math$sqrt(tf$cast(self$d_model, tf$float32))
 
-				annotation <- h %>% 
-					self$annotation_encoding_1() %>%
-					self$annotation_encoding_2()
-
-				x <- x + self$pos_encoding + annotation
+				x <- x + self$pos_encoding
 				x <- x %>% self$dropout_1()
 		
 				if (num_layers > 0){
@@ -66,10 +62,14 @@ setMethod(
 					}
 				}
 
-				x <- x %>% self$dense_1()
-				x <- x %>% self$pool()
-				x <- x %>% tf$transpose(shape(0L, 2L, 1L))
-				x <- x %>% tf$expand_dims(3L)
+				x <- x %>% 	
+					self$dense_1() %>% 
+					self$dropout_2() %>%
+					self$dense_2() %>%
+					self$pool() %>%
+					tf$transpose(shape(0L, 2L, 1L)) %>%
+					tf$expand_dims(3L)
+
 				posterior <- self$vae$encoder(x)
 				z <- posterior$mean()
 				res <- self$vae$decoder(z)
@@ -95,8 +95,7 @@ setMethod(
 	),
 	function(
 		model,
-		x,
-		annotation
+		x
 	){
 
 		d <- list()
@@ -114,23 +113,17 @@ setMethod(
 		w <- y %>% tf$reduce_sum(shape(1L), keepdims = TRUE)	# sum of reads per bin
 		y <- y / tf$where(w > 0, w, tf$ones_like(w))	# scale so that the sum of each bar is one (softmax)
 
-		d$z <- new('VaeModel', model = model@model$vae) %>% 
-			encode(y, batch_size = 256L)	# for blocks
+		res <- new('VaeModel', model = model@model$vae) %>% 
+			predict(y, batch_size = 256L)	# for blocks
+
+		d$z <- res$z
 
 		d$kmers <- rowData(x)$kmers %>%
 			tf$cast(tf$int32)
 
-		g <- lapply(annotation, function(a){ 
-			rowData(x)[[a]] %>%
-				as.matrix() %>%
-				tf$cast(tf$float32) %>%
-				tf$expand_dims(2L)
-		})
-		g <- tf$concat(g, axis = 2L)
-		d$annotation <- g
-
-		d <- d %>%
+		d <- d %>% 
 			tensor_slices_dataset()
+
 		d
 	}
 )
@@ -160,24 +153,24 @@ setMethod(
 			split_dataset(test_size = test_size, batch_size = batch_size)
 
 		# updating step
-		train_step <- function(x, y, h){
+		train_step <- function(x, y){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
-				 res <- model@model(x, h)
+				 res <- model@model(x)
 				 loss <- train_loss(res$z, y) %>%
-				 tf$reduce_mean()
+					 tf$reduce_mean()
 			})
 			gradients <- tape$gradient(loss, model@model$trainable_variables)
 			list(gradients, model@model$trainable_variables) %>%
 				purrr::transpose() %>%
 				optimizer$apply_gradients()
-			list(loss = loss, predicted_vplots = res$vplots)
+			list(loss = loss)
 		} # train_step
 
-		test_step <- function(x, y, h){
-			res <- model@model(x, h)
+		test_step <- function(x, y){
+			res <- model@model(x)
 			loss <- train_loss(res$z, y) %>%
-			tf$reduce_mean()
-			list(loss = loss, predicted_vplots = res$vplots)
+				tf$reduce_mean()
+			list(loss = loss)
 		}
 
 		train_step <- tf_function(train_step) # convert to graph mode
@@ -188,19 +181,57 @@ setMethod(
 			iter <- make_iterator_one_shot(x$train)
 			until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- train_step(batch$kmers, batch$z, batch$annotation)
+				res <- train_step(batch$kmers, batch$z)
 				loss_train <- c(loss_train, as.numeric(res$loss))
 			})
 			loss_test <- NULL
 			iter <- make_iterator_one_shot(x$test)
 			until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- test_step(batch$kmers, batch$z, batch$annotation)
+				res <- test_step(batch$kmers, batch$z)
 				loss_test <- c(loss_test, as.numeric(res$loss))
 			})
 			message(sprintf('%s | fit | epoch=%6.d/%6.d | train_loss=%13.7f | test_loss=%13.7f', Sys.time(), epoch, epochs, mean(loss_train), mean(loss_test)))
 		}
 		model
+	}
+)
+
+#'
+#' @export
+#'
+setMethod(
+	'predict',
+	signature(
+		model = 'Seq2VplotModel',
+		x = 'tf_dataset'
+	),
+	function(
+		model,
+		x,
+		batch_size = 128L
+	){
+
+		nucleosome <- list()
+		vplots <- list()
+
+		x <- x %>% 
+			dataset_batch(batch_size) 
+		
+		iter <- make_iterator_one_shot(x)
+
+		until_out_of_range({
+			batch <- iterator_get_next(iter)
+			res <- model@model(batch$kmers, batch$annotation)
+			nucleosome <- c(nucleosome, res$nucleosome)
+			vplots <- c(vplots, res$vplots)
+		})
+
+		nucleosome <- tf$concat(nucleosome, 0L)
+		vplots <- tf$concat(vplots, 0L)
+
+		list(nucleosome = nucleosome, vplots = vplots)
+
 	}
 )
 
