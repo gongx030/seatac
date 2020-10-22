@@ -222,7 +222,7 @@ setMethod(
 
 		until_out_of_range({
 			batch <- iterator_get_next(iter)
-			res <- model@model(batch$kmers, batch$annotation)
+			res <- model@model(batch$kmers)
 			nucleosome <- c(nucleosome, res$nucleosome)
 			vplots <- c(vplots, res$vplots)
 		})
