@@ -51,7 +51,9 @@ setMethod(
 
 		# compute the center point between PE reads
 		# this is faster than using GAlignmentPairs
-		g <- read_bam(filename, peaks = reduce(resize(x, fix = 'center', width = window_size + 2000)), genome = genome)
+
+		peaks <- reduce(resize(x, fix = 'center', width = window_size + 2000))
+		g <- read_bam(filename, peaks = peaks, genome = genome)
 	
 		g <- g[strand(g) == '+']
 		g <- GRanges(

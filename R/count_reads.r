@@ -24,7 +24,8 @@ setMethod(
 		if (length(unique(window_size)) > 1)
 			stop('the window size of input data must be equal')
 
-		g <- read_bam(filename, peaks = reduce(resize(x, fix = 'center', width = window_size + 2000)), genome = genome)
+		peaks <- reduce(resize(x, fix = 'center', width = window_size + 2000))
+		g <- read_bam(filename, peaks = peaks, genome = genome)
 
 		seqlevels(gr, pruning.mode = 'coarse') <- seqlevels(g)
 	  seqlengths(seqinfo(gr)) <-  seqlengths(seqinfo(g))
