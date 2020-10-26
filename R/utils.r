@@ -15,7 +15,7 @@ extract_blocks_from_vplot <- function(x, n_bins_per_block){
 
 	y <- y %>%
 		tf$reshape(c(y$shape[[1]], y$shape[[2]], n_intervals, n_bins_per_block)) %>%
-	tf$expand_dims(-1L)
+		tf$expand_dims(-1L)
 
 	y
 }
@@ -190,4 +190,6 @@ compute_average_signal_per_bin <- function(x, bin_size){
 	x <- x %*% G  # average signal in each genomic bin
 	x
 }
+
+
 

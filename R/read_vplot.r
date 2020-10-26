@@ -22,9 +22,9 @@ setMethod(
 		x, 
 		filename, 
 		genome,
-		bin_size = 5,
-		fragment_size_range = c(50, 690), 
-		fragment_size_interval = 10
+		bin_size = 5L,
+		fragment_size_range = c(80, 320),
+		fragment_size_interval = 5L
 	){
 
 		window_size <- width(x)

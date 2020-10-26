@@ -36,9 +36,30 @@ setClass(
 	contains = 'Vplots'
 )
 
+
+#' SummarizedKmers
+#'
+#' @export
+setClass(
+	'SummarizedKmers',
+	slot = c(
+		fragment_size_range  = 'integer',
+		fragment_size_interval = 'integer',
+		bin_size = 'integer',
+		window_size = 'integer',
+		n_intervals = 'integer',
+		n_bins_per_window = 'integer',
+		breaks = 'numeric',
+		centers = 'numeric',
+		positions = 'numeric',
+		kmers = 'character',
+		k = 'integer'
+	),
+	contains = 'SummarizedExperiment'
+)
+
 setClass('Model', slot = c(model = 'kerastools.model.RModel'))
 setClass('VaeModel', contains = 'Model')
 setClass('Seq2VplotModel', contains = 'Model')
 setClass('Seq2VplotModel', contains = 'Model')
 
-		
