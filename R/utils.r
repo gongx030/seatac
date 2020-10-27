@@ -171,25 +171,3 @@ cut_data <- function(n, batch_size){
 
 
 
-#' compute_average_signal_per_bin
-#'
-compute_average_signal_per_bin <- function(x, bin_size){
-
-	window_size <- ncol(x)
-
-	stopifnot(window_size %% bin_size == 0)
-
-	n_bins_per_window <- window_size / bin_size
-
-	G <- sparseMatrix(
-		i = 1:window_size,
-		j = rep(1:n_bins_per_window, each = bin_size),
-		x = rep(1 / bin_size, window_size),
-		dims = c(window_size, n_bins_per_window)
-	)
-	x <- x %*% G  # average signal in each genomic bin
-	x
-}
-
-
-
