@@ -19,7 +19,6 @@ setMethod(
 	function(
 		x, 
 		block_size,
-		pseudo_count = 1,
 		batch_size = 512L
 	){
 
@@ -75,7 +74,7 @@ setMethod(
 		)
 		SummarizedExperiment::rowData(se)$n <- as.numeric(n)
 
-		new(
+		se <- new(
 			'SummarizedKmers',
 			se,
 			fragment_size_range  = x@fragment_size_range,
@@ -90,6 +89,9 @@ setMethod(
 			kmers = x@kmers,
 			k = x@k
 		)
+
+		se <- compute_z_score(se)
+		se
 	}
 ) # summarize_kmers
 

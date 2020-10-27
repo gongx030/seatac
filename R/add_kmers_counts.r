@@ -11,38 +11,57 @@ setMethod(
 	),
 	function(x, y, threshold = 1e-3, pseudo_count = 1){
 
-		browser()
+		Z <- assays(y)$z%>%	# z score
+			tf$cast(tf$float32) %>%
+			tf$reshape(shape(length(y), y@n_intervals, y@n_bins_per_window)) 
 
-		WKP <- tf$SparseTensor(
-			indices = cbind(
-				rep(1:length(x), each = x@window_size) - 1, # batch (window)
-				c(t(rowData(x)$kmers)),	# kmer
-				rep(1:x@window_size, length(x)) - 1 # position (bin)
-			),
-			values = rep(1, length(x) * x@window_size),
-			dense_shape = c(length(x), length(x@kmers), x@window_size)
-		) # batch ~ kmer index ~ position
+		# significant positions where the chance of occurence is higher than background
+		A <- tf$where(Z > qnorm(1 - threshold), 1, 0)
+		A <- A %>% tf$transpose(shape(0L, 2L, 1L)) # kmer ~ n_bins_per_window ~ n_intervals
+		
+		# mapping from a window to surrounding bins
+		blocks <- granges(x) %>% 	# GRanges for every window bin
+			slidingWindows(x@bin_size, x@bin_size) %>%
+			unlist()
 
-		Z <- assays(y)$counts %>%
-			tf$cast(tf$float32)
+		gr <- granges(x) %>%	# GRanges for every k-mer
+			slidingWindows(1L, 1L) %>% # to every k-mer
+			unlist() 
+		mcols(gr)$kmers <- c(t(rowData(x)$kmers))	# (zero-based) k-mer index of kmer
 
-		Z <- Z + pseudo_count
-		N <-  tf$reduce_sum(Z, keepdims = TRUE)	# total counts
-		p <- tf$reduce_sum(Z, axis = 0L, keepdims = TRUE) / N# probability that a voxel is positive
-		Z <- (Z - tf$reduce_sum(Z, 1L, keepdims = TRUE) * p) / tf$math$sqrt(tf$reduce_sum(Z, 1L, keepdims = TRUE) * p * (1 - p))
+		gr_bins <- gr %>%	# GRanges for every bins surronding every k-mer (aka kmer bins)
+			resize(fix = 'center', width = y@window_size) %>% # to k-mer centric V-plot
+			slidingWindows(x@bin_size, x@bin_size) %>% # bin the position dimension
+			unlist()
 
-		cutoff <- qnorm(1 - threshold)
-		A <- tf$where(Z > 1, 1, 0)
+		mcols(gr_bins)$kmers <- rep(mcols(gr)$kmers, each = y@n_bins_per_window)
+		mcols(gr_bins)$position <- rep(1:y@n_bins_per_window, length(gr)) - 1L	# zero-based position
 
-											
-											
-#											c(t(rowData(x)$kmers)), 0:(length(x) * x@n_bins_per_window - 1)),
-#			dense_shape = c(length(x@kmers), as.integer(length(x) * x@n_blocks_per_window))
-#		)
+		include <- (tf$reduce_sum(A, 2L) > 0) %>%	# if the kmer / bin combination has any significant reads
+			tf$gather_nd(cbind(gr_bins$kmers, gr_bins$position)) %>%	# map to every kmer bin
+			as.logical()
+			
+		gr_bins <- gr_bins[include] # include the kmer bins that are associated with significant reads
 
-		KB <- tf$SparseTensor(
-		) # kmers ~ bins
+		# retrieve the fragment size distribution for each kmer bin
+		S <- tf$gather_nd(A, cbind(gr_bins$kmers, gr_bins$position))	# length(gr_bins) ~ n_intervals
 
-		      KB <- tf$sparse$reorder(KB)
+		mm <- findOverlaps(blocks, gr_bins) %>% 
+			as.matrix() %>%
+			tf$cast(tf$int64)
+		mm <- mm - 1L	# to zero-based
+
+		G <- tf$sparse$SparseTensor(mm, rep(1, nrow(mm)), dense_shape = shape(length(blocks), length(gr_bins)))
+
+		a <- tf$sparse$sparse_dense_matmul(G, S) %>%
+			tf$reshape(shape(length(x), x@n_bins_per_window, x@n_intervals)) %>%
+			tf$reshape(shape(length(x), x@n_bins_per_window * x@n_intervals)) %>%
+			as.matrix() %>% 
+			as('dgCMatrix')
+
+		SummarizedExperiment::assays(x)$kmers_counts <- a
+
+		x
+
 	}
 )
