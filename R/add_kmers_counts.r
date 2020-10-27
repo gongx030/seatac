@@ -1,4 +1,9 @@
-# add_kmers_counts
+#' add_kmers_counts
+#' 
+#' @param x a VplotsKmers object
+#' @param y a SummarizedKmers object 
+#'
+#' @return a VplotsKmers object
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)

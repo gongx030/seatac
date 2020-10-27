@@ -3,10 +3,9 @@
 #' Summarize the aggregated V-plot surround each kmers
 #'
 #' @param x a VplotsKmers object 
-#' @param filename BAM file name
-#' @param bin_size The bin size
-#' @param fragment_size_range fragment_size_range
-#' @param fragment_size_interval fragment_size_interval
+#' @param block_size the window size for the V-plot surrounding each k-mer
+#' @param batch_size batch size 
+#' @return a SummarizedKmers object
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
