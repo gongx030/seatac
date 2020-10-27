@@ -66,7 +66,6 @@ setMethod(
 		counts <- KV %>%
 			tf$reshape(c(length(x@kmers), -1L)) %>%
 			as.matrix()
-		rownames(counts) <- x@kmers
 
 		se <- SummarizedExperiment(
 			assays = list(counts = counts)
