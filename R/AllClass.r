@@ -42,27 +42,7 @@ setClass(
 #' @export
 setClass(
 	'SummarizedMotifs',
-	slot = c(
-		fragment_size_range  = 'integer',
-		fragment_size_interval = 'integer',
-		bin_size = 'integer',
-		window_size = 'integer',
-		n_intervals = 'integer',
-		n_bins_per_window = 'integer',
-		breaks = 'numeric',
-		centers = 'numeric',
-		positions = 'numeric'
-	),
-	contains = 'SummarizedExperiment'
-)
-
-setClass(
-	'SummarizedKmers',
-	slot = c(
-		kmers = 'character',
-		k = 'integer'
-	),
-	contains = 'SummarizedMotifs'
+	contains = 'Vplots'
 )
 
 setClass('Model', slot = c(model = 'kerastools.model.RModel'))
