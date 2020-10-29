@@ -1,6 +1,6 @@
-#' Summarize V-plot from genomic regions
+#' Summarize V-plot from a list of genomic range sets
 #' 
-#' Compute the V-plot deviations
+#' Summarize V-plot from a list of genomic range sets
 #'
 #' @param x a Vplots object 
 #' @param annotation a GRangesList object of motif binding sites
