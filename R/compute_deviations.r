@@ -5,7 +5,7 @@
 #' @param x a Vplots object 
 #' @param annotation a GRangesList object of motif binding sites
 #' @param model a pretrained VaeModel
-#' @param batch_size batch size 
+#' @param batch_size_window batch size 
 #' @param background number of background V-plots
 #' @param permutation number of permutations
 #'
@@ -25,7 +25,8 @@ setMethod(
 		x, 
 		annotation,
 		model,
-		batch_size = 128L,
+		batch_size_window = 128L,
+		batch_size_block = 256L
 		background = 1000L,
 		permutation = 100L
 	){
@@ -41,7 +42,7 @@ setMethod(
 		annotation <- annotation %>% 
 			resize(width = 1L, fix = 'center')
 
-		batches <- cut_data(length(x), batch_size)
+		batches <- cut_data(length(x), batch_size_window)
 
 		counts <- tf$zeros(shape(length(classes), n_bins_per_block * x@n_intervals))	# total observed counts of the V-plot for each TF
 		freq <- tf$zeros(shape(length(classes)))	# number of motif hits
@@ -78,7 +79,7 @@ setMethod(
 
 			BV <- BV %>% tf$boolean_mask(not_empty)	# non-empty V-plot
 
-			BZ <- model %>% encode(BV, batch_size = 256L)	# map to the latent space
+			BZ <- model %>% encode(BV, batch_size = batch_size_block)	# map to the latent space
 
 			bins <- x[b] %>% 
 				granges() %>%
