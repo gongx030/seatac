@@ -7,7 +7,6 @@
 #' @param batch_size batch size 
 #' @return a SummarizedKmers object
 #'
-#' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(

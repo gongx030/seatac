@@ -295,9 +295,7 @@ setMethod(
 			)) %>%
 			tf$cast(tf$float32)
 
-		w <- y %>% tf$reduce_sum(shape(1L), keepdims = TRUE)  # sum of reads per bin
-		y <- y / tf$where(w > 0, w, tf$ones_like(w))  # scale so that the sum of each bar is one (softmax)
-		d$vplots <- y
+		d$vplots <- scale_vplot(y)
 
 		# add weight for each genomic bin
 		w <- tf$reduce_sum(d$vplots, 1L, keepdims = TRUE) > 0
@@ -477,11 +475,13 @@ setMethod(
 		nucleosome <- list()
 		vplots <- list()	
 
+		x <- scale_vplot(x)
+
 		batches <- cut_data(x$shape[[1]], batch_size)
 
 		for (i in 1:length(batches)){
 			b <- batches[[i]]
-			posterior <- model@model$encoder(x[b, ,  , ])
+			posterior <- model@model$encoder(x[b, ,  , , drop = FALSE])
 			z[[i]] <- posterior$mean()
 			res <- model@model$decoder(z[[i]])
 			nucleosome[[i]] <- res$nucleosome
@@ -511,12 +511,14 @@ setMethod(
 		batch_size = 128L
 	){
 
+		x <- scale_vplot(x)
+
 		batches <- cut_data(x$shape[[1]], batch_size)
 		res <- list()
 
 		for (i in 1:length(batches)){
 			b <- batches[[i]]
-			posterior <- model@model$encoder(x[b, ,  , ])
+			posterior <- model@model$encoder(x[b, ,  , , drop = FALSE])
 			z <- posterior$mean()
 			res[[i]] <- z
 		}
