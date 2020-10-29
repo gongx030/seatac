@@ -10,7 +10,7 @@
 #' @param background number of background V-plots
 #' @param permutation number of permutations
 #'
-#' @return a SummarizedMotifs object
+#' @return a SummarizedVplots object
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -193,7 +193,7 @@ setMethod(
 		SummarizedExperiment::rowData(se)$nucleosome <- as.matrix(res$nucleosome)
 
 		se <- new(
-			'SummarizedMotifs',
+			'SummarizedVplots',
 			se,
 			fragment_size_range  = x@fragment_size_range,
 			fragment_size_interval = x@fragment_size_interval,
