@@ -3,10 +3,12 @@
 #' Compute the V-plot deviations
 #'
 #' @param x a Vplots object 
-#' @param annotation  a GRangesList object of motif binding sites
-#' @param block_size the window size for the V-plot surrounding each motif
+#' @param annotation a GRangesList object of motif binding sites
+#' @param model a pretrained VaeModel
 #' @param batch_size batch size 
+#' @param background number of background V-plots
 #' @param permutation number of permutations
+#'
 #' @return a SummarizedMotifs object
 #'
 #' @export
