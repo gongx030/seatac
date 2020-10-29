@@ -148,7 +148,9 @@ setMethod(
 			Zp <- Zp + CZ_perm
 		}
 
+		Z_bg <- Z_bg[!sapply(Z_bg, is.null)]
 		Z_bg <- Z_bg %>% tf$concat(0L)	# background latent representation
+
 		Z_mean <- Z_bg %>% tf$reduce_mean(0L, keepdims = TRUE)	# mean latent vector
 		Z_std <- Z_bg %>% tf$math$reduce_std(0L, keepdims = TRUE)	# std latent vector
 
