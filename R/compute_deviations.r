@@ -184,8 +184,6 @@ setMethod(
 			)
 		)
 
-		browser()
-
 		SummarizedExperiment::rowData(se)$freq <- as.numeric(freq)
 		SummarizedExperiment::rowData(se)$class <- classes
 		SummarizedExperiment::rowData(se)$pvalue <- as.numeric(pvalue)
