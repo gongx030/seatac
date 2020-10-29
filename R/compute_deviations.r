@@ -5,7 +5,8 @@
 #' @param x a Vplots object 
 #' @param annotation a GRangesList object of motif binding sites
 #' @param model a pretrained VaeModel
-#' @param batch_size_window batch size 
+#' @param batch_size_window batch size for processing windows
+#' @param batch_size_block batch size for running VAE prediction
 #' @param background number of background V-plots
 #' @param permutation number of permutations
 #'
@@ -26,7 +27,7 @@ setMethod(
 		annotation,
 		model,
 		batch_size_window = 128L,
-		batch_size_block = 256L
+		batch_size_block = 256L,
 		background = 1000L,
 		permutation = 100L
 	){
