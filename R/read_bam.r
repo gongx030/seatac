@@ -23,7 +23,7 @@ setMethod(
     x <- idxstatsBam(filename)
 		gr <- GRanges(seqnames = x[, 'seqnames'], range = IRanges(1, x[, 'seqlength']))
 		seqlengths(seqinfo(gr)) <- width(gr)
-	  genome(seqinfo(gr)) <- metadata(gr)$genome
+	  genome(seqinfo(gr)) <- providerVersion(genome)
 
 	  flag <- scanBamFlag(
  	  	isSecondaryAlignment = FALSE,
