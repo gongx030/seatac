@@ -18,7 +18,7 @@ setMethod(
 		cvg <- tryCatch({
 			rtracklayer::import(object, which = reduce(x@rowRanges), as = 'RleList')
 		}, error = function(e){
-			stop(sprintf('%s cannot be imported by rtracklayer::import', objecct))
+			stop(sprintf('%s cannot be imported by rtracklayer::import', object))
 		})
 
 		y <- cvg[x@rowRanges] %>% as.matrix()
@@ -70,12 +70,12 @@ setMethod(
 			stop(sprintf('%s does not exist', object))
 
 		cvg <- tryCatch({
-			rtracklayer::import(object, which = reduce(x@rowRanges), as = 'RleList')
+			rtracklayer::import(object, which = reduce(x), as = 'RleList')
 		}, error = function(e){
-			stop(sprintf('%s cannot be imported by rtracklayer::import', objecct))
+			stop(sprintf('%s cannot be imported by rtracklayer::import', object))
 		})
 
-		y <- cvg[x@rowRanges] %>% as.matrix()
+		y <- cvg[x] %>% as.matrix()
 		mcols(x)[[label]] <- y
 		x
 	}
