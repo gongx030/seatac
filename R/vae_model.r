@@ -179,34 +179,13 @@ VaeDecoder <- function(
 			vplot_height = vplot_height
 		)
 	
-		# dense layers from the V-plot to nucleosome signal
-		self$dense_1 <- tf$keras$layers$Dense(
-			activation = 'relu',
-			units = 8L
-		)
-		self$dropout_1 <- tf$keras$layers$Dropout(0.1)
-
-		self$dense_2 <- tf$keras$layers$Dense(
-			activation = 'sigmoid',
-			units = 1L
-		)
-
 		function(x, training = TRUE){
 
 			y <- x %>%
 				self$vplot_decoder()
 	
 			x_pred <- y %>% tf$keras$activations$softmax(1L)
-	
-			nucleosome <- y %>%
-				tf$squeeze(3L) %>%
-				tf$transpose(shape(0L, 2L, 1L)) %>%
-				self$dense_1() %>%
-				self$dropout_1() %>%
-				self$dense_2() %>%
-				tf$squeeze(2L)
-			
-			list(vplots = x_pred, nucleosome = nucleosome)
+			x_pred
 		}
 	})
 }
@@ -253,13 +232,12 @@ VaeModel <- function(
 		function(x, training = TRUE){
 			posterior <- x %>% self$encoder()
 			z <- posterior$sample()
-			res <- z %>% self$decoder()
+			x_pred <- z %>% self$decoder()
 
 			list(
 				posterior = posterior, 
 				z = z, 
-				vplots = res$vplots,
-				nucleosome = res$nucleosome
+				vplots = x_pred
 			)
 		}
 	})
@@ -302,14 +280,6 @@ setMethod(
 		w <- w %>% tf$cast(tf$float32)
 		d$weight <- w
 
-		d$nucleoatacy <- rowData(x)$nucleoatac %>%
-			as.matrix() %>%
-			tf$cast(tf$float32) %>%
-			tf$expand_dims(2L) %>%
-			tf$nn$avg_pool1d(ksize = x@bin_size, strides = x@bin_size, padding = 'VALID') %>%
-			tf$squeeze(2L) %>%
-			scale01()
-
 		d <- d %>%
 			tensor_slices_dataset()
 		d
@@ -337,13 +307,12 @@ setMethod(
 		optimizer <- tf$keras$optimizers$Adam(1e-4, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
 
 		reconstrution_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')	# loss for the V-plot
-		nucleosome_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')	# loss for the nucleosome signal
 
 		x <- x %>% 
 			dataset_shuffle(1000L) %>%
 			split_dataset(test_size = test_size, batch_size = batch_size)
 
-		train_step <- function(x, w, y){
+		train_step <- function(x, w){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
 				res <- model@model(x)
 				loss_reconstruction <- (tf$squeeze(w, 3L) * reconstrution_loss(x, res$vplots)) %>%
@@ -351,9 +320,7 @@ setMethod(
 					tf$reduce_mean()
 				loss_kl <- (res$posterior$log_prob(res$z) - model@model$prior$log_prob(res$z)) %>%
 					tf$reduce_mean()
-				loss_nucleosome <- nucleosome_loss(y, res$nucleosome) %>%
-					tf$reduce_mean()
-				loss <- loss_reconstruction + loss_kl + tf$cast(model@model$decoder$vplot_decoder$vplot_height, tf$float32) * loss_nucleosome
+				loss <- loss_reconstruction + loss_kl
 	 		})
 			gradients <- tape$gradient(loss, model@model$trainable_variables)
 			list(gradients, model@model$trainable_variables) %>%
@@ -362,22 +329,18 @@ setMethod(
 			list(
 				loss = loss,
 				loss_reconstruction = loss_reconstruction,
-				loss_kl = loss_kl,
-				loss_nucleosome = loss_nucleosome
+				loss_kl = loss_kl
 			)
 		}
 
 
-		test_step <- function(x, w, y){
+		test_step <- function(x, w){
 			res <- model@model(x)
-			metric_nucleoatac <- nucleosome_loss(y, res$nucleosome) %>%
-				tf$reduce_mean()
 			metric_test <- (tf$squeeze(w, 3L) * reconstrution_loss(x, res$vplots)) %>%
 				tf$reduce_sum(shape(1L, 2L)) %>%
 				tf$reduce_mean()
 			list(
-				metric_test = metric_test,
-				metric_nucleoatac = metric_nucleoatac
+				metric_test = metric_test
 			)
 		}
 
@@ -389,29 +352,25 @@ setMethod(
 			loss_train <- NULL 
 			loss_train_reconstruction <- NULL
 			loss_train_kl <- NULL
-			loss_train_nucleosome <- NULL
 			iter <- make_iterator_one_shot(x$train)
 			res <- until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- train_step(batch$vplots, batch$weight, batch$nucleoatac)
+				res <- train_step(batch$vplots, batch$weight)
 				loss_train <- c(loss_train, as.numeric(res$loss))
 				loss_train_reconstruction <- c(loss_train_reconstruction, as.numeric(res$loss_reconstruction))
 				loss_train_kl <- c(loss_train_kl, as.numeric(res$loss_kl))
-				loss_train_nucleosome <- c(loss_train_nucleosome, as.numeric(res$loss_nucleosome))
 			})
 
 			# testing
 			metric_test <- NULL
-			metric_nucleoatac <- NULL
 			iter <- make_iterator_one_shot(x$test)
 			until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- test_step(batch$vplots, batch$weight, batch$nucleoatac)
+				res <- test_step(batch$vplots, batch$weight)
 				metric_test <- c(metric_test, as.numeric(res$metric_test))
-				metric_nucleoatac <- c(metric_nucleoatac, as.numeric(res$metric_nucleoatac))
 			})
 
-			message(sprintf('epoch=%6.d/%6.d | train_recon_loss=%13.7f | train_kl_loss=%13.7f | train_nucleosome_loss=%13.7f | train_loss=%13.7f | test_recon_loss=%13.7f | test_nucleosome=%13.7f', epoch, epochs, mean(loss_train_reconstruction), mean(loss_train_kl), mean(loss_train_nucleosome), mean(loss_train), mean(metric_test), mean(metric_nucleoatac)))
+			message(sprintf('epoch=%6.d/%6.d | train_recon_loss=%13.7f | train_kl_loss=%13.7f | train_loss=%13.7f | test_recon_loss=%13.7f', epoch, epochs, mean(loss_train_reconstruction), mean(loss_train_kl), mean(loss_train), mean(metric_test)))
 
 		}
 		model
@@ -447,8 +406,6 @@ setMethod(
 			tf$reshape(c(res$vplots$shape[[1]], -1L)) %>%
 			as.matrix()
 
-		SummarizedExperiment::rowData(x)$predicted_nucleosome <- tf[['repeat']](res$nucleosome, 5L, axis = 1L) %>% as.matrix()
-
 		x
 	}
 ) # predict
@@ -472,7 +429,6 @@ setMethod(
 	){
 
 		z <- list()
-		nucleosome <- list()
 		vplots <- list()	
 
 		x <- scale_vplot(x)
@@ -484,15 +440,13 @@ setMethod(
 			posterior <- model@model$encoder(x[b, ,  , , drop = FALSE])
 			z[[i]] <- posterior$mean()
 			res <- model@model$decoder(z[[i]])
-			nucleosome[[i]] <- res$nucleosome
 			vplots[[i]] <- res$vplots
 		}
 
 		z <- tf$concat(z, axis = 0L)
-		nucleosome <- tf$concat(nucleosome, axis = 0L)
 		vplots <- tf$concat(vplots, axis = 0L)
 
-		list(vplots = vplots, nucleosome = nucleosome, z = z)
+		list(vplots = vplots, z = z)
 	}
 )
 
