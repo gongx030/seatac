@@ -192,7 +192,7 @@ setMethod(
 		SummarizedExperiment::rowData(se)$p_adj <-  p.adjust(as.numeric(pvalue), method = 'BH')
 		SummarizedExperiment::rowData(se)$nucleosome <- as.matrix(res$nucleosome)
 
-		se <- new(
+		new(
 			'SummarizedVplots',
 			se,
 			fragment_size_range  = x@fragment_size_range,

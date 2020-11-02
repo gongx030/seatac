@@ -148,9 +148,10 @@ VaeEncoder <- function(
 		self$dense_1 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
 
 		function(x, training = TRUE, mask = NULL){
+
 			y <- x %>%
-			self$vplot_encoder() %>%
-			self$dense_1()
+				self$vplot_encoder() %>%
+				self$dense_1()
 
 			tfp$distributions$MultivariateNormalDiag(
 				loc = y[, 1:self$latent_dim],
@@ -329,7 +330,8 @@ setMethod(
 			list(
 				loss = loss,
 				loss_reconstruction = loss_reconstruction,
-				loss_kl = loss_kl
+				loss_kl = loss_kl,
+				vplots = res$vplots
 			)
 		}
 
