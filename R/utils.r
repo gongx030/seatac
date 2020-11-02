@@ -194,6 +194,9 @@ compute_z_score <- function(x, pseudo_count = 1L){
 
 #' scale_vplot 
 #'
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
 scale_vplot <- function(x){
 	w <- x %>% tf$reduce_sum(shape(1L), keepdims = TRUE)  # sum of reads per bin
 	x <- x / tf$where(w > 0, w, tf$ones_like(w))  # scale so that the sum of each bar is one (softmax)
