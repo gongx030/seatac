@@ -209,10 +209,6 @@ VaeModel <- function(
 	 name = NULL
 ){
 
-	self$fragment_size_range <- fragment_size_range
-	self$fragment_size_interval <- fragment_size_interval
-	self$breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
-	self$centers <- (self$breaks[-1] + self$breaks[-length(self$breaks)]) / 2
 
 	keras_model_custom(name = name, function(self){
 
@@ -222,6 +218,11 @@ VaeModel <- function(
 		self$block_size <- block_size
 		self$bin_size <- bin_size
 		self$n_bins_per_block <- as.integer(block_size / bin_size)
+
+		self$fragment_size_range <- fragment_size_range
+		self$fragment_size_interval <- fragment_size_interval
+		self$breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
+		self$centers <- (self$breaks[-1] + self$breaks[-length(self$breaks)]) / 2
 
 		self$encoder <- VaeEncoder(
 			latent_dim = latent_dim
