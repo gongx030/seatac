@@ -440,8 +440,7 @@ setMethod(
 			b <- batches[[i]]
 			posterior <- model@model$encoder(x[b, ,  , , drop = FALSE])
 			z[[i]] <- posterior$mean()
-			res <- model@model$decoder(z[[i]])
-			vplots[[i]] <- res$vplots
+			vplots[[i]] <- model@model$decoder(z[[i]])
 		}
 
 		z <- tf$concat(z, axis = 0L)
