@@ -330,8 +330,7 @@ setMethod(
 			list(
 				loss = loss,
 				loss_reconstruction = loss_reconstruction,
-				loss_kl = loss_kl,
-				vplots = res$vplots
+				loss_kl = loss_kl
 			)
 		}
 
