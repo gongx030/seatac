@@ -212,7 +212,7 @@ VaeModel <- function(
 	self$fragment_size_range <- fragment_size_range
 	self$fragment_size_interval <- fragment_size_interval
 	self$breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
-	self$centers <- (breaks[-1] + breaks[-length(breaks)]) / 2
+	self$centers <- (self$breaks[-1] + self$breaks[-length(self$breaks)]) / 2
 
 	keras_model_custom(name = name, function(self){
 
