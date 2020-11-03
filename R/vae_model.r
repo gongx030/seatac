@@ -221,8 +221,12 @@ VaeModel <- function(
 
 		self$fragment_size_range <- fragment_size_range
 		self$fragment_size_interval <- fragment_size_interval
-		self$breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
-		self$centers <- (self$breaks[-1] + self$breaks[-length(self$breaks)]) / 2
+		br <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
+		self$breaks <- tf$constant(br)
+		self$centers <- tf$constant((br[-1] + br[-length(br)]) / 2)
+		
+		self$is_nfr <- self$centers <= 100
+		self$is_nucleosome <- self$centers >= 180 & self$centers <= 247
 
 		self$encoder <- VaeEncoder(
 			latent_dim = latent_dim
@@ -244,10 +248,23 @@ VaeModel <- function(
 			z <- posterior$sample()
 			x_pred <- z %>% self$decoder()
 
+			di <- x_pred %>% 
+				tf$boolean_mask(self$is_nucleosome, axis = 1L) %>% 
+				tf$reduce_sum(1L) %>% 
+				tf$squeeze(2L)
+
+			nfr <- x_pred %>% 
+				tf$boolean_mask(self$is_nfr, axis = 1L) %>% 
+				tf$reduce_sum(1L) %>% 
+				tf$squeeze(2L)
+
+			nucleosome <- tf$math$log(di + 1e-10) - tf$math$log(nfr + 1e-10)
+
 			list(
 				posterior = posterior, 
 				z = z, 
-				vplots = x_pred
+				vplots = x_pred,
+				nucleosome = nucleosome
 			)
 		}
 	})
@@ -354,8 +371,8 @@ setMethod(
 			)
 		}
 
-		train_step <- tf_function(train_step) # convert to graph mode
-		test_step <- tf_function(test_step) # convert to graph mode
+#		train_step <- tf_function(train_step) # convert to graph mode
+#		test_step <- tf_function(test_step) # convert to graph mode
 
 		for (epoch in seq_len(epochs)){
 			# training 
