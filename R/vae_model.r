@@ -469,7 +469,7 @@ setMethod(
 				tf$reduce_sum(1L) %>% 
 				tf$squeeze(2L)
 
-			nucleosome[[i]] <- 1 / (1 + tf$math$exp(scale * (di / (di + nfr)  + offset))
+			nucleosome[[i]] <- 1 / (1 + tf$math$exp(scale * (di / (di + nfr)  + offset)))
 
 		}
 
