@@ -439,7 +439,9 @@ setMethod(
 	function(
 		model,
 		x,
-		batch_size = 128L
+		batch_size = 128L,
+		scale = -10,
+		offset = -0.95
 	){
 
 		z <- list()
@@ -467,7 +469,7 @@ setMethod(
 				tf$reduce_sum(1L) %>% 
 				tf$squeeze(2L)
 
-			nucleosome[[i]] <- 1 / (1 + tf$math$exp(-10 * (di / (di + nfr)  - 0.95)))
+			nucleosome[[i]] <- 1 / (1 + tf$math$exp(scale * (di / (di + nfr)  + offset))
 
 		}
 
