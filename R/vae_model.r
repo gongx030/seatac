@@ -457,10 +457,17 @@ setMethod(
 			x_pred <- model@model$decoder(z[[i]])
 			vplots[[i]] <- x_pred
 
-			nucleosome[[i]] <- x_pred %>% 
+			di <- x_pred %>% 
 				tf$boolean_mask(model@model$is_nucleosome, axis = 1L) %>% 
 				tf$reduce_sum(1L) %>% 
 				tf$squeeze(2L)
+
+			nfr <- x_pred %>% 
+				tf$boolean_mask(model@model$is_nfr, axis = 1L) %>% 
+				tf$reduce_sum(1L) %>% 
+				tf$squeeze(2L)
+
+			nucleosome[[i]] <-  di / (di + nfr)
 
 		}
 
