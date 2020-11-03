@@ -248,23 +248,10 @@ VaeModel <- function(
 			z <- posterior$sample()
 			x_pred <- z %>% self$decoder()
 
-			di <- x_pred %>% 
-				tf$boolean_mask(self$is_nucleosome, axis = 1L) %>% 
-				tf$reduce_sum(1L) %>% 
-				tf$squeeze(2L)
-
-			nfr <- x_pred %>% 
-				tf$boolean_mask(self$is_nfr, axis = 1L) %>% 
-				tf$reduce_sum(1L) %>% 
-				tf$squeeze(2L)
-
-			nucleosome <- tf$math$log(di + 1e-10) - tf$math$log(nfr + 1e-10)
-
 			list(
 				posterior = posterior, 
 				z = z, 
-				vplots = x_pred,
-				nucleosome = nucleosome
+				vplots = x_pred
 			)
 		}
 	})
@@ -457,6 +444,7 @@ setMethod(
 
 		z <- list()
 		vplots <- list()	
+		nucleosome <- list()	
 
 		x <- scale_vplot(x)
 
@@ -466,13 +454,28 @@ setMethod(
 			b <- batches[[i]]
 			posterior <- model@model$encoder(x[b, ,  , , drop = FALSE])
 			z[[i]] <- posterior$mean()
-			vplots[[i]] <- model@model$decoder(z[[i]])
+			x_pred <- model@model$decoder(z[[i]])
+			vplots[[i]] <- x_pred
+
+			di <- x_pred %>% 
+				tf$boolean_mask(model@model$is_nucleosome, axis = 1L) %>% 
+				tf$reduce_sum(1L) %>% 
+				tf$squeeze(2L)
+
+			nfr <- x_pred %>% 
+				tf$boolean_mask(model@model$is_nfr, axis = 1L) %>% 
+				tf$reduce_sum(1L) %>% 
+				tf$squeeze(2L)
+
+			nucleosome[[i]] <- tf$math$log(di + 1e-10) - tf$math$log(nfr + 1e-10)
+
 		}
 
 		z <- tf$concat(z, axis = 0L)
 		vplots <- tf$concat(vplots, axis = 0L)
+		nucleosome <- tf$concat(nucleosome, axis = 0L)
 
-		list(vplots = vplots, z = z)
+		list(vplots = vplots, z = z, nucleosome = nucleosome)
 	}
 )
 
