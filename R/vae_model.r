@@ -320,10 +320,10 @@ setMethod(
 		 batch_size = 32L,
 		 epochs = 100L,
 		 test_size = 0.15,
-		 weighted = TRUE
+		 learning_rate = 1e-4
 	 ){
 
-		optimizer <- tf$keras$optimizers$Adam(1e-4, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
+		optimizer <- tf$keras$optimizers$Adam(learning_rate, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
 
 		reconstrution_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')	# loss for the V-plot
 
