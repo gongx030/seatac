@@ -467,7 +467,7 @@ setMethod(
 				tf$reduce_sum(1L) %>% 
 				tf$squeeze(2L)
 
-			nucleosome[[i]] <-  di / (di + nfr)
+			nucleosome[[i]] <- 1 / (1 + tf$math$exp(-10 * (di / (di + nfr)  - 0.95)))
 
 		}
 
