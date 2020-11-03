@@ -272,7 +272,8 @@ setMethod(
 	),
 	function(
 		model,
-		x
+		x,
+		weighted = TRUE
 	){
 
 		d <- list()
@@ -292,6 +293,9 @@ setMethod(
 		# add weight for each genomic bin
 		w <- tf$reduce_sum(d$vplots, 1L, keepdims = TRUE) > 0
 		w <- w %>% tf$cast(tf$float32)
+		if (!weighted)
+			w <- tf$ones_like(w)
+
 		d$weight <- w
 
 		d <- d %>%
@@ -315,7 +319,8 @@ setMethod(
 		 x,
 		 batch_size = 32L,
 		 epochs = 100L,
-		 test_size = 0.15
+		 test_size = 0.15,
+		 weighted = TRUE
 	 ){
 
 		optimizer <- tf$keras$optimizers$Adam(1e-4, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
