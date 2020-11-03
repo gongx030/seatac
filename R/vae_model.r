@@ -371,8 +371,8 @@ setMethod(
 			)
 		}
 
-#		train_step <- tf_function(train_step) # convert to graph mode
-#		test_step <- tf_function(test_step) # convert to graph mode
+		train_step <- tf_function(train_step) # convert to graph mode
+		test_step <- tf_function(test_step) # convert to graph mode
 
 		for (epoch in seq_len(epochs)){
 			# training 
