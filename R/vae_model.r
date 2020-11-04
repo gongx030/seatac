@@ -518,3 +518,34 @@ setMethod(
 	}
 )
 
+
+#' 
+#' @export
+#'
+setMethod(
+	'decode',
+	signature(
+		model = 'VaeModel',
+		x = 'tensorflow.tensor'
+	),
+	function(
+		model,
+		x,
+		batch_size = 128L
+	){
+
+		x <- scale_vplot(x)
+
+		batches <- cut_data(x$shape[[1]], batch_size)
+		vplots <- list()
+
+		for (i in 1:length(batches)){
+			b <- batches[[i]]
+			vplots[[i]] <- model@model$decoder(x[b, , drop = FALSE])
+		}
+
+		vplots  <- tf$concat(vplots, axis = 0L)
+		vplots
+	}
+)
+

@@ -174,7 +174,9 @@ setMethod(
 
 		X <- counts %>%
 			tf$reshape(shape(length(classes), x@n_intervals, n_bins_per_block, 1L)) 
-		res <- model %>% predict(X)
+
+		res <- model %>% decode(Z)
+#		res <- model %>% predict(X)
 
 		predicted_counts <- res$vplots %>%
 			tf$reshape(shape(length(classes), x@n_intervals * n_bins_per_block))
