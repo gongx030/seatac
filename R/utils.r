@@ -202,3 +202,22 @@ scale_vplot <- function(x){
 	x <- x / tf$where(w > 0, w, tf$ones_like(w))  # scale so that the sum of each bar is one (softmax)
 	x
 }
+
+
+#' 
+#' @export
+#'
+vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.95){
+	di <- x %>%
+		tf$boolean_mask(is_nucleosome, axis = 1L) %>%
+		tf$reduce_sum(1L) %>%
+		tf$squeeze(2L)
+
+	nfr <- x %>%
+		tf$boolean_mask(is_nfr, axis = 1L) %>%
+		tf$reduce_sum(1L) %>%
+		tf$squeeze(2L)
+
+	1 / (1 + tf$math$exp(scale * (di / (di + nfr)  + offset)))
+
+} # vplot2nucleosome

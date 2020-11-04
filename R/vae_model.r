@@ -463,18 +463,7 @@ setMethod(
 			z[[i]] <- posterior$mean()
 			x_pred <- model@model$decoder(z[[i]])
 			vplots[[i]] <- x_pred
-
-			di <- x_pred %>% 
-				tf$boolean_mask(model@model$is_nucleosome, axis = 1L) %>% 
-				tf$reduce_sum(1L) %>% 
-				tf$squeeze(2L)
-
-			nfr <- x_pred %>% 
-				tf$boolean_mask(model@model$is_nfr, axis = 1L) %>% 
-				tf$reduce_sum(1L) %>% 
-				tf$squeeze(2L)
-
-			nucleosome[[i]] <- 1 / (1 + tf$math$exp(scale * (di / (di + nfr)  + offset)))
+			nucleosome[[i]] <- x_pred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset)
 
 		}
 
@@ -538,14 +527,19 @@ setMethod(
 
 		batches <- cut_data(x$shape[[1]], batch_size)
 		vplots <- list()
+		nucleosome <- list()
 
 		for (i in 1:length(batches)){
 			b <- batches[[i]]
-			vplots[[i]] <- model@model$decoder(x[b, , drop = FALSE])
+			x_pred <- model@model$decoder(x[b, , drop = FALSE])
+			vplots[[i]] <- x_pred
+			nucleosome[[i]] <- xpred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset)
 		}
 
 		vplots  <- tf$concat(vplots, axis = 0L)
-		vplots
+		nucleosome <- tf$concat(nucleosome, axis = 0L)
+
+		list(vplots = vplots, nucleosome = nucleosome)
 	}
 )
 
