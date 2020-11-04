@@ -427,8 +427,8 @@ setMethod(
 			tf$reshape(c(res$vplots$shape[[1]], -1L)) %>%
 			as.matrix()
 		
-		rowData(x)$latent <- res$z %>% as.matrix()
-		rowData(x)$nucleosome <- res$nucleosome %>% as.matrix()
+		SummarizedExperiment::rowData(x)$latent <- res$z %>% as.matrix()
+		SummarizedExperiment::rowData(x)$nucleosome <- res$nucleosome %>% as.matrix()
 
 		x
 	}
