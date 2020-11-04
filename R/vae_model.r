@@ -520,7 +520,9 @@ setMethod(
 	function(
 		model,
 		x,
-		batch_size = 128L
+		batch_size = 128L,
+		scale = -10,
+		offset = -0.95
 	){
 
 		batches <- cut_data(x$shape[[1]], batch_size)
