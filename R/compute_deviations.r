@@ -194,6 +194,7 @@ setMethod(
 		SummarizedExperiment::rowData(se)$pvalue <- as.numeric(pvalue)
 		SummarizedExperiment::rowData(se)$p_adj <-  p.adjust(as.numeric(pvalue), method = 'BH')
 		SummarizedExperiment::rowData(se)$nucleosome <- as.matrix(res$nucleosome)
+		SummarizedExperiment::rowData(se)$latent <- as.matrix(Z)
 
 		new(
 			'SummarizedVplots',
