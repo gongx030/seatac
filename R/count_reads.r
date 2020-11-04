@@ -1,6 +1,8 @@
 #' Count reads
 #'
 #' Count how many reads fall into a specific fragment size range
+#'
+#' @param x a GRanges object defining the peaks; the width must be the same for all peaks.
 #' 
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)

@@ -406,7 +406,9 @@ setMethod(
 	function(
 		model,
 		x,
-		batch_size = 1L # v-plot per batch
+		batch_size = 1L, # v-plot per batch
+		scale = -10,
+		offset = -0.95
 	){
 
 		y <- assays(x)$counts %>%
@@ -419,11 +421,14 @@ setMethod(
 			)) %>%
 			tf$cast(tf$float32)
 
-		res <- model %>% predict(y)
+		res <- model %>% predict(y, batch_size = batch_size, scale = scale, offset = offset)
 
 		x@assays[['predicted_counts']]  <- res$vplots %>%
 			tf$reshape(c(res$vplots$shape[[1]], -1L)) %>%
 			as.matrix()
+		
+		rowData(x)$latent <- res$z %>% as.matrix()
+		rowData(x)$nucleosome <- res$nucleosome %>% as.matrix()
 
 		x
 	}
