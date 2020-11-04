@@ -423,7 +423,7 @@ setMethod(
 
 		res <- model %>% predict(y, batch_size = batch_size, scale = scale, offset = offset)
 
-		x@assays[['predicted_counts']]  <- res$vplots %>%
+		x@assays@data$predicted_counts <- res$vplots %>%
 			tf$reshape(c(res$vplots$shape[[1]], -1L)) %>%
 			as.matrix()
 		
