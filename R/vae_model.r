@@ -533,7 +533,7 @@ setMethod(
 			b <- batches[[i]]
 			x_pred <- model@model$decoder(x[b, , drop = FALSE])
 			vplots[[i]] <- x_pred
-			nucleosome[[i]] <- xpred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset)
+			nucleosome[[i]] <- x_pred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset)
 		}
 
 		vplots  <- tf$concat(vplots, axis = 0L)
