@@ -523,8 +523,6 @@ setMethod(
 		batch_size = 128L
 	){
 
-		x <- scale_vplot(x)
-
 		batches <- cut_data(x$shape[[1]], batch_size)
 		vplots <- list()
 		nucleosome <- list()
