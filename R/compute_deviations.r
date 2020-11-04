@@ -46,10 +46,7 @@ setMethod(
 		batches <- cut_data(length(x), batch_size_window)
 
 		counts <- tf$zeros(shape(length(classes), n_bins_per_block * x@n_intervals))	# total observed counts of the V-plot for each TF
-		predicted_counts <- tf$zeros(shape(length(classes), n_bins_per_block * x@n_intervals))	# total predicted counts of the V-plot for each TF
 		freq <- tf$zeros(shape(length(classes)))	# number of motif hits
-
-		nucleosome <- tf$zeros(shape(length(classes), n_bins_per_block))	# total predicted counts of the V-plot for each TF
 
 		Z <- tf$zeros(shape(length(classes), model@model$encoder$latent_dim))	# latent representation for each motif
 		Zp <- tf$zeros(shape(permutation, length(classes), model@model$encoder$latent_dim))	# permutated latent representation 
@@ -126,17 +123,6 @@ setMethod(
 
 			counts <- counts + CV	# aggregated V-plot for each motif
 
-			predicted_BV <- predicted_BV %>%
-				tf$reshape(c(predicted_BV$shape[[1]], -1L))
-
-			predicted_KV <- tf$sparse$sparse_dense_matmul(KB, predicted_BV)	# TF sites ~ Vplot
-			predicted_CV <- tf$sparse$sparse_dense_matmul(CK, predicted_KV) # classes ~ Vplot
-
-			predicted_counts <- predicted_counts + predicted_CV	# aggregated V-plot for each motif
-
-			KN <- tf$sparse$sparse_dense_matmul(KB, res$nucleosome) # TF sites ~ n_bins_per_block
-			nucleosome <- nucleosome + tf$sparse$sparse_dense_matmul(CK, KN) # classes ~ Vplot
-
 			# randomly sample background latent representation
 			if (bg[i] > 0){
 				m <- seq_len(BV$shape[[1]])%in% sample(seq_len(BV$shape[[1]]), bg[i], replace = TRUE)
@@ -188,14 +174,13 @@ setMethod(
 		pvalue <- (n + 1) / permutation
 		pvalue <- tf$math$minimum(pvalue, 1)
 
+		X <- counts %>%
+			tf$reshape(shape(length(classes), x@n_intervals, n_bins_per_block, 1L)) 
 
-#		X <- counts %>%
-#			tf$reshape(shape(length(classes), x@n_intervals, n_bins_per_block, 1L)) 
-#		res <- model %>% predict(X)
-#		predicted_counts <- res$vplots %>%
-#			tf$reshape(shape(length(classes), x@n_intervals * n_bins_per_block))
-#		predicted_counts <- predicted_counts %>%
-#			tf$reshape(shape(length(classes), x@n_intervals * n_bins_per_block))
+		res <- model %>% predict(X)
+
+		predicted_counts <- res$vplots %>%
+			tf$reshape(shape(length(classes), x@n_intervals * n_bins_per_block))
 
 		se <- SummarizedExperiment(
 			assays = list(
@@ -208,7 +193,7 @@ setMethod(
 		SummarizedExperiment::rowData(se)$class <- classes
 		SummarizedExperiment::rowData(se)$pvalue <- as.numeric(pvalue)
 		SummarizedExperiment::rowData(se)$p_adj <-  p.adjust(as.numeric(pvalue), method = 'BH')
-		SummarizedExperiment::rowData(se)$nucleosome <- as.matrix(nucleosome)
+		SummarizedExperiment::rowData(se)$nucleosome <- as.matrix(res$nucleosome)
 
 		new(
 			'SummarizedVplots',
