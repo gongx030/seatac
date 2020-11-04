@@ -41,7 +41,7 @@ setMethod(
 		)
 		g <- g[g$isize >= fragment_size_range[1] & g$isize <= fragment_size_range[2]]
 
-		coverage(g)[gr] %>% sum()
+		coverage(g)[gr] 
 	}
 )
 	
