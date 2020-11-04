@@ -27,9 +27,9 @@ setMethod(
 		peaks <- reduce(resize(x, fix = 'center', width = window_size + 2000))
 		g <- read_bam(filename, peaks = peaks, genome = genome)
 
-		seqlevels(gr, pruning.mode = 'coarse') <- seqlevels(g)
-	  seqlengths(seqinfo(gr)) <-  seqlengths(seqinfo(g))
-  	genome(seqinfo(gr)) <-  genome(seqinfo(g))
+		seqlevels(x, pruning.mode = 'coarse') <- seqlevels(g)
+	  seqlengths(seqinfo(x)) <-  seqlengths(seqinfo(g))
+  	genome(seqinfo(x)) <-  genome(seqinfo(g))
 		
 		g <- g[strand(g) == '+']
 		g <- GRanges(
@@ -41,7 +41,7 @@ setMethod(
 		)
 		g <- g[g$isize >= fragment_size_range[1] & g$isize <= fragment_size_range[2]]
 
-		coverage(g)[gr] 
+		coverage(g)[x] %>% sum()
 	}
 )
 	
