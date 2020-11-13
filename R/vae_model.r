@@ -136,10 +136,10 @@ VplotDecoder <- function(
 #' VaeEncoder
 #' 
 VaeEncoder <- function(
-	 latent_dim,
-	 rate = 0.1,
-	 name = NULL
- ){
+	latent_dim,
+	rate = 0.1,
+	name = NULL
+){
 
 	keras_model_custom(name = name, function(self) {
 
@@ -352,7 +352,6 @@ setMethod(
 			)
 		}
 
-
 		test_step <- function(x, w){
 			res <- model@model(x)
 			metric_test <- (tf$squeeze(w, 3L) * reconstrution_loss(x, res$vplots)) %>%
@@ -509,6 +508,95 @@ setMethod(
 
 		z <- tf$concat(res, axis = 0L)
 		z
+	}
+)
+
+#'
+setMethod(
+	'encode',
+	signature(
+		model = 'VaeModel',
+		x = 'Vplots'
+	),
+	function(
+		model,
+		x,
+		batch_size = 256L
+	){
+
+		y <- assays(x)$counts %>%
+			as.matrix() %>%
+			reticulate::array_reshape(c(    # convert into a C-style array
+				length(x),
+				x@n_intervals,
+				x@n_bins_per_window,
+				1L
+			)) %>%
+			tf$cast(tf$float32)
+
+		z <- model %>% encode(y, batch_size = batch_size)
+		SummarizedExperiment::rowData(x)$latent <- z %>% as.matrix()
+		x
+	}
+) # encode
+
+#' 
+#' @export
+#'
+setMethod(
+	'encode',
+	signature(
+		model = 'VaeModel',
+		x = 'GRanges'
+	),
+	function(
+		model,
+		x,
+		filename,
+		genome,
+		batch_size = 128L,
+		batch_size_read_vplot = 1024L
+	){
+
+		window_size <- width(x[1])
+		stopifnot(all(width(x) == window_size))
+
+		block_size <- model@model$block_size
+		bin_size <- model@model$bin_size
+		n_bins_per_block <- model@model$n_bins_per_block
+
+		stopifnot(window_size >= block_size)
+		stopifnot(window_size %% bin_size == 0)
+
+		x <- x %>%
+			resize(width = window_size - block_size, fix = 'center') %>%
+			slidingWindows(bin_size, bin_size) %>%
+		 	unlist()
+
+		fragment_size_range <- c(model@model$fragment_size_range[[0]], model@model$fragment_size_range[[1]])
+		n_reads <- x %>%
+		  resize(width = block_size, fix = 'center') %>% 
+		  count_reads(filename, genome, fragment_size_range = fragment_size_range)
+
+		mcols(x)$n_reads <- n_reads
+		x <- x[x$n_reads > 0]
+
+		x <- x %>%
+			resize(width = block_size, fix = 'center')
+
+		batches <- cut_data(length(x), batch_size_read_vplot)
+
+		latent <- matrix(NA, length(x), model@model$encoder$latent_dim)
+		for (i in 1:length(batches)){
+			message(sprintf('encode | batch=%6.d/%6.d', i, length(batches)))
+			b <- batches[[i]]
+			xb <- x[b] %>% 
+				read_vplot(filename, genome, bin_size, fragment_size_range) 
+			xb <- model %>% encode(xb, batch_size)
+			latent[b, ] <- rowData(xb)$latent
+		}
+		mcols(x)$latent <- latent
+		x
 	}
 )
 
