@@ -64,16 +64,6 @@ reconstruct_vplot_from_blocks <- function(x){
 
 }
 
-#' scale01
-#' @export
-#'
-scale01 <- function(x){
-	x_min <- tf$reduce_min(x, 1L, keepdims = TRUE)
-	x_max <- tf$reduce_max(x, 1L, keepdims = TRUE)
-	w <- x_max - x_min
-	w <- tf$where(w > 0, w, tf$ones_like(w))	# scale so that the sum of each bar is one
-	(x - x_min) / w
-}
 
 #' get_angles
 #' Adopted from https://www.tensorflow.org/tutorials/text/transformer
