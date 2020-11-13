@@ -8,7 +8,8 @@ setMethod(
 	),
 	function(
 		x,
-		k = 50
+		k = 50,
+		min_reads = 1
 	){
 
 		if (is.null(rowData(x)$latent))
@@ -30,7 +31,7 @@ setMethod(
 			tf$reshape(shape(n_windows * n_blocks_per_window)) %>%
 			as.matrix()
 
-		has_reads <- n_reads > 0
+		has_reads <- n_reads >= min_reads
 		n <- sum(has_reads)
 
 		message(sprintf('cluster_vplot | get.knn(k=%d)', k))
