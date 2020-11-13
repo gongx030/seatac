@@ -512,6 +512,8 @@ setMethod(
 )
 
 #'
+#' @export
+#'
 setMethod(
 	'encode',
 	signature(
@@ -524,21 +526,60 @@ setMethod(
 		batch_size = 256L
 	){
 
-		y <- assays(x)$counts %>%
-			as.matrix() %>%
-			reticulate::array_reshape(c(    # convert into a C-style array
-				length(x),
-				x@n_intervals,
-				x@n_bins_per_window,
-				1L
-			)) %>%
-			tf$cast(tf$float32)
+		window_size <- width(x[1])
+		stopifnot(all(width(x) == window_size))
 
-		z <- model %>% encode(y, batch_size = batch_size)
-		SummarizedExperiment::rowData(x)$latent <- z %>% as.matrix()
+		block_size <- model@model$block_size
+		bin_size <- model@model$bin_size
+		n_bins_per_block <- model@model$n_bins_per_block
+
+		stopifnot(window_size >= block_size)
+		stopifnot(window_size %% bin_size == 0)
+
+		n_bins_per_window <- window_size / bin_size
+
+		n_blocks_per_window <- n_bins_per_window - n_bins_per_block + 1
+
+		batch_size_window <- max(1L, floor(batch_size / n_blocks_per_window))
+		batches <- cut_data(length(x), batch_size_window)
+
+		latent <- array(NA, c(length(x), n_blocks_per_window, model@model$encoder$latent_dim))
+		n_reads <- matrix(NA, length(x), n_blocks_per_window)
+
+		for (i in 1:length(batches)){
+			message(sprintf('encode | batch=%6.d/%6.d', i, length(batches)))
+			b <- batches[[i]]
+
+			y <- assays(x[b])$counts %>%
+				as.matrix() %>%
+				reticulate::array_reshape(c(    # convert into a C-style array
+					length(b),
+					x@n_intervals,
+					x@n_bins_per_window,
+					1L
+				)) %>%
+				tf$cast(tf$float32) %>%
+				extract_blocks_from_vplot(n_bins_per_block) %>%
+				tf$reshape(shape(length(b) * n_blocks_per_window, model@model$decoder$vplot_decoder$vplot_height, model@model$decoder$vplot_decoder$vplot_width, 1L))
+
+			z <- model %>% 
+				encode(y, batch_size = batch_size) %>% 
+				tf$reshape(shape(length(b), n_blocks_per_window, -1L))
+
+			latent[b, , ] <- z %>% as.array()
+
+			n_reads[b, ] <- y %>% 
+				tf$reduce_sum(shape(1L, 2L, 3L)) %>%
+				tf$reshape(shape(length(b), n_blocks_per_window)) %>%
+				as.matrix()
+		}
+
+		SummarizedExperiment::rowData(x)$latent <- latent
+		SummarizedExperiment::rowData(x)$n_reads <- n_reads
 		x
 	}
 ) # encode
+
 
 #' 
 #' @export
