@@ -16,6 +16,8 @@
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments GAlignmentsList
 #' @importFrom gplots colorpanel
 #' @importFrom BSgenome BSgenome
+#' @importFrom FNN get.knn
+#' @importFrom igraph graph.adjacency cluster_louvain
 #' @docType package
 #' @name seatac
 #'
