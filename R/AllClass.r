@@ -21,10 +21,12 @@ setClass(
 		n_bins_per_window = 'integer',
 		breaks = 'numeric',
 		centers = 'numeric',
-		positions = 'numeric'
+		positions = 'numeric',
+		block_size = 'integer'
 	),
 	contains = 'RangedSummarizedExperiment'
 )
+
 
 #' VplotsKmers
 #'

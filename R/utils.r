@@ -211,3 +211,5 @@ vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.
 	1 / (1 + tf$math$exp(scale * (di / (di + nfr)  + offset)))
 
 } # vplot2nucleosome
+
+

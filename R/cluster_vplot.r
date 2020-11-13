@@ -51,6 +51,7 @@ setMethod(
 			tf$cast(tf$int32) %>%
 			tf$reshape(shape(n_windows, n_blocks_per_window)) %>%
 			as.matrix()
+
 		x
 	}
 ) # cluster_vplot

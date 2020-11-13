@@ -91,7 +91,8 @@ setMethod(
 			n_bins_per_window = as.integer(n_bins_per_window ),
 			breaks = breaks,
 			centers = centers,
-			positions = seq(bin_size, window_size, by = bin_size) - (window_size / 2)
+			positions = seq(bin_size, window_size, by = bin_size) - (window_size / 2),
+			block_size = as.integer(window_size)
 		)
 	}
 

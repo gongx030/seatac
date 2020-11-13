@@ -576,6 +576,7 @@ setMethod(
 
 		SummarizedExperiment::rowData(x)$latent <- latent
 		SummarizedExperiment::rowData(x)$n_reads <- n_reads
+		x@block_size <- block_size
 		x
 	}
 ) # encode
