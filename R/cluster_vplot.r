@@ -9,7 +9,8 @@ setMethod(
 	function(
 		x,
 		k = 50,
-		min_reads = 1
+		min_reads = 1,
+		max_n = 10000L
 	){
 
 		if (is.null(rowData(x)$latent))
