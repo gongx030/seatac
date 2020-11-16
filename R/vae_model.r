@@ -710,3 +710,36 @@ setMethod(
 		x
 	}
 )
+
+#'
+#' @export 
+#'
+setMethod(
+	'decode',
+	signature(
+		model = 'VaeModel',
+		x = 'SummarizedVplots'
+	),
+	function(
+		model,
+		x,
+		batch_size = 1L, # v-plot per batch
+		scale = -10,
+		offset = -0.95
+	){
+
+		if (is.null(rowData(x)$latent))
+			stop('latent must be defined')
+
+		z <- rowData(x)$latent %>% 
+			tf$cast(tf$float32) 
+		res <- decode(model, z, batch_size = batch_size, scale = scale, offset = offset)
+
+		x@assays$data$predicted_counts <- res$vplots %>%
+			tf$reshape(c(res$vplots$shape[[1]], -1L)) %>%
+			as.matrix()
+		
+		SummarizedExperiment::rowData(x)$nucleosome <- res$nucleosome %>% as.matrix()
+		x
+	}
+)
