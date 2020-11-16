@@ -5,44 +5,41 @@ setMethod(
   signature(
 		x = 'Vplots'
 	),
-	function(x, include_assays = NULL, include_fields = NULL){
+	function(x){
 
 		block_size <- x@block_size
 		n_bins_per_block <- as.integer(block_size / x@bin_size)
 		n_blocks_per_window <- as.integer(x@n_bins_per_window - n_bins_per_block + 1)
 		n_blocks <- as.integer(n_blocks_per_window * nrow(x))
 
-		if (!is.null(include_assays)){
+		if (!is.null(assays(x))){
 
 			assays <- list()
 
-			for (h in include_assays){
+			for (h in names(assays(x))){
 
-				if (h %in% names(assays(x))){
+				y <- assays(x)[[h]] %>%
+					as.matrix() %>%
+					reticulate::array_reshape(c(    # convert into a C-style array
+						length(x),
+						x@n_intervals,
+						x@n_bins_per_window,
+						1L
+					)) %>%
+					tf$cast(tf$float32) %>%
+					extract_blocks_from_vplot(n_bins_per_block) 
+										
+				y <- y %>%
+					tf$reshape(c(y$shape[[1]] * y$shape[[2]], y$shape[[3]], y$shape[[4]], 1L))
 
-					y <- assays(x)[[h]] %>%
-						as.matrix() %>%
-						reticulate::array_reshape(c(    # convert into a C-style array
-							length(x),
-							x@n_intervals,
-							x@n_bins_per_window,
-							1L
-						)) %>%
-						tf$cast(tf$float32) %>%
-						extract_blocks_from_vplot(n_bins_per_block) 
-											
-					y <- y %>%
-						tf$reshape(c(y$shape[[1]] * y$shape[[2]], y$shape[[3]], y$shape[[4]], 1L))
-	
-					y <- y %>% 
-						tf$reshape(c(y$shape[[1]], -1L)) %>% 
-						as.matrix()
+				y <- y %>% 
+					tf$reshape(c(y$shape[[1]], -1L)) %>% 
+					as.matrix()
 
-					if (is(assays(x)[[h]], 'sparseMatrix'))
-						y <- as(y, 'dgCMatrix')
+				if (is(assays(x)[[h]], 'sparseMatrix'))
+					y <- as(y, 'dgCMatrix')
 
-					assays[[h]] <- y
-				}
+				assays[[h]] <- y
 			}
 
 			se <- SummarizedExperiment(assays = assays)
@@ -68,52 +65,49 @@ setMethod(
 		se@n_bins_per_window <- n_bins_per_block
 		se@positions <-  seq(se@bin_size, se@window_size, by = se@bin_size) - (se@window_size / 2)
 
-		if (!is.null(include_fields)){
+		if (!is.null(colnames(rowData(x)))){
 
-			for (h in include_fields){
+			for (h in colnames(rowData(x))){
 
-				if (h %in% colnames(rowData(x))){
+				dim_h <- dim(rowData(x)[[h]])
 
-					dim_h <- dim(rowData(x)[[h]])
+				if (dim_h[2] == x@window_size){
+					y <- rowData(x)[[h]] %>%
+						as.matrix() %>%
+						tf$cast(tf$float32) %>%
+						tf$expand_dims(-1L) %>%
+						tf$expand_dims(-1L) %>%
+						tf$image$extract_patches(
+							sizes = c(1L, block_size, 1L, 1L),
+							strides = c(1L, x@bin_size, 1L, 1L),
+							rates = c(1L, 1L, 1L, 1L),
+							padding = 'VALID'
+						) %>%
+						tf$squeeze(axis = 2L)
 
-					if (dim_h[2] == x@window_size){
-						y <- rowData(x)[[h]] %>%
-							as.matrix() %>%
-							tf$cast(tf$float32) %>%
-							tf$expand_dims(-1L) %>%
-							tf$expand_dims(-1L) %>%
-							tf$image$extract_patches(
-								sizes = c(1L, block_size, 1L, 1L),
-								strides = c(1L, x@bin_size, 1L, 1L),
-								rates = c(1L, 1L, 1L, 1L),
-								padding = 'VALID'
-							) %>%
-							tf$squeeze(axis = 2L)
+					y <- y %>%
+						tf$reshape(c(y$shape[[1]] * y$shape[[2]], block_size)) %>%
+						as.matrix()
 
-						y <- y %>%
-							tf$reshape(c(y$shape[[1]] * y$shape[[2]], block_size)) %>%
-							as.matrix()
+					if (is(assays(x)[[h]], 'sparseMatrix'))
+						y <- as(y, 'dgCMatrix')
 
-						if (is(assays(x)[[h]], 'sparseMatrix'))
-							y <- as(y, 'dgCMatrix')
+				}else if (dim_h[2] == n_blocks_per_window){
 
-					}else if (dim_h[2] == n_blocks_per_window){
+					if (length(dim(rowData(x)[[h]])) == 2)
+						target_shape <- shape(dim_h[1] * dim_h[2], 1L)
+					else
+						target_shape <- shape(dim_h[1] * dim_h[2], 1L, dim_h[-c(1:2)])
 
-						if (length(dim(rowData(x)[[h]])) == 2)
-							target_shape <- shape(dim_h[1] * dim_h[2], 1L)
-						else
-							target_shape <- shape(dim_h[1] * dim_h[2], 1L, dim_h[-c(1:2)])
-	
-						y <- rowData(x)[[h]] %>%
-							tf$cast(tf$float32) %>%
-							tf$reshape(target_shape) %>%
-							as.array()
-	
-					}else
-						stop(sprintf('dim(rowData(x)$%s)[2] must be either %d or %d', h, x@window_size, n_blocks_per_window))
+					y <- rowData(x)[[h]] %>%
+						tf$cast(tf$float32) %>%
+						tf$reshape(target_shape) %>%
+						as.array()
 
-					SummarizedExperiment::rowData(se)[[h]] <- y
-				}
+				}else
+					stop(sprintf('dim(rowData(x)$%s)[2] must be either %d or %d', h, x@window_size, n_blocks_per_window))
+
+				SummarizedExperiment::rowData(se)[[h]] <- y
 			}
 		}
 		se

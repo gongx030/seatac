@@ -14,3 +14,4 @@ setGeneric('compute_deviations', function(x, annotation, model, ...) standardGen
 setGeneric('summarize_vplot', function(x, annotation, ...) standardGeneric('summarize_vplot'))
 setGeneric('scale01', function(x, ...) standardGeneric('scale01'))
 setGeneric('cluster_vplot', function(x, ...) standardGeneric('cluster_vplot'))
+setGeneric('select_vplot', function(x, ...) standardGeneric('select_vplot'))

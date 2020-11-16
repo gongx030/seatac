@@ -50,12 +50,13 @@ setMethod(
 		g <- cluster_louvain(A)
 
 		membership <- rep(-1, n_windows * n_blocks_per_window)
-		membership[has_reads] <- g$membership
+		membership[has_reads] <- g$membership - 1	# convert to zero-based membership 
 
 		SummarizedExperiment::rowData(x)$membership <- membership %>%
 			tf$cast(tf$int32) %>%
-			tf$reshape(shape(n_windows, n_blocks_per_window)) %>%
-			as.matrix()
+			tf$reshape(shape(n_windows, n_blocks_per_window)) %>% 
+			tf$one_hot(depth = as.integer(max(g$membership)))%>%
+			as.array()
 
 		x
 	}
