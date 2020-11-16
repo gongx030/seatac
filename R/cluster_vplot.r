@@ -1,4 +1,8 @@
 #'
+#' We use nn2 (treetype='kd', searchtype='standard') from RANN package for constructing nearest KNN graph, 
+#' which has similar running time as the get.knn from FNN package.  However, nn2 allows for appriximate NN search
+#' through the eps arguments.
+#'
 #' @export
 #'
 setMethod(
@@ -10,7 +14,7 @@ setMethod(
 		x,
 		k = 50,
 		min_reads = 1,
-		max_n = 10000L
+		eps = 0
 	){
 
 		if (is.null(rowData(x)$latent))
@@ -35,10 +39,10 @@ setMethod(
 		has_reads <- n_reads >= min_reads
 		n <- sum(has_reads)
 
-		message(sprintf('cluster_vplot | get.knn(k=%d)', k))
-		gk <- get.knn(z[has_reads, ], k)
+		message(sprintf('cluster_vplot | make KNN graph(k=%d)', k))
+		gk <- nn2(z[has_reads, ], z[has_reads, ], k, treetype = 'kd', searchtype = 'standard', eps = eps)
 
-		A <- sparseMatrix(i = rep(1:n, k), j = c(gk$nn.index), x = 1 / (1 + c(gk$nn.dist)), dims = c(n, n))
+		A <- sparseMatrix(i = rep(1:n, k), j = c(gk$nn.idx), x = 1 / (1 + c(gk$nn.dists)), dims = c(n, n))
 		A <- (A + t(A)) / 2
 		A <- graph.adjacency(A, mode = 'undirected', weighted = TRUE)
 

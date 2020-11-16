@@ -26,5 +26,5 @@ Imports:
 	GenomicAlignments,
 	gplots,
 	BSgenome,
-	FNN,
+	RANN,
 	igraph
