@@ -140,7 +140,6 @@ setMethod(
 				CV <- tf$sparse$sparse_dense_matmul(CK, KV) # classes ~ Vplot
 				field_sum[[h]] <- field_sum[[h]] + CV # aggregated V-plot for each motif
 			}
-			print(h)
 
 			freq <- freq + CK %>% tf$sparse$reduce_sum(1L) 	# number of motif hits
 
