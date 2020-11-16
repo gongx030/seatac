@@ -735,7 +735,7 @@ setMethod(
 			tf$cast(tf$float32) 
 		res <- decode(model, z, batch_size = batch_size, scale = scale, offset = offset)
 
-		x@assays$data$predicted_counts <- res$vplots %>%
+		x@assays@data$predicted_counts <- res$vplots %>%
 			tf$reshape(c(res$vplots$shape[[1]], -1L)) %>%
 			as.matrix()
 		
