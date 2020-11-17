@@ -146,15 +146,13 @@ setMethod(
 		}
 
 		for (h in 1:length(assay_names)){
-			assay_sum[[h]] <- assay_sum[[h]] / freq[h]
+#			assay_sum[[h]] <- assay_sum[[h]] / freq[h]
 		}
 
 		for (h in 1:length(field_names)){
-			field_sum[[h]] <- field_sum[[h]] / freq[h]
+#			field_sum[[h]] <- field_sum[[h]] / freq[h]
 		}
 		
-		print(freq)
-
 		se <- SummarizedExperiment(
 			assays = lapply(assay_sum, as.matrix)
 		)
