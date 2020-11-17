@@ -150,7 +150,8 @@ setMethod(
 		}
 
 		for (h in 1:length(field_names)){
-#			field_sum[[h]] <- field_sum[[h]] / freq[h]
+			message(h)
+			field_sum[[h]] <- field_sum[[h]] / freq[h]
 		}
 		
 		se <- SummarizedExperiment(
