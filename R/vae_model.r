@@ -817,8 +817,8 @@ setMethod(
 			message(sprintf('predict | sample=%s', names(x)[i]))
 
 			xi <- x[[i]]
-		  xi <- vae %>% encode(xi, batch_size = batch_size, verbose = FALSE)
-		  xi <- vae %>% decode(xi, batch_size = batch_size, verbose = FALSE)
+		  xi <- model %>% encode(xi, batch_size = batch_size, verbose = FALSE)
+		  xi <- model %>% decode(xi, batch_size = batch_size, verbose = FALSE)
 			y[[i]] <- xi %>% 
 				select_vplot(fields = c('nucleosome')) %>% 
 				slidingWindows()
