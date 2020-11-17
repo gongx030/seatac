@@ -18,6 +18,7 @@
 #' @importFrom BSgenome BSgenome
 #' @importFrom RANN nn2
 #' @importFrom igraph graph.adjacency cluster_louvain
+#' @importFrom motifmatchr matchMotifs
 #' @docType package
 #' @name seatac
 #'

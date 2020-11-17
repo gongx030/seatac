@@ -150,7 +150,6 @@ setMethod(
 		}
 
 		for (h in 1:length(field_names)){
-			message(h)
 			field_sum[[h]] <- field_sum[[h]] / freq[h]
 		}
 		

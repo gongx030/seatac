@@ -19,13 +19,11 @@ setMethod(
 	'compute_deviations',
 	signature(
 		x = 'Vplots',
-		annotation = 'GRangesList',
-		model = 'VaeModel'
+		annotation = 'GRangesList'
 	), 
 	function(
 		x, 
 		annotation,
-		model,
 		batch_size_window = 32L,
 		batch_size_block = 128L,
 		background = 1000L,
