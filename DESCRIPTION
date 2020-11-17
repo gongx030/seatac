@@ -27,5 +27,4 @@ Imports:
 	gplots,
 	BSgenome,
 	RANN,
-	igraph,
-	motifmatchr
+	igraph
