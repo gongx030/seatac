@@ -117,7 +117,6 @@ setMethod(
 			if (length(field_names) > 0){
 
 				for (h in 1:length(field_names)){
-					print(h)
 					dim_h <- dim(rowData(x)[[h]])
 					if (dim_h[2] == n_blocks_per_window){
 
