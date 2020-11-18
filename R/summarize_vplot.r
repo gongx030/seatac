@@ -41,20 +41,22 @@ setMethod(
 		names(assay_sum) <- assay_names
 
 		field_names <- colnames(rowData(x))
-		field_sum <- lapply(field_names, function(h){
-			dim_h <- dim(rowData(x)[[h]])
-			if (dim_h[2] == n_blocks_per_window){
-				if (length(dim_h) == 2)
-					target_shape <- 1L
-				else
-					target_shape <- dim_h[-c(1:2)]
-				tf$zeros(shape(length(classes), target_shape))
-			}else if (dim_h[2] == x@window_size){
-				tf$zeros(shape(length(classes), block_size))
-			}else
-				stop(sprintf('dim(rowData(x)$%s)[2] must be either %d or %d', h, x@window_size, n_blocks_per_window))
-		})
-		names(field_sum) <- field_names
+		if (length(field_names) > 0){
+			field_sum <- lapply(field_names, function(h){
+				dim_h <- dim(rowData(x)[[h]])
+				if (dim_h[2] == n_blocks_per_window){
+					if (length(dim_h) == 2)
+						target_shape <- 1L
+					else
+						target_shape <- dim_h[-c(1:2)]
+					tf$zeros(shape(length(classes), target_shape))
+				}else if (dim_h[2] == x@window_size){
+					tf$zeros(shape(length(classes), block_size))
+				}else
+					stop(sprintf('dim(rowData(x)$%s)[2] must be either %d or %d', h, x@window_size, n_blocks_per_window))
+			})
+			names(field_sum) <- field_names
+		}
 
 		freq <- tf$zeros(shape(length(classes)))	# number of motif hits
 
@@ -68,6 +70,7 @@ setMethod(
 				resize(fix = 'center', width = x@window_size - block_size + x@bin_size) %>%
 				slidingWindows(x@bin_size, x@bin_size) %>%
 				unlist()
+
 
 			j <- annotation %over% bins
 			n <- sum(j) # number of motif sites that have non-empty V-plot
@@ -111,36 +114,40 @@ setMethod(
 
 			}
 
-			for (h in 1:length(field_names)){
-				dim_h <- dim(rowData(x)[[h]])
-				if (dim_h[2] == n_blocks_per_window){
+			if (length(field_names) > 0){
 
-					BV <- rowData(x[b])[[h]] %>%
-						as.array() %>%
-						tf$cast(tf$float32) %>%
-						tf$reshape(c(length(b) * n_blocks_per_window, -1L))
+				for (h in 1:length(field_names)){
+					print(h)
+					dim_h <- dim(rowData(x)[[h]])
+					if (dim_h[2] == n_blocks_per_window){
 
-				}else if (dim_h[2] == x@window_size){
-					BV <- rowData(x[b])[[h]] %>%
-						as.matrix() %>%
-						tf$cast(tf$float32)  %>%
-						tf$expand_dims(-1L) %>%
-						tf$expand_dims(-1L) %>%
-						tf$image$extract_patches(
-							sizes = c(1L, block_size, 1L, 1L),
-							strides = c(1L, x@bin_size, 1L, 1L),
-							rates = c(1L, 1L, 1L, 1L),
-							padding = 'VALID'
-						) %>%
-						tf$squeeze(axis = 2L) %>%
-						tf$reshape(c(length(b) * n_blocks_per_window, -1L))
+						BV <- rowData(x[b])[[h]] %>%
+							as.array() %>%
+							tf$cast(tf$float32) %>%
+							tf$reshape(c(length(b) * n_blocks_per_window, -1L))
+	
+					}else if (dim_h[2] == x@window_size){
+						BV <- rowData(x[b])[[h]] %>%
+							as.matrix() %>%
+							tf$cast(tf$float32)  %>%
+							tf$expand_dims(-1L) %>%
+							tf$expand_dims(-1L) %>%
+							tf$image$extract_patches(
+								sizes = c(1L, block_size, 1L, 1L),
+								strides = c(1L, x@bin_size, 1L, 1L),
+								rates = c(1L, 1L, 1L, 1L),
+								padding = 'VALID'
+							) %>%
+							tf$squeeze(axis = 2L) %>%
+							tf$reshape(c(length(b) * n_blocks_per_window, -1L))
+					}
+
+  	      KV <- tf$sparse$sparse_dense_matmul(KB, BV) # TF sites ~ Vplot
+					CV <- tf$sparse$sparse_dense_matmul(CK, KV) # classes ~ Vplot
+					field_sum[[h]] <- field_sum[[h]] + CV # aggregated V-plot for each motif
 				}
-
-        KV <- tf$sparse$sparse_dense_matmul(KB, BV) # TF sites ~ Vplot
-				CV <- tf$sparse$sparse_dense_matmul(CK, KV) # classes ~ Vplot
-				field_sum[[h]] <- field_sum[[h]] + CV # aggregated V-plot for each motif
 			}
-
+	
 			freq <- freq + CK %>% tf$sparse$reduce_sum(1L) 	# number of motif hits
 
 		}
@@ -149,15 +156,20 @@ setMethod(
 			assay_sum[[h]] <- assay_sum[[h]] / freq[h]
 		}
 
-		for (h in 1:length(field_names)){
-			field_sum[[h]] <- field_sum[[h]] / freq[h]
+		if (length(field_names) > 0){
+			for (h in 1:length(field_names)){
+				field_sum[[h]] <- field_sum[[h]] / freq[h]
+			}
 		}
 		
 		se <- SummarizedExperiment(
 			assays = lapply(assay_sum, as.matrix)
 		)
-		for (h in field_names){
-			SummarizedExperiment::rowData(se)[[h]] <- field_sum[[h]] %>% as.array()
+
+		if (length(field_names) > 0){
+			for (h in field_names){
+				SummarizedExperiment::rowData(se)[[h]] <- field_sum[[h]] %>% as.array()
+			}
 		}
 
 		SummarizedExperiment::rowData(se)$freq <- as.numeric(freq)
