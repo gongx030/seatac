@@ -800,7 +800,7 @@ setMethod(
 	'predict',
 	signature(
 		model = 'VaeModel',
-		x = 'list'
+		x = 'list'	# must be a list of Vplots objects
 	),
 	function(
 		model,
@@ -812,6 +812,7 @@ setMethod(
 	){
 
 		y <- list()
+
 		for (i in 1:length(x)){
 
 			message(sprintf('predict | sample=%s', names(x)[i]))
@@ -819,19 +820,29 @@ setMethod(
 			xi <- x[[i]]
 		  xi <- model %>% encode(xi, batch_size = batch_size, verbose = FALSE)
 		  xi <- model %>% decode(xi, batch_size = batch_size, verbose = FALSE)
-			y[[i]] <- xi %>% 
-				select_vplot(fields = c('nucleosome')) %>% 
-				slidingWindows()
+			y[[i]] <- rowData(xi)$nucleosome
 		}
 
-		counts <- do.call('cbind', lapply(y, function(yy) round(rowData(yy)$nucleosome * 100)))
-		colnames(counts) <- names(x)
-		se <- SummarizedExperiment(
-			assays = list(counts = counts),
-			rowRanges = granges(y[[1]])
+		y <- abind(y, along = 3)
+		dimnames(y)[[3]] <- names(x)
+		se <- SummarizedExperiment(rowRanges = granges(x[[1]]))
+		SummarizedExperiment::rowData(se)$nucleosome <- y
+
+		se <- new(
+			'Vplots',
+			se,
+			fragment_size_range  = x[[1]]@fragment_size_range,
+			fragment_size_interval = x[[1]]@fragment_size_interval,
+			bin_size = x[[1]]@bin_size,
+			window_size = x[[1]]@block_size,
+			n_intervals = x[[1]]@n_intervals,
+			n_bins_per_window = x[[1]]@n_bins_per_window,
+			breaks = x[[1]]@breaks,
+			centers = x[[1]]@centers,
+			positions = x[[1]]@positions,
+			block_size = model@model$block_size
 		)
-		se <- se[rowSums(assays(se)$counts) > 0]
-		se <- resize(se, width = model@model$bin_size, fix = 'center')
+
 		se
 	}
 )

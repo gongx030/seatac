@@ -94,6 +94,8 @@ setMethod(
 
 				}else if (dim_h[2] == n_blocks_per_window){
 
+					# need to deal with dim names
+
 					if (length(dim(rowData(x)[[h]])) == 2)
 						target_shape <- shape(dim_h[1] * dim_h[2], 1L)
 					else
