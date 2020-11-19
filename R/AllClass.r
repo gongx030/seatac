@@ -22,7 +22,7 @@ setClass(
 		breaks = 'numeric',
 		centers = 'numeric',
 		positions = 'numeric',
-		block_size = 'integer'
+		samples = 'character'
 	),
 	contains = 'RangedSummarizedExperiment'
 )

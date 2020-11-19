@@ -17,7 +17,7 @@ setMethod(
 		cat(sprintf('## bin_size:%d\n', object@bin_size))
 		cat(sprintf('## window_size:%d\n', object@window_size))
 		cat(sprintf('## n_bins_per_window:%d\n', object@n_bins_per_window))
-		cat(sprintf('## block_size:%d\n', object@block_size))
+		cat(sprintf('## n_samples:%d\n', length(object@samples)))
 	}
 )
 
@@ -35,4 +35,3 @@ setMethod(
 		cat(sprintf('## kmers: %s\n', object@k))
 	}
 )
-

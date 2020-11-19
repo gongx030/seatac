@@ -527,25 +527,16 @@ setMethod(
 		verbose = TRUE
 	){
 
-		window_size <- width(x[1])
-		stopifnot(all(width(x) == window_size))
-
 		block_size <- model@model$block_size
+
+		stopifnot(all(width(x) == block_size))
+
 		bin_size <- model@model$bin_size
 		n_bins_per_block <- model@model$n_bins_per_block
 
-		stopifnot(window_size >= block_size)
-		stopifnot(window_size %% bin_size == 0)
+		batches <- cut_data(length(x), batch_size)
 
-		n_bins_per_window <- window_size / bin_size
-
-		n_blocks_per_window <- n_bins_per_window - n_bins_per_block + 1
-
-		batch_size_window <- max(1L, floor(batch_size / n_blocks_per_window))
-		batches <- cut_data(length(x), batch_size_window)
-
-		latent <- array(NA, c(length(x), n_blocks_per_window, model@model$encoder$latent_dim))
-		n_reads <- matrix(NA, length(x), n_blocks_per_window)
+		latent <- matrix(NA, c(length(x), model@model$encoder$latent_dim))
 
 		for (i in 1:length(batches)){
 
@@ -562,9 +553,7 @@ setMethod(
 					x@n_bins_per_window,
 					1L
 				)) %>%
-				tf$cast(tf$float32) %>%
-				extract_blocks_from_vplot(n_bins_per_block) %>%
-				tf$reshape(shape(length(b) * n_blocks_per_window, model@model$decoder$vplot_decoder$vplot_height, model@model$decoder$vplot_decoder$vplot_width, 1L))
+				tf$cast(tf$float32)
 
 			z <- model %>% 
 				encode(y, batch_size = batch_size) %>% 
@@ -782,6 +771,7 @@ setMethod(
 
 		z <- rowData(x)$latent %>% 
 			tf$cast(tf$float32) 
+
 		res <- decode(model, z, batch_size = batch_size, scale = scale, offset = offset)
 
 		x@assays@data$predicted_counts <- res$vplots %>%
@@ -811,14 +801,17 @@ setMethod(
 		motif_width = 25L
 	){
 
+		browser()
+		n_samples <- length(x)
+
 		y <- list()
 
 		for (i in 1:length(x)){
 
 			message(sprintf('predict | sample=%s', names(x)[i]))
-
 			xi <- x[[i]]
 		  xi <- model %>% encode(xi, batch_size = batch_size, verbose = FALSE)
+			browser()
 		  xi <- model %>% decode(xi, batch_size = batch_size, verbose = FALSE)
 			y[[i]] <- rowData(xi)$nucleosome
 		}
