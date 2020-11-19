@@ -15,3 +15,4 @@ setGeneric('summarize_vplot', function(x, annotation, ...) standardGeneric('summ
 setGeneric('scale01', function(x, ...) standardGeneric('scale01'))
 setGeneric('cluster_vplot', function(x, ...) standardGeneric('cluster_vplot'))
 setGeneric('select_vplot', function(x, ...) standardGeneric('select_vplot'))
+setGeneric('match_motifs', function(x, pwms, ...) standardGeneric('match_motifs'))

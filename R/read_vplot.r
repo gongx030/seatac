@@ -79,12 +79,13 @@ setMethod(
 
 		})
 
-		counts <- Reduce('cbind', counts)
+		counts <- do.call('rbind', counts)
 
 		se <- SummarizedExperiment(
-			assays = list(counts = counts)
+			assays = list(counts = counts),
+			rowRanges = x[rep(1:length(x), times = length(filenames))]
 		)
-		SummarizedExperiment::rowRanges(se) <- x
+		SummarizedExperiment::rowData(se)$sample_id <- rep(1:length(filenames), each = length(x))
 
 		new(
 			'Vplots', 

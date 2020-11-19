@@ -49,7 +49,7 @@ setMethod(
 			coverage(g)[x] %>% sum()
 		})
 
-		do.call('cbind', counts)
+		do.call('rbind', counts)
 	}
 ) # count_reads
 	

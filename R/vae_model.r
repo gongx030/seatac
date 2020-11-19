@@ -410,26 +410,52 @@ setMethod(
 		offset = -0.95
 	){
 
-		y <- assays(x)$counts %>%
-			as.matrix() %>%
-			reticulate::array_reshape(c(    # convert into a C-style array
-				length(x),
-				x@n_intervals,
-				x@n_bins_per_window,
-				1L
-			)) %>%
-			tf$cast(tf$float32)
+		batches <- cut_data(length(x), batch_size)
 
-		res <- model %>% predict(y, batch_size = batch_size, scale = scale, offset = offset)
+		nucleosome <- list()
 
-		x@assays@data$predicted_counts <- res$vplots %>%
-			tf$reshape(c(res$vplots$shape[[1]], -1L)) %>%
+		for (i in 1:length(batches)){
+
+			b <- batches[[i]]
+
+			xb <- assays(x[b])$counts %>%
+				as.matrix() %>%
+				reticulate::array_reshape(c(    # convert into a C-style array
+					length(b),
+					x@n_intervals,
+					x@n_bins_per_window,
+					1L
+				)) %>%
+				tf$cast(tf$float32) %>%
+				scale_vplot() 
+
+			posterior <- model@model$encoder(xb)
+			z <- posterior$mean()
+			xb_pred <- model@model$decoder(z)
+
+			nucleosome[[i]] <- xb_pred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset)
+
+		}
+
+		nucleosome <- tf$concat(nucleosome, axis = 0L)
+
+		y <- nucleosome %>% 
+			tf$reshape(shape(length(x@samples), length(x) / length(x@samples), -1L)) %>%
+			tf$transpose(shape(1L, 2L, 0L)) %>%
+			tf$reshape(shape(x@n_bins_per_window * length(x) / length(x@samples), length(x@samples))) %>%
 			as.matrix()
-		
-		SummarizedExperiment::rowData(x)$latent <- res$z %>% as.matrix()
-		SummarizedExperiment::rowData(x)$nucleosome <- res$nucleosome %>% as.matrix()
 
-		x
+		y <- round(y * 100)
+		colnames(y) <- x@samples
+
+		bins <- rowRanges(x)[rowRanges(x)$sample_id == 1] %>%
+			slidingWindows(width = x@bin_size, step = x@bin_size) %>%
+			unlist()
+
+		SummarizedExperiment(
+			assays = list(counts = y),
+			rowRanges = bins
+		)
 	}
 ) # predict
 #'
@@ -468,7 +494,6 @@ setMethod(
 			x_pred <- model@model$decoder(z[[i]])
 			vplots[[i]] <- x_pred
 			nucleosome[[i]] <- x_pred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset)
-
 		}
 
 		z <- tf$concat(z, axis = 0L)
@@ -801,20 +826,13 @@ setMethod(
 		motif_width = 25L
 	){
 
-		browser()
-		n_samples <- length(x)
+			
 
-		y <- list()
-
-		for (i in 1:length(x)){
-
-			message(sprintf('predict | sample=%s', names(x)[i]))
 			xi <- x[[i]]
 		  xi <- model %>% encode(xi, batch_size = batch_size, verbose = FALSE)
 			browser()
 		  xi <- model %>% decode(xi, batch_size = batch_size, verbose = FALSE)
 			y[[i]] <- rowData(xi)$nucleosome
-		}
 
 		y <- abind(y, along = 3)
 		dimnames(y)[[3]] <- names(x)

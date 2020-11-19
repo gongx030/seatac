@@ -71,7 +71,6 @@ setMethod(
 				slidingWindows(x@bin_size, x@bin_size) %>%
 				unlist()
 
-
 			j <- annotation %over% bins
 			n <- sum(j) # number of motif sites that have non-empty V-plot
 
