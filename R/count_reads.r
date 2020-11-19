@@ -30,7 +30,7 @@ setMethod(
 
 		counts <- lapply(filenames, function(fn){
 
-			g <- read_bam(filename, peaks = peaks, genome = genome)
+			g <- read_bam(fn, peaks = peaks, genome = genome)
 
 			seqlevels(x, pruning.mode = 'coarse') <- seqlevels(g)
 		  seqlengths(seqinfo(x)) <-  seqlengths(seqinfo(g))
@@ -49,7 +49,7 @@ setMethod(
 			coverage(g)[x] %>% sum()
 		})
 
-		do.call('rbind', counts)
+		do.call('cbind', counts)
 	}
 ) # count_reads
 	

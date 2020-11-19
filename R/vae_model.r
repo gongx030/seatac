@@ -452,10 +452,13 @@ setMethod(
 			slidingWindows(width = x@bin_size, step = x@bin_size) %>%
 			unlist()
 
-		SummarizedExperiment(
+		se <- SummarizedExperiment(
 			assays = list(counts = y),
 			rowRanges = bins
 		)
+
+		se <- se[!duplicated(bins)]
+		se
 	}
 ) # predict
 #'
