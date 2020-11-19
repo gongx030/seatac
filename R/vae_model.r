@@ -458,6 +458,8 @@ setMethod(
 		)
 
 		se <- se[!duplicated(bins)]
+		se <- se[rowSums(assays(se)$counts) > 0]
+
 		se
 	}
 ) # predict
