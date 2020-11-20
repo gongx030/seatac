@@ -561,7 +561,7 @@ setMethod(
 
 		batches <- cut_data(length(x), batch_size)
 
-		latent <- matrix(NA, c(length(x), model@model$encoder$latent_dim))
+		latent <- matrix(NA, nrow = length(x), ncol = model@model$encoder$latent_dim)
 
 		for (i in 1:length(batches)){
 
@@ -703,65 +703,36 @@ setMethod(
 		batch_size = 256L, # v-plot per batch
 		scale = -10,
 		offset = -0.95,
-		nucleosome_only = TRUE,
 		verbose = TRUE
 	){
 
 		if (is.null(rowData(x)$latent))
 			stop('latent must be defined')
 
-		z <- rowData(x)$latent %>% 
-			tf$cast(tf$float32) 
+		nucleosome <- list()
+		predicted_counts <- list()
 
-		n_bins_per_window <- x@n_bins_per_window
-		n_bins_per_block <- as.integer(x@block_size / x@bin_size)
-		n_blocks_per_window <- n_bins_per_window - n_bins_per_block + 1
+		batches <- cut_data(length(x), batch_size)
 
-		batch_size_window <- floor(batch_size / n_blocks_per_window)
-		centers <- rep(FALSE, n_bins_per_block)
-		centers[median(1:n_bins_per_block)] <- TRUE
-
-		nucleosome <- matrix(NA, length(x), n_blocks_per_window)
-
-		if (!nucleosome_only){
-			predicted_counts <- array(0, dim = c(length(x), n_bins_per_window, x@n_intervals))
-			h <- 1:n_bins_per_window %in% (n_bins_per_block / 2):(n_bins_per_window - n_bins_per_block / 2)
-		}
-
-		batches <- cut_data(length(x), batch_size_window)
 		for (i in 1:length(batches)){
-
-			if (verbose)
-				message(sprintf('decode | batch=%6.d/%6.d', i, length(batches)))
 
 			b <- batches[[i]]
 			z <- rowData(x[b])$latent %>% 
-				tf$cast(tf$float32) %>%
-				tf$reshape(shape(length(b) * n_blocks_per_window, -1L))
+				tf$cast(tf$float32)
+
 			res <- decode(model, z, batch_size = batch_size, scale = scale, offset = offset)
 
-			nucleosome[b, ] <- res$nucleosome %>%
-				tf$boolean_mask(centers, axis = 1L) %>%
-				tf$reshape(shape(length(b), n_blocks_per_window, -1L)) %>%
-				tf$squeeze(2L) %>%
-				as.matrix()
+			nucleosome[[i]] <- res$nucleosome 
+			predicted_counts[[i]] <- res$vplots
 
-			if (!nucleosome_only){
-				predicted_counts[b, h, ]	 <- res$vplots %>%
-					tf$boolean_mask(centers, axis = 2L) %>%
-					tf$squeeze(c(2L, 3L)) %>%
-					tf$reshape(shape(length(b), n_blocks_per_window, -1L)) %>%
-					as.array()
-			}
-				
 		}
 
-		if (!nucleosome_only){
-			dim(predicted_counts) <- c(length(x), n_bins_per_window *  x@n_intervals)
-			SummarizedExperiment::assays(x)$predicted_counts <- predicted_counts %>% as('dgCMatrix')
-		}
+		nucleosome <- nucleosome %>% tf$concat(axis = 0L)
+		predicted_counts <-  predicted_counts %>% tf$concat(axis = 0L)
 
-		SummarizedExperiment::rowData(x)$nucleosome <- nucleosome 
+		predicted_counts <- predicted_counts %>% tf$reshape(shape(length(x), x@n_bins_per_window * x@n_intervals))
+		SummarizedExperiment::assays(x)$predicted_counts <- predicted_counts %>% as.matrix()
+		SummarizedExperiment::rowData(x)$nucleosome <- as.matrix(nucleosome)
 		x
 	}
 )
