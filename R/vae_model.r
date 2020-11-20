@@ -414,6 +414,15 @@ setMethod(
 
 		nucleosome <- list()
 
+		pred_step <- function(x){
+			x <- x %>% scale_vplot() 
+			posterior <- model@model$encoder(x)
+			z <- posterior$mean()
+			xb_pred <- model@model$decoder(z)
+			xb_pred
+		}
+		pred_step <- tf_function(pred_step) # convert to graph mode
+
 		for (i in 1:length(batches)){
 
 			b <- batches[[i]]
@@ -426,12 +435,9 @@ setMethod(
 					x@n_bins_per_window,
 					1L
 				)) %>%
-				tf$cast(tf$float32) %>%
-				scale_vplot() 
+				tf$cast(tf$float32)
 
-			posterior <- model@model$encoder(xb)
-			z <- posterior$mean()
-			xb_pred <- model@model$decoder(z)
+			xb_pred <- pred_step(xb)
 
 			nucleosome[[i]] <- xb_pred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset)
 
@@ -709,30 +715,16 @@ setMethod(
 		if (is.null(rowData(x)$latent))
 			stop('latent must be defined')
 
-		nucleosome <- list()
-		predicted_counts <- list()
+		z <- rowData(x)$latent %>% 
+			tf$cast(tf$float32)
 
-		batches <- cut_data(length(x), batch_size)
+		res <- decode(model, z, batch_size = batch_size, scale = scale, offset = offset)
 
-		for (i in 1:length(batches)){
+		SummarizedExperiment::assays(x)$predicted_counts <- res$vplots %>% 
+			tf$reshape(shape(length(x), x@n_bins_per_window * x@n_intervals)) %>% 
+			as.matrix()
 
-			b <- batches[[i]]
-			z <- rowData(x[b])$latent %>% 
-				tf$cast(tf$float32)
-
-			res <- decode(model, z, batch_size = batch_size, scale = scale, offset = offset)
-
-			nucleosome[[i]] <- res$nucleosome 
-			predicted_counts[[i]] <- res$vplots
-
-		}
-
-		nucleosome <- nucleosome %>% tf$concat(axis = 0L)
-		predicted_counts <-  predicted_counts %>% tf$concat(axis = 0L)
-
-		predicted_counts <- predicted_counts %>% tf$reshape(shape(length(x), x@n_bins_per_window * x@n_intervals))
-		SummarizedExperiment::assays(x)$predicted_counts <- predicted_counts %>% as.matrix()
-		SummarizedExperiment::rowData(x)$nucleosome <- as.matrix(nucleosome)
+		SummarizedExperiment::rowData(x)$nucleosome <- res$nucleosome %>% as.matrix()
 		x
 	}
 )

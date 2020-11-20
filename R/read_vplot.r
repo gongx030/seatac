@@ -3,9 +3,9 @@
 #' Read the V-plot from BAM files within a set of genomic regions
 #'
 #' @param x a GRange object that define a set of genomic regions.
-#' @param filenames BAM file name
-#' @param bin_size The bin size
-#' @param fragment_size_range fragment_size_range
+#' @param filenames BAM file names
+#' @param bin_size The bin size (default: 5L)
+#' @param fragment_size_range The range of the PE reads fragment sizes (default: c(80L, 320L))
 #' @param fragment_size_interval fragment_size_interval
 #'
 #' @export

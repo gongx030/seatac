@@ -4,10 +4,10 @@
 setMethod(
 	'match_motifs',
 	signature(
-		pwms = 'PWMatrixList',
-		x = 'RangedSummarizedExperiment'
+		x = 'RangedSummarizedExperiment',
+		pwms = 'PWMatrixList'
 	),
-	function(pwms, x, genome){
+	function(x, pwms, genome){
 
 		motif_ix <- matchMotifs(pwms, reduce(resize(granges(x), fix = 'center', width = 50L)), genome = genome, out = 'position')
 

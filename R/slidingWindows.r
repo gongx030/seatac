@@ -5,7 +5,7 @@ setMethod(
   signature(
 		x = 'Vplots'
 	),
-	function(x, width, batch_size = 8192L){
+	function(x, width, step, batch_size = 8192L){
 
 		stopifnot(width %% x@bin_size == 0)
 
