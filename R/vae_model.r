@@ -683,11 +683,11 @@ setMethod(
 		for (i in 1:length(batches)){
 			b <- batches[[i]]
 			x_pred <- model@model$decoder(x[b, , drop = FALSE])
-			vplots[[i]] <- x_pred
+#			vplots[[i]] <- x_pred
 			nucleosome[[i]] <- x_pred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset)
 		}
 
-		vplots  <- tf$concat(vplots, axis = 0L)
+#		vplots  <- tf$concat(vplots, axis = 0L)
 		nucleosome <- tf$concat(nucleosome, axis = 0L)
 
 		list(vplots = vplots, nucleosome = nucleosome)
@@ -720,9 +720,9 @@ setMethod(
 
 		res <- decode(model, z, batch_size = batch_size, scale = scale, offset = offset)
 
-		SummarizedExperiment::assays(x)$predicted_counts <- res$vplots %>% 
-			tf$reshape(shape(length(x), x@n_bins_per_window * x@n_intervals)) %>% 
-			as.matrix()
+#		SummarizedExperiment::assays(x)$predicted_counts <- res$vplots %>% 
+#			tf$reshape(shape(length(x), x@n_bins_per_window * x@n_intervals)) %>% 
+#			as.matrix()
 
 		SummarizedExperiment::rowData(x)$nucleosome <- res$nucleosome %>% as.matrix()
 		x
