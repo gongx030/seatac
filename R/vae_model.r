@@ -557,12 +557,7 @@ setMethod(
 		verbose = TRUE
 	){
 
-		block_size <- model@model$block_size
-
-		stopifnot(all(width(x) == block_size))
-
 		bin_size <- model@model$bin_size
-		n_bins_per_block <- model@model$n_bins_per_block
 
 		batches <- cut_data(length(x), batch_size)
 
