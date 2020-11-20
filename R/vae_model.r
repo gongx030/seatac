@@ -581,20 +581,14 @@ setMethod(
 				tf$cast(tf$float32)
 
 			z <- model %>% 
-				encode(y, batch_size = batch_size) %>% 
-				tf$reshape(shape(length(b), n_blocks_per_window, -1L))
-
-			latent[b, , ] <- z %>% as.array()
-
-			n_reads[b, ] <- y %>% 
-				tf$reduce_sum(shape(1L, 2L, 3L)) %>%
-				tf$reshape(shape(length(b), n_blocks_per_window)) %>%
+				encode(y, batch_size = batch_size) %>%
 				as.matrix()
+
+			latent[b, ] <- z %>% as.array()
+
 		}
 
 		SummarizedExperiment::rowData(x)$latent <- latent
-		SummarizedExperiment::rowData(x)$n_reads <- n_reads
-		x@block_size <- block_size
 		x
 	}
 ) # encode
