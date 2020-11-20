@@ -580,11 +580,9 @@ setMethod(
 				)) %>%
 				tf$cast(tf$float32)
 
-			z <- model %>% 
+			latent[b, ] <- model %>% 
 				encode(y, batch_size = batch_size) %>%
 				as.matrix()
-
-			latent[b, ] <- z %>% as.array()
 
 		}
 
