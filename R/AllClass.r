@@ -21,8 +21,7 @@ setClass(
 		n_bins_per_window = 'integer',
 		breaks = 'numeric',
 		centers = 'numeric',
-		positions = 'numeric',
-		samples = 'character'
+		positions = 'numeric'
 	),
 	contains = 'RangedSummarizedExperiment'
 )

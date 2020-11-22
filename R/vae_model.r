@@ -278,7 +278,7 @@ setMethod(
 
 		d <- list()
 
-		y <- assays(x)$counts %>%
+		d$vplots <- assays(x)$counts %>%
 			as.matrix() %>%
 			reticulate::array_reshape(c(    # convert into a C-style array
 				length(x),
@@ -286,9 +286,8 @@ setMethod(
 				x@n_bins_per_window,
 				1L
 			)) %>%
-			tf$cast(tf$float32)
-
-		d$vplots <- scale_vplot(y)
+			tf$cast(tf$float32) %>%
+			scale_vplot()
 
 		# add weight for each genomic bin
 		w <- tf$reduce_sum(d$vplots, 1L, keepdims = TRUE) > 0
@@ -298,8 +297,6 @@ setMethod(
 
 		d$weight <- w
 
-		d <- d %>%
-			tensor_slices_dataset()
 		d
 	}
 )
@@ -396,6 +393,8 @@ setMethod(
 )
 
 #'
+#' @export 
+#'
 setMethod(
 	'predict',
 	signature(
@@ -406,11 +405,12 @@ setMethod(
 		model,
 		x,
 		batch_size = 1L, # v-plot per batch
+		step = 20L,
 		scale = -10,
 		offset = -0.95
 	){
 
-		batches <- cut_data(length(x), batch_size)
+		stopifnot(step %% x@bin_size == 0)
 
 		nucleosome <- list()
 
@@ -423,7 +423,24 @@ setMethod(
 		}
 		pred_step <- tf_function(pred_step) # convert to graph mode
 
+		block_size <- model@model$block_size
+		n_bins_per_block <- as.integer(block_size / x@bin_size)
+		n_bins_per_step <- as.integer(step / x@bin_size)
+
+		block_starts <- seq(1, x@n_bins_per_window - n_bins_per_block + 1, by = n_bins_per_step)
+		block_ends <- block_starts + n_bins_per_block - 1
+		n_blocks_per_window <- length(block_starts)
+
+		batch_size_window <- floor(batch_size / n_blocks_per_window)
+		batches <- cut_data(length(x), batch_size_window)
+
+		blocks <- granges(x) %>%
+			slidingWindows(width = block_size, step = step) %>%
+			unlist()
+
 		for (i in 1:length(batches)){
+
+			message(sprintf('predict | batch=%6.d/%6.d', i, length(batches)))
 
 			b <- batches[[i]]
 
@@ -435,7 +452,16 @@ setMethod(
 					x@n_bins_per_window,
 					1L
 				)) %>%
-				tf$cast(tf$float32)
+				tf$cast(tf$float32) %>%
+		  	tf$image$extract_patches(
+					sizes = c(1L, x@n_intervals, n_bins_per_block, 1L),
+					strides = c(1L, 1L, n_bins_per_step, 1L),
+					rates = c(1L, 1L, 1L, 1L),
+					padding = 'VALID'
+				) %>%
+				tf$squeeze(axis = 1L) %>%
+			 	tf$reshape(c(length(b) * n_blocks_per_window, x@n_intervals, n_bins_per_block)) %>%
+				tf$expand_dims(-1L) 
 
 			xb_pred <- pred_step(xb)
 
@@ -445,28 +471,25 @@ setMethod(
 
 		nucleosome <- tf$concat(nucleosome, axis = 0L)
 
-		y <- nucleosome %>% 
-			tf$reshape(shape(length(x@samples), length(x) / length(x@samples), -1L)) %>%
-			tf$transpose(shape(1L, 2L, 0L)) %>%
-			tf$reshape(shape(x@n_bins_per_window * length(x) / length(x@samples), length(x@samples))) %>%
-			as.matrix()
+		nucleosome <- nucleosome %>%
+			tf$reshape(shape(length(blocks) * n_bins_per_block, 1L)) %>%
+			as.numeric() 
+		
+		nucleosome <- round(nucleosome * 100)
 
-		y <- round(y * 100)
-		colnames(y) <- x@samples
-
-		bins <- rowRanges(x)[rowRanges(x)$sample_id == 1] %>%
-			slidingWindows(width = x@bin_size, step = x@bin_size) %>%
+		bins <- blocks %>%
+			slidingWindows(x@bin_size, x@bin_size) %>%
 			unlist()
 
-		se <- SummarizedExperiment(
-			assays = list(counts = y),
-			rowRanges = bins
-		)
+		mcols(bins)$score <- nucleosome
+			
+		cvg <- bins %>% coverage(weight = 'score')
+		n <- bins %>% coverage()
+		y <- as(cvg / n, 'GRanges')
+		y$score[is.na(y$score)] <- 0
+		seqinfo(y)@genome <- seqinfo(bins)@genome
 
-		se <- se[!duplicated(bins)]
-		se <- se[rowSums(assays(se)$counts) > 0]
-
-		se
+		y
 	}
 ) # predict
 #'
@@ -780,35 +803,5 @@ setMethod(
 		offset = -0.95,
 		motif_width = 25L
 	){
-
-			
-
-			xi <- x[[i]]
-		  xi <- model %>% encode(xi, batch_size = batch_size, verbose = FALSE)
-			browser()
-		  xi <- model %>% decode(xi, batch_size = batch_size, verbose = FALSE)
-			y[[i]] <- rowData(xi)$nucleosome
-
-		y <- abind(y, along = 3)
-		dimnames(y)[[3]] <- names(x)
-		se <- SummarizedExperiment(rowRanges = granges(x[[1]]))
-		SummarizedExperiment::rowData(se)$nucleosome <- y
-
-		se <- new(
-			'Vplots',
-			se,
-			fragment_size_range  = x[[1]]@fragment_size_range,
-			fragment_size_interval = x[[1]]@fragment_size_interval,
-			bin_size = x[[1]]@bin_size,
-			window_size = x[[1]]@block_size,
-			n_intervals = x[[1]]@n_intervals,
-			n_bins_per_window = x[[1]]@n_bins_per_window,
-			breaks = x[[1]]@breaks,
-			centers = x[[1]]@centers,
-			positions = x[[1]]@positions,
-			block_size = model@model$block_size
-		)
-
-		se
 	}
 )

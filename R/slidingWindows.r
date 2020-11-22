@@ -1,132 +1,95 @@
 #' slidingWindows
 #'
+#' Get the sliding window as well as corresponding V-plots
+#'
+#' @param x a Vplots object
+#' @param width The width of the sliding window
+#' @param step The step for each sliding window
+#' @param batch_size The batch size of extraction operation (default: 4096L)
+#' 
+#' @return a new Vplot object which window_size is the specified width. 
+#'
+#' @export
+#'
 setMethod(
 	'slidingWindows',
   signature(
 		x = 'Vplots'
 	),
-	function(x, width, step, batch_size = 8192L){
+	function(x, width, step, batch_size = 4096L){
 
 		stopifnot(width %% x@bin_size == 0)
 
-		width <- min(width, x@window_size)
+		stopifnot(step %% x@bin_size == 0)
+
+		if (width > x@window_size)
+			stop(sprintf('width(%d) must be equal to or smaller than x@window_size(%d).', width, x@window_size))
+
+		if (is.null(assays(x)$counts))
+			stop('assays(x)$counts does not exist.')
 
 		n_bins_per_block <- as.integer(width / x@bin_size)
-		n_blocks_per_window <- as.integer(x@n_bins_per_window - n_bins_per_block + 1)
-		n_blocks <- as.integer(n_blocks_per_window * length(x))
 
-		if (!is.null(assays(x))){
+		n_bins_per_step <- as.integer(step / x@bin_size)
 
-			assays <- list()
-			batches <- cut_data(length(x), batch_size)
+		block_starts <- seq(1, x@n_bins_per_window - n_bins_per_block + 1, by = n_bins_per_step)
+		block_ends <- block_starts + n_bins_per_block - 1
+		n_blocks_per_window <- length(block_starts)
 
-			for (h in names(assays(x))){
+		batches <- cut_data(length(x), batch_size)
+		counts <- list()
 
-				assays[[h]] <- list()
+		for (i in 1:length(batches)){
 
-				for (i in 1:length(batches)){
+			message(sprintf('slidingWindows | batch=%4.d/%4.d', i, length(batches)))
 
-					b <- batches[[i]]
+			b <- batches[[i]]
 
-					y <- assays(x[b])[[h]] %>%
-						as.matrix() %>%
-						reticulate::array_reshape(c(    # convert into a C-style array
-							length(b),
-							x@n_intervals,
-							x@n_bins_per_window,
-							1L
-						)) %>%
-						tf$cast(tf$float32) %>%
-						extract_blocks_from_vplot(n_bins_per_block) 
-										
-					y <- y %>%
-						tf$reshape(c(y$shape[[1]] * y$shape[[2]], y$shape[[3]], y$shape[[4]], 1L))
-
-					y <- y %>% 
-						tf$reshape(c(y$shape[[1]], -1L)) %>% 
-						as.matrix()
-
-					if (is(assays(x)[[h]], 'sparseMatrix'))
-						y <- as(y, 'dgCMatrix')
-				
-					assays[[h]][[i]] <- y
-				}
-
-				assays[[h]] <- do.call('rbind', assays[[h]])
-			}
-
-			se <- SummarizedExperiment(assays = assays)
-
-		}else{
-			se <- SummarizedExperiment()
+			counts[[i]] <- assays(x[b])$counts %>%
+				as.matrix() %>%
+				reticulate::array_reshape(c(    # convert into a C-style array
+					length(b),
+					x@n_intervals,
+					x@n_bins_per_window,
+					1L
+				)) %>%
+				tf$cast(tf$float32) %>%
+				tf$image$extract_patches(
+					sizes = c(1L, x@n_intervals, n_bins_per_block, 1L),
+					strides = c(1L, 1L, n_bins_per_step, 1L),
+					rates = c(1L, 1L, 1L, 1L),
+					padding = 'VALID'
+				) %>%
+				tf$squeeze(axis = 1L) %>%
+				tf$reshape(c(length(b) * n_blocks_per_window, x@n_intervals, n_bins_per_block)) %>%
+				tf$expand_dims(-1L) %>%
+				tf$reshape(shape(length(b) * n_blocks_per_window, -1L)) %>%
+				as.matrix() %>%
+				as('dgCMatrix')
 		}
 
-		gr <- x@rowRanges %>% 
-			slidingWindows(width = width, step = x@bin_size) %>% 
+		counts <- do.call('rbind', counts)
+
+		gr <- granges(x) %>% 
+			slidingWindows(width = width, step = step) %>% 
 			unlist()
 
+		se <- SummarizedExperiment(assays = list(counts = counts))
 		SummarizedExperiment::rowRanges(se) <- gr
 
-		# copy slots
-		slots <- slotNames(x)
-		slots <- slots[!slots %in% slotNames(se)]
-		se <- new(class(x), se)
-		for (s in slots){
-			slot(se, s) <- slot(x, s)
-		}
-		se@window_size <- width
-		se@n_bins_per_window <- n_bins_per_block
-		se@positions <- seq(se@bin_size, se@window_size, by = se@bin_size) - (se@window_size / 2)
-
-		rowdata_fields <- colnames(rowData(x))
-
-		if (length(rowdata_fields) > 0){
-			for (h in rowdata_fields){
-
-				if (is.vector(rowData(x)[[h]])){
-
-					y <- rep(rowData(x)[[h]], each = n_blocks_per_window)
-
-				}else if (is.matrix(rowData(x)[[h]])){
-
-					dim_h <- dim(rowData(x)[[h]])
-
-					if (dim_h[2] == x@window_size){
-						patch_width <- width
-						patch_strides <- x@bin_size 
-					}else if (dim_h[2] ==  x@n_bins_per_window){
-						patch_width <- as.integer(width / x@bin_size)
-						patch_strides <- 1L
-					}else
-						stop(sprintf('dim(rowData(x)$%s)[2] must be either %d or %d', h, x@window_size, x@n_bins_per_window))
-
-					y <- rowData(x)[[h]] %>%
-						as.matrix() %>%
-						tf$cast(tf$float32) %>%
-						tf$expand_dims(-1L) %>%
-						tf$expand_dims(-1L) %>%
-						tf$image$extract_patches(
-							sizes = c(1L, patch_width, 1L, 1L),
-							strides = c(1L, patch_strides, 1L, 1L),
-							rates = c(1L, 1L, 1L, 1L),
-							padding = 'VALID'
-						) %>%
-						tf$squeeze(axis = 2L)
-
-					y <- y %>%
-						tf$reshape(c(y$shape[[1]] * y$shape[[2]], patch_width)) %>%
-						as.matrix()
-
-					if (is(assays(x)[[h]], 'sparseMatrix'))
-						y <- as(y, 'dgCMatrix')
-
-				}else
-					stop(sprintf('rowData(x)$%s must be a vector or a matrix', h))
-
-				SummarizedExperiment::rowData(se)[[h]] <- y
-			}
-		}
-		se
+		new(
+			'Vplots',
+			se,
+			fragment_size_range  = x@fragment_size_range,
+			fragment_size_interval = x@fragment_size_interval,
+			bin_size = x@bin_size,
+			window_size = block_size,
+			n_intervals = as.integer(x@n_intervals),
+			n_bins_per_window = n_bins_per_block,
+			breaks = x@breaks,
+			centers = x@centers,
+			positions = seq(x@bin_size, block_size, by = x@bin_size) - (block_size / 2)
+		)
 	}
 )
 
