@@ -421,7 +421,7 @@ setMethod(
 			xb_pred <- model@model$decoder(z)
 			xb_pred
 		}
-#		pred_step <- tf_function(pred_step) # convert to graph mode
+		pred_step <- tf_function(pred_step) # convert to graph mode
 
 		block_size <- model@model$block_size
 		n_bins_per_block <- as.integer(block_size / x@bin_size)
