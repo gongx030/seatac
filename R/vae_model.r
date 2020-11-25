@@ -407,12 +407,12 @@ setMethod(
 		batch_size = 1L, # v-plot per batch
 		step = 20L,
 		scale = -10,
-		offset = -0.95
+		offset = -0.95,
+		min_reads = 1
 	){
 
 		stopifnot(step %% x@bin_size == 0)
 
-		nucleosome <- list()
 
 		pred_step <- function(x){
 			x <- x %>% scale_vplot() 
@@ -421,7 +421,7 @@ setMethod(
 			xb_pred <- model@model$decoder(z)
 			xb_pred
 		}
-		pred_step <- tf_function(pred_step) # convert to graph mode
+#		pred_step <- tf_function(pred_step) # convert to graph mode
 
 		block_size <- model@model$block_size
 		n_bins_per_block <- as.integer(block_size / x@bin_size)
@@ -434,9 +434,9 @@ setMethod(
 		batch_size_window <- floor(batch_size / n_blocks_per_window)
 		batches <- cut_data(length(x), batch_size_window)
 
-		blocks <- granges(x) %>%
-			slidingWindows(width = block_size, step = step) %>%
-			unlist()
+		nucleosome <- list()
+		blocks <- list()
+		xb_queue <- tf$zeros(shape(0L,  x@n_intervals, n_bins_per_block, 1L))
 
 		for (i in 1:length(batches)){
 
@@ -463,33 +463,68 @@ setMethod(
 			 	tf$reshape(c(length(b) * n_blocks_per_window, x@n_intervals, n_bins_per_block)) %>%
 				tf$expand_dims(-1L) 
 
-			xb_pred <- pred_step(xb)
+			n_reads <- xb %>% tf$reduce_sum(shape(1L, 2L, 3L))
+			valid <- n_reads >= min_reads
 
-			nucleosome[[i]] <- xb_pred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset)
+			xb <- xb %>% tf$boolean_mask(valid)
+
+			blocks[[i]] <- x[b] %>%
+				granges() %>%
+				slidingWindows(width = block_size, step = step) %>% 
+				unlist()
+
+			blocks[[i]] <- blocks[[i]][as.logical(valid)]
+
+			if (xb$shape[[1]] > 0){
+				xb_queue <- tf$concat(list(xb_queue, xb), axis = 0L)
+			}
+
+			if (xb_queue$shape[[1]] >= batch_size){
+
+				update <- rep(FALSE, xb_queue$shape[[1]])
+				update[1:batch_size] <- TRUE
+
+				xb_pred <- xb_queue %>% tf$boolean_mask(update) %>% pred_step()
+				nucleosome <- c(nucleosome, xb_pred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset))
+				xb_queue <- xb_queue %>% tf$boolean_mask(!update)
+			}
 
 		}
 
-		nucleosome <- tf$concat(nucleosome, axis = 0L)
+		if (xb_queue$shape[[1]] > 0){	# predict the remaining vplots in the queue
+			xb_pred <- xb_queue %>% pred_step()
+			nucleosome <- c(nucleosome, xb_pred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset))
+		}
 
-		nucleosome <- nucleosome %>%
-			tf$reshape(shape(length(blocks) * n_bins_per_block, 1L)) %>%
-			as.numeric() 
+		if (length(nucleosome) > 0){
+
+			nucleosome <- tf$concat(nucleosome, axis = 0L)
+
+			blocks <- blocks %>% 
+				GRangesList() %>%
+				unlist()
+
+			nucleosome <- nucleosome %>%
+				tf$reshape(shape(-1L)) %>%
+				as.numeric() 
 		
-		nucleosome <- round(nucleosome * 100)
+			nucleosome <- round(nucleosome * 100)
 
-		bins <- blocks %>%
-			slidingWindows(x@bin_size, x@bin_size) %>%
-			unlist()
+			bins <- blocks %>%
+				slidingWindows(x@bin_size, x@bin_size) %>%
+				unlist()
 
-		mcols(bins)$score <- nucleosome
+			mcols(bins)$score <- nucleosome
 			
-		cvg <- bins %>% coverage(weight = 'score')
-		n <- bins %>% coverage()
-		y <- as(cvg / n, 'GRanges')
-		y$score[is.na(y$score)] <- 0
-		seqinfo(y)@genome <- seqinfo(bins)@genome
+			cvg <- bins %>% coverage(weight = 'score')
+			n <- bins %>% coverage()
+			y <- as(cvg / n, 'GRanges')
+			y$score[is.na(y$score)] <- 0
+			seqinfo(y)@genome <- seqinfo(bins)@genome
 
-		y
+			y
+		}
+
 	}
 ) # predict
 #'

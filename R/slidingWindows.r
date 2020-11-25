@@ -1,6 +1,6 @@
 #' slidingWindows
 #'
-#' Get the sliding window as well as corresponding V-plots
+#' Get the sliding V-plots
 #'
 #' @param x a Vplots object
 #' @param width The width of the sliding window

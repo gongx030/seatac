@@ -25,7 +25,4 @@ Imports:
 	Rsamtools,
 	GenomicAlignments,
 	gplots,
-	BSgenome,
-	RANN,
-	igraph,
-	abind
+	BSgenome

@@ -10,7 +10,7 @@
 #' @importFrom keras keras_model_custom save_model_weights_tf load_model_weights_tf
 #' @importFrom tensorflow shape
 #' @importFrom SummarizedExperiment SummarizedExperiment rowRanges rowData colData assays
-#' @importFrom GenomicRanges resize reduce granges
+#' @importFrom GenomicRanges resize reduce granges GRangesList
 #' @importFrom GenomeInfoDb seqlengths
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam indexBam
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments GAlignmentsList
