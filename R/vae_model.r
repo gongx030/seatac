@@ -413,6 +413,9 @@ setMethod(
 
 		stopifnot(step %% x@bin_size == 0)
 
+		# select the windows that have at least one read
+		n <- rowSums(assays(x)$counts)
+		x <- x[n > 0]
 
 		pred_step <- function(x){
 			x <- x %>% scale_vplot() 

@@ -43,15 +43,12 @@ setMethod(
 
 		n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval
 
-		wb <- cbind(rep(1:length(x), n_bins_per_window), 1:(length(x)* n_bins_per_window))	# windows ~ bins, sorted by window
-
 		bins <- x %>%
 			slidingWindows(width = bin_size, step = bin_size) %>%
 			unlist()
 
 		# compute the center point between PE reads
 		# this is faster than using GAlignmentPairs
-
 		peaks <- reduce(resize(x, fix = 'center', width = window_size + 2000))
 
 		g <- read_bam(filename, peaks = peaks, genome = genome)
@@ -64,16 +61,17 @@ setMethod(
 		g$fragment_size <- as.numeric(cut(g$isize, breaks))	# discretize the fragment size
 		g <- g[!is.na(g$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
 
-
 		CF <- sparseMatrix(i = 1:length(g), j = g$fragment_size, dims = c(length(g), n_intervals))  # read center ~ fragment size
 		BC <- as.matrix(findOverlaps(bins, g))	# bins ~ read center
 		BC <- as(sparseMatrix(BC[, 1], BC[, 2], dims = c(length(bins), length(g))), 'dgCMatrix') # bins ~ read center
-		BF <- BC %*% CF  # bins ~ fragment size
-		BF <- as.matrix(BF[wb[, 2], ])
-		dim(BF) <- c(n_bins_per_window, length(x), n_intervals)	# convert BF into an array with n_bins_per_window ~ batch_size ~ n_intervals
-		BF <- aperm(BF, c(2, 1, 3)) # batch_size, n_bins_per_window ~ n_intervals
-		dim(BF) <- c(length(x), n_bins_per_window * n_intervals)
-		counts <- as(BF, 'dgCMatrix')	# batch_size ~ n_bins_per_window * n_intervals 
+
+		# a transpose operator for converting [n_intervals, n_bins_per_window] to [n_bins_per_window, n_intervals]
+		h <- c(t(matrix(1:c(n_bins_per_window * n_intervals), n_intervals, n_bins_per_window)))	
+
+		counts <- t(BC %*% CF)  # bins ~ fragment size
+		dim(counts) <- c(n_bins_per_window * n_intervals, length(x))
+		counts <- t(counts)
+		counts <- counts[, h]
 
 		seqlevels(x) <- seqlevels(genome)
 		seqlengths(seqinfo(x)) <- seqlengths(genome)
