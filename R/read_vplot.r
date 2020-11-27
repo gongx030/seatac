@@ -61,6 +61,11 @@ setMethod(
 		g$fragment_size <- as.numeric(cut(g$isize, breaks))	# discretize the fragment size
 		g <- g[!is.na(g$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
 
+		if (length(g) == 0){
+			warning(sprintf('there is no qualified reads in %s', filename))
+			return(NULL)
+		}
+
 		CF <- sparseMatrix(i = 1:length(g), j = g$fragment_size, dims = c(length(g), n_intervals))  # read center ~ fragment size
 		BC <- as.matrix(findOverlaps(bins, g))	# bins ~ read center
 		BC <- as(sparseMatrix(BC[, 1], BC[, 2], dims = c(length(bins), length(g))), 'dgCMatrix') # bins ~ read center
