@@ -30,7 +30,7 @@ setMethod(
 	){
 		rn <- rownames(x)
 		cn <- colnames(x)
-		x %>% 
+		x <- x %>% 
 			tf$cast(tf$float32) %>%
 			scale01() %>%
 			as.matrix()
