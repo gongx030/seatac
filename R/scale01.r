@@ -66,6 +66,7 @@ setMethod(
 		x
 	){
 		matrix(x, nrow = 1, ncol = length(x)) %>%
-			scale01()
+			scale01() %>%
+			as.numeric()
 	}
 )
