@@ -148,7 +148,13 @@ load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L,
 } # load_pretrained_vplot_vae_model
 
 
+#' cut data
 #' 
+#' Cut a sequence into small batches
+#' @param n Length of the sequence
+#' @param batch_size Batch size
+#' @return a list of sequence indices, where the length of the list is the number of batches.
+#' @author Wuming Gong (gongx030@umn.edu)
 #'
 cut_data <- function(n, batch_size){
 	starts <- seq(1, n, by = batch_size)

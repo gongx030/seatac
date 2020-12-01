@@ -53,3 +53,19 @@ setMethod(
 		(x - x_min) / w
 	}
 )
+
+#'
+#' @export
+#'
+setMethod(
+	'scale01',
+	signature(
+		x = 'numeric'
+	),
+	function(
+		x
+	){
+		matrix(x, nrow = 1, ncol = length(x)) %>%
+			scale01()
+	}
+)
