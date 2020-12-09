@@ -62,6 +62,4 @@ setClass(
 
 setClass('Model', slot = c(model = 'kerastools.model.RModel'))
 setClass('VaeModel', contains = 'Model')
-setClass('Seq2VplotModel', contains = 'Model')
-setClass('Seq2VplotModel', contains = 'Model')
 

@@ -1,7 +1,7 @@
 Package: seatac
-Title: Segmentation of ATAC-seq data
-Version: 0.3.18
-Date: 2020-12-01
+Title: Predicting nucleosomes from ATAC-seq by variational autoencoder
+Version: 0.3.19
+Date: 2020-12-09
 Author: Wuming Gong <gongx030@umn.edu>
 Maintainer: Wuming Gong <gongx030@umn.edu>
 Description: What the package does (one paragraph).
