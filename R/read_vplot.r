@@ -122,7 +122,7 @@ setMethod(
 	signature(
 		x = 'GRanges',
 		filename = 'character',
-		genome = 'BSgenome'
+		genome = 'character'
 	), 
 	function(
 		x, 
@@ -134,4 +134,3 @@ setMethod(
 		read_vplot(x, filename, genome, ...)
 	}
 )
-

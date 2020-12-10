@@ -220,6 +220,7 @@ vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.
 
 #'
 #'
+#'
 get_bsgenome <- function(x){
 	if (x == 'hg19'){
 		require(BSgenome.Hsapiens.UCSC.hg19)
@@ -230,4 +231,20 @@ get_bsgenome <- function(x){
 	}else
 		spritnf('unknown genome:%s', x) %>% stop()
 } # get_bsgenome
+
+
+#'
+#' @export
+#'
+VplotsList <- function(...){
+	x <- list(...)
+	new('VplotsList', x)
+}
+
+#'
+#' @export
+#'
+setAs('ANY', 'VplotsList', function(from) {
+	as(from, 'SimpleList')
+})
 

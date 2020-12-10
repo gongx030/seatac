@@ -147,11 +147,13 @@ VaeEncoder <- function(
 		self$vplot_encoder <- VplotEncoder()
 		self$dense_1 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
 
-		function(x, training = TRUE, mask = NULL){
+		function(x, fragment_size, training = TRUE, mask = NULL){
 
 			y <- x %>%
-				self$vplot_encoder() %>%
-				self$dense_1()
+				self$vplot_encoder()
+
+			y <- tf$concat(list(y, fragment_size), axis = 1L)
+			y <- y %>%	self$dense_1()
 
 			tfp$distributions$MultivariateNormalDiag(
 				loc = y[, 1:self$latent_dim],
@@ -243,14 +245,13 @@ VaeModel <- function(
 			scale_identity_multiplier = 1
 		)
 
-		self$b_interval <- tf$Variable(0, dtype = tf$float32)
-		self$b_block  <- tf$Variable(0, dtype = tf$float32)
+		function(x, fragment_size, training = TRUE){
 
-		function(x, training = TRUE){
-
-			posterior <- x %>% self$encoder()
+			posterior <- self$encoder(x, fragment_size)
 			z <- posterior$sample()
-			x_pred <- z %>% self$decoder()
+
+			z_cond <- tf$concat(list(z, fragment_size), axis = 1L)
+			x_pred <- z_cond %>% self$decoder()
 
 			list(
 				posterior = posterior, 
@@ -276,8 +277,7 @@ setMethod(
 	),
 	function(
 		model,
-		x,
-		weighted = TRUE
+		x
 	){
 
 		d <- list()
@@ -290,18 +290,53 @@ setMethod(
 				x@n_bins_per_window,
 				1L
 			)) %>%
-			tf$cast(tf$float32) %>%
+			tf$cast(tf$float32) 
+
+		d$fragment_size <- d$vplots %>% 
+			tf$reduce_sum(shape(0L, 2L, 3L))
+
+		d$fragment_size <- (d$fragment_size / tf$reduce_sum(d$fragment_size)) %>% 
+			tf$expand_dims(0L) %>% 
+			tf$`repeat`(repeats = length(x), axis = 0L)
+
+		d$vplots <- d$vplots %>%
 			scale_vplot()
 
 		# add weight for each genomic bin
 		w <- tf$reduce_sum(d$vplots, 1L, keepdims = TRUE) > 0
 		w <- w %>% tf$cast(tf$float32)
-		if (!weighted)
-			w <- tf$ones_like(w)
-
 		d$weight <- w
 
 		d
+	}
+)
+
+
+#' prepare_data
+#'
+#' Prepare tfdataset for training and testing a VaeModel model
+#'
+#' @export
+#'
+setMethod(
+	'prepare_data',
+	signature(
+		model = 'VaeModel',
+		x = 'VplotsList'
+	),
+	function(
+		model,
+		x
+	){
+
+		d <- lapply(1:length(x), function(i){
+			model %>% prepare_data(x[[i]])
+		})
+
+		for (j in names(d[[1]])){
+			d[[1]][[j]] <- tf$concat(lapply(1:length(x), function(i) d[[i]][[j]]), axis = 0L)
+		}
+		d[[1]]
 	}
 )
 
@@ -332,9 +367,9 @@ setMethod(
 			dataset_shuffle(1000L) %>%
 			split_dataset(test_size = test_size, batch_size = batch_size)
 
-		train_step <- function(x, w){
+		train_step <- function(x, w, fragment_size){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
-				res <- model@model(x)
+				res <- model@model(x, fragment_size)
 				loss_reconstruction <- (tf$squeeze(w, 3L) * reconstrution_loss(x, res$vplots)) %>%
 					tf$reduce_sum(shape(1L, 2L)) %>%
 					tf$reduce_mean()
@@ -353,8 +388,8 @@ setMethod(
 			)
 		}
 
-		test_step <- function(x, w){
-			res <- model@model(x)
+		test_step <- function(x, w, fragment_size){
+			res <- model@model(x, fragment_size)
 			metric_test <- (tf$squeeze(w, 3L) * reconstrution_loss(x, res$vplots)) %>%
 				tf$reduce_sum(shape(1L, 2L)) %>%
 				tf$reduce_mean()
@@ -371,10 +406,12 @@ setMethod(
 			loss_train <- NULL 
 			loss_train_reconstruction <- NULL
 			loss_train_kl <- NULL
-			iter <- make_iterator_one_shot(x$train)
+			iter <- x$train %>%
+				dataset_shuffle(1000L) %>%
+				make_iterator_one_shot()
 			res <- until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- train_step(batch$vplots, batch$weight)
+				res <- train_step(batch$vplots, batch$weight, batch$fragment_size)
 				loss_train <- c(loss_train, as.numeric(res$loss))
 				loss_train_reconstruction <- c(loss_train_reconstruction, as.numeric(res$loss_reconstruction))
 				loss_train_kl <- c(loss_train_kl, as.numeric(res$loss_kl))
@@ -385,7 +422,7 @@ setMethod(
 			iter <- make_iterator_one_shot(x$test)
 			until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- test_step(batch$vplots, batch$weight)
+				res <- test_step(batch$vplots, batch$weight, batch$fragment_size)
 				metric_test <- c(metric_test, as.numeric(res$metric_test))
 			})
 
