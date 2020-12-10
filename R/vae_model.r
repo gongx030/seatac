@@ -243,7 +243,11 @@ VaeModel <- function(
 			scale_identity_multiplier = 1
 		)
 
+		self$b_interval <- tf$Variable(0, dtype = tf$float32)
+		self$b_block  <- tf$Variable(0, dtype = tf$float32)
+
 		function(x, training = TRUE){
+
 			posterior <- x %>% self$encoder()
 			z <- posterior$sample()
 			x_pred <- z %>% self$decoder()

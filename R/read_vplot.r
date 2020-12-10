@@ -104,3 +104,34 @@ setMethod(
 
 ) # read_vplot
 
+
+#' Read the V-plot
+#' 
+#' Read the V-plot from BAM files within a set of genomic regions
+#'
+#' @param x a GRange object that define a set of genomic regions.
+#' @param filename BAM file name
+#' @param genome genome abbreviation such as mm10 or hg19
+#' @param ...
+#'
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
+setMethod(
+	'read_vplot',
+	signature(
+		x = 'GRanges',
+		filename = 'character',
+		genome = 'BSgenome'
+	), 
+	function(
+		x, 
+		filename, 
+		genome,
+		...
+	){
+		genome <- get_bsgenome(genome)
+		read_vplot(x, filename, genome, ...)
+	}
+)
+

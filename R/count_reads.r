@@ -18,7 +18,7 @@ setMethod(
 		x, 
 		filename, 
 		genome,
-		fragment_size_range = c(50, 690)
+		fragment_size_range = c(80, 320)
 	){
 
 		window_size <- width(x)
@@ -45,6 +45,34 @@ setMethod(
 		g <- g[g$isize >= fragment_size_range[1] & g$isize <= fragment_size_range[2]]
 
 		counts <- coverage(g)[x] %>% sum()
+	}
+) # count_reads
+	
+
+#' Count reads
+#'
+#' Count how many reads fall into a specific fragment size range
+#'
+#' @param x a GRanges object defining the peaks; the width must be the same for all peaks.
+#' 
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
+setMethod(
+	'count_reads',
+	signature(
+		x = 'GRanges',
+		filename = 'character',
+		genome = 'character'
+	), 
+	function(
+		x, 
+		filename, 
+		genome,
+		...
+	){
+		genome <- get_bsgenome(genome)
+		count_reads(x, filename, genome, ...)
 	}
 ) # count_reads
 	
