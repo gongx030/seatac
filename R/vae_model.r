@@ -458,15 +458,6 @@ setMethod(
 		n <- rowSums(assays(x)$counts)
 		x <- x[n > 0]
 
-		pred_step <- function(x){
-			x <- x %>% scale_vplot() 
-			posterior <- model@model$encoder(x)
-			z <- posterior$mean()
-			xb_pred <- model@model$decoder(z)
-			xb_pred
-		}
-		pred_step <- tf_function(pred_step) # convert to graph mode
-
 		block_size <- model@model$block_size
 		n_bins_per_block <- as.integer(block_size / x@bin_size)
 		n_bins_per_step <- as.integer(step / x@bin_size)
@@ -481,6 +472,25 @@ setMethod(
 		nucleosome <- list()
 		blocks <- list()
 		xb_queue <- tf$zeros(shape(0L,  x@n_intervals, n_bins_per_block, 1L))
+
+		fragment_size <- assays(x)$counts %>% colSums() %>%
+			matrix(x@n_bins_per_window, x@n_intervals) %>%
+			colSums()
+		fragment_size <- fragment_size / sum(fragment_size) 
+		fragment_size <- tf$cast(fragment_size, tf$float32)
+
+		pred_step <- function(x){
+			fs <- fragment_size %>%
+				tf$expand_dims(0L) %>%
+				tf$`repeat`(repeats = x$shape[[1]], axis = 0L)
+			x <- x %>% scale_vplot() 
+			posterior <- model@model$encoder(x, fs)
+			z <- posterior$mean()
+			z_cond <- tf$concat(list(z, fs), axis = 1L)
+			xb_pred <- model@model$decoder(z_cond)
+			xb_pred
+		}
+		pred_step <- tf_function(pred_step) # convert to graph mode
 
 		for (i in 1:length(batches)){
 
@@ -572,315 +582,3 @@ setMethod(
 	}
 ) # predict
 #'
-
-
-
-#' 
-#' @export
-#'
-setMethod(
-	'predict',
-	signature(
-		model = 'VaeModel',
-		x = 'tensorflow.tensor'
-	),
-	function(
-		model,
-		x,
-		batch_size = 128L,
-		scale = -10,
-		offset = -0.95
-	){
-
-		z <- list()
-		vplots <- list()	
-		nucleosome <- list()	
-
-		x <- scale_vplot(x)
-
-		batches <- cut_data(x$shape[[1]], batch_size)
-
-		for (i in 1:length(batches)){
-			b <- batches[[i]]
-			posterior <- model@model$encoder(x[b, ,  , , drop = FALSE])
-			z[[i]] <- posterior$mean()
-			x_pred <- model@model$decoder(z[[i]])
-			vplots[[i]] <- x_pred
-			nucleosome[[i]] <- x_pred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset)
-		}
-
-		z <- tf$concat(z, axis = 0L)
-		vplots <- tf$concat(vplots, axis = 0L)
-		nucleosome <- tf$concat(nucleosome, axis = 0L)
-
-		list(vplots = vplots, z = z, nucleosome = nucleosome)
-	}
-)
-
-#' 
-#' @export
-#'
-setMethod(
-	'encode',
-	signature(
-		model = 'VaeModel',
-		x = 'tensorflow.tensor'
-	),
-	function(
-		model,
-		x,
-		batch_size = 128L
-	){
-
-		x <- scale_vplot(x)
-
-		batches <- cut_data(x$shape[[1]], batch_size)
-		res <- list()
-
-		for (i in 1:length(batches)){
-			b <- batches[[i]]
-			posterior <- model@model$encoder(x[b, ,  , , drop = FALSE])
-			z <- posterior$mean()
-			res[[i]] <- z
-		}
-
-		z <- tf$concat(res, axis = 0L)
-		z
-	}
-)
-
-#'
-#' @export
-#'
-setMethod(
-	'encode',
-	signature(
-		model = 'VaeModel',
-		x = 'Vplots'
-	),
-	function(
-		model,
-		x,
-		batch_size = 256L,
-		verbose = TRUE
-	){
-
-		bin_size <- model@model$bin_size
-
-		batches <- cut_data(length(x), batch_size)
-
-		latent <- matrix(NA, nrow = length(x), ncol = model@model$encoder$latent_dim)
-
-		for (i in 1:length(batches)){
-
-			if (verbose)
-				message(sprintf('encode | batch=%6.d/%6.d', i, length(batches)))
-
-			b <- batches[[i]]
-
-			y <- assays(x[b])$counts %>%
-				as.matrix() %>%
-				reticulate::array_reshape(c(    # convert into a C-style array
-					length(b),
-					x@n_intervals,
-					x@n_bins_per_window,
-					1L
-				)) %>%
-				tf$cast(tf$float32)
-
-			latent[b, ] <- model %>% 
-				encode(y, batch_size = batch_size) %>%
-				as.matrix()
-
-		}
-
-		SummarizedExperiment::rowData(x)$latent <- latent
-		x
-	}
-) # encode
-
-
-#' 
-#' @export
-#'
-setMethod(
-	'encode',
-	signature(
-		model = 'VaeModel',
-		x = 'GRanges'
-	),
-	function(
-		model,
-		x,
-		filename,
-		genome,
-		batch_size = 128L,
-		batch_size_read_vplot = 1024L
-	){
-
-		window_size <- width(x[1])
-		stopifnot(all(width(x) == window_size))
-
-		block_size <- model@model$block_size
-		bin_size <- model@model$bin_size
-		n_bins_per_block <- model@model$n_bins_per_block
-
-		stopifnot(window_size >= block_size)
-		stopifnot(window_size %% bin_size == 0)
-
-		x <- x %>%
-			resize(width = window_size - block_size, fix = 'center') %>%
-			slidingWindows(bin_size, bin_size) %>%
-		 	unlist()
-
-		fragment_size_range <- c(model@model$fragment_size_range[[0]], model@model$fragment_size_range[[1]])
-		n_reads <- x %>%
-		  resize(width = block_size, fix = 'center') %>% 
-		  count_reads(filename, genome, fragment_size_range = fragment_size_range)
-
-		mcols(x)$n_reads <- n_reads
-		x <- x[x$n_reads > 0]
-
-		x <- x %>%
-			resize(width = block_size, fix = 'center')
-
-		batches <- cut_data(length(x), batch_size_read_vplot)
-
-		latent <- matrix(NA, length(x), model@model$encoder$latent_dim)
-		for (i in 1:length(batches)){
-			message(sprintf('encode | batch=%6.d/%6.d', i, length(batches)))
-			b <- batches[[i]]
-			xb <- x[b] %>% 
-				read_vplot(filename, genome, bin_size, fragment_size_range) 
-			xb <- model %>% encode(xb, batch_size)
-			latent[b, ] <- rowData(xb)$latent
-		}
-		mcols(x)$latent <- latent
-		x
-	}
-)
-
-
-#' 
-#' @export
-#'
-setMethod(
-	'decode',
-	signature(
-		model = 'VaeModel',
-		x = 'tensorflow.tensor'
-	),
-	function(
-		model,
-		x,
-		batch_size = 128L,
-		scale = -10,
-		offset = -0.95
-	){
-
-		batches <- cut_data(x$shape[[1]], batch_size)
-		vplots <- list()
-		nucleosome <- list()
-
-		for (i in 1:length(batches)){
-			b <- batches[[i]]
-			x_pred <- model@model$decoder(x[b, , drop = FALSE])
-#			vplots[[i]] <- x_pred
-			nucleosome[[i]] <- x_pred %>% vplot2nucleosome(model@model$is_nucleosome, model@model$is_nfr, scale, offset)
-		}
-
-#		vplots  <- tf$concat(vplots, axis = 0L)
-		nucleosome <- tf$concat(nucleosome, axis = 0L)
-
-		list(vplots = vplots, nucleosome = nucleosome)
-	}
-)
-
-#'
-#' @export 
-#'
-setMethod(
-	'decode',
-	signature(
-		model = 'VaeModel',
-		x = 'Vplots'
-	),
-	function(
-		model,
-		x,
-		batch_size = 256L, # v-plot per batch
-		scale = -10,
-		offset = -0.95,
-		verbose = TRUE
-	){
-
-		if (is.null(rowData(x)$latent))
-			stop('latent must be defined')
-
-		z <- rowData(x)$latent %>% 
-			tf$cast(tf$float32)
-
-		res <- decode(model, z, batch_size = batch_size, scale = scale, offset = offset)
-
-#		SummarizedExperiment::assays(x)$predicted_counts <- res$vplots %>% 
-#			tf$reshape(shape(length(x), x@n_bins_per_window * x@n_intervals)) %>% 
-#			as.matrix()
-
-		SummarizedExperiment::rowData(x)$nucleosome <- res$nucleosome %>% as.matrix()
-		x
-	}
-)
-
-#'
-#' @export 
-#'
-setMethod(
-	'decode',
-	signature(
-		model = 'VaeModel',
-		x = 'SummarizedVplots'
-	),
-	function(
-		model,
-		x,
-		batch_size = 1L, # v-plot per batch
-		scale = -10,
-		offset = -0.95
-	){
-
-		if (is.null(rowData(x)$latent))
-			stop('latent must be defined')
-
-		z <- rowData(x)$latent %>% 
-			tf$cast(tf$float32) 
-
-		res <- decode(model, z, batch_size = batch_size, scale = scale, offset = offset)
-
-		x@assays@data$predicted_counts <- res$vplots %>%
-			tf$reshape(c(res$vplots$shape[[1]], -1L)) %>%
-			as.matrix()
-		
-		SummarizedExperiment::rowData(x)$nucleosome <- res$nucleosome %>% as.matrix()
-		x
-	}
-)
-
-#'
-#' @export 
-#'
-setMethod(
-	'predict',
-	signature(
-		model = 'VaeModel',
-		x = 'list'	# must be a list of Vplots objects
-	),
-	function(
-		model,
-		x,
-		batch_size = 1L, # v-plot per batch
-		scale = -10,
-		offset = -0.95,
-		motif_width = 25L
-	){
-	}
-)
