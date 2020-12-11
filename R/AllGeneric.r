@@ -2,7 +2,6 @@ setGeneric('read_bam', function(filename, peaks, genome, ...) standardGeneric('r
 setGeneric('read_vplot', function(x, filename, genome, ...) standardGeneric('read_vplot'))
 setGeneric('count_reads', function(x, filename, genome, ...) standardGeneric('count_reads'))
 setGeneric('vplot', function(x, ...) standardGeneric('vplot'))
-setGeneric('add_track', function(x, object, ...) standardGeneric('add_track'))
 setGeneric('add_kmers', function(x, k, ...) standardGeneric('add_kmers'))
 setGeneric('prepare_data', function(model, x, ...) standardGeneric('prepare_data'))
 setGeneric('fit', function(model, x, ...) standardGeneric('fit'))
