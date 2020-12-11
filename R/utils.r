@@ -118,7 +118,7 @@ load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L,
 
 	n_intervals <- 48L
 
-	message(sprintf('load_pretrained_vplot_vae_model | a pretrained model on GM12878 | block_size=%d', block_size))
+	message(sprintf('load_pretrained_vplot_vae_model | a pretrained model on 15 ATAC-seq datasets | block_size=%d', block_size))
 
 	model_id <- sprintf('https://s3.msi.umn.edu/gongx030/projects/seatac/models/model=Vae_block_size=%d_latent_dim=%d_filters0=%d_min_reads=%d', block_size, latent_dim, filters0, min_reads)
 	model_index_file <- sprintf('%s.index', model_id)
