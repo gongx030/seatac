@@ -141,7 +141,7 @@ load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L,
 	})
 
 	model <- VaeModel(block_size = block_size, n_intervals = n_intervals)
-	res <- model(tf$random$uniform(shape(1L, n_intervals, model$n_bins_per_block, 1L)))
+	res <- model(tf$random$uniform(shape(1L, n_intervals, model$n_bins_per_block, 1L)), tf$random$uniform(shape(1L, n_intervals)))
 	load_model_weights_tf(model, local_model_id)
 	new('VaeModel', model = model)
 
@@ -247,4 +247,36 @@ VplotsList <- function(...){
 setAs('ANY', 'VplotsList', function(from) {
 	as(from, 'SimpleList')
 })
+
+
+#' Downsample V-plot
+#'
+#' Downsample a dense V-plot to a saprse V-plot, where the remaining number of reads is specified as `num_reads`.
+#'
+downsample_vplot <- function(x, num_reads = 1L){
+
+	batch_size <- x$shape[[1]]
+
+  j <- x %>%
+		tf$reshape(shape(batch_size, -1L)) %>% 
+		tf$math$log() %>%	 # to logit
+		tf$random$categorical(num_reads) %>%
+		tf$reshape(shape(batch_size * num_reads, 1L))
+
+	i <- matrix(c(1:batch_size) - 1L, batch_size, num_reads) %>%
+		tf$reshape(shape(batch_size * num_reads, 1L)) %>%
+		tf$cast(tf$int64)
+
+	y <- tf$SparseTensor(
+		indices = tf$concat(list(i, j), axis = 1L),
+		values = rep(1, batch_size * num_reads),
+		dense_shape = c(batch_size, x$shape[[2]] * x$shape[[3]])
+	) %>%
+		tf$sparse$reorder() %>%
+		tf$sparse$to_dense(validate_indices = FALSE) %>%	# not checking duplicated indices
+		tf$reshape(shape(batch_size, x$shape[[2]], x$shape[[3]], 1L)) %>%
+		scale_vplot()
+	y
+
+} # downsample_vplot
 

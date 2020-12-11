@@ -368,8 +368,9 @@ setMethod(
 			split_dataset(test_size = test_size, batch_size = batch_size)
 
 		train_step <- function(x, w, fragment_size){
+
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
-				res <- model@model(x, fragment_size)
+				res <- model@model(x_input, fragment_size)
 				loss_reconstruction <- (tf$squeeze(w, 3L) * reconstrution_loss(x, res$vplots)) %>%
 					tf$reduce_sum(shape(1L, 2L)) %>%
 					tf$reduce_mean()
