@@ -292,13 +292,6 @@ setMethod(
 			)) %>%
 			tf$cast(tf$float32) 
 
-		d$fragment_size <- d$vplots %>% 
-			tf$reduce_sum(shape(0L, 2L, 3L))
-
-		d$fragment_size <- (d$fragment_size / tf$reduce_sum(d$fragment_size)) %>% 
-			tf$expand_dims(0L) %>% 
-			tf$`repeat`(repeats = length(x), axis = 0L)
-
 		d$vplots <- d$vplots %>%
 			scale_vplot()
 
@@ -356,7 +349,8 @@ setMethod(
 		 batch_size = 32L,
 		 epochs = 100L,
 		 test_size = 0.15,
-		 learning_rate = 1e-4
+		 learning_rate = 1e-4,
+		 num_reads = NA
 	 ){
 
 		optimizer <- tf$keras$optimizers$Adam(learning_rate, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
@@ -367,7 +361,15 @@ setMethod(
 			dataset_shuffle(1000L) %>%
 			split_dataset(test_size = test_size, batch_size = batch_size)
 
-		train_step <- function(x, w, fragment_size){
+		train_step <- function(x, w){
+
+			fragment_size <- get_fragment_size(x)
+
+			if (is.na(num_reads)){
+				x_input <- x
+			}else{
+				x_input <- downsample_vplot(x, num_reads)
+			}
 
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
 				res <- model@model(x_input, fragment_size)
@@ -389,7 +391,8 @@ setMethod(
 			)
 		}
 
-		test_step <- function(x, w, fragment_size){
+		test_step <- function(x, w){
+			fragment_size <- get_fragment_size(x)
 			res <- model@model(x, fragment_size)
 			metric_test <- (tf$squeeze(w, 3L) * reconstrution_loss(x, res$vplots)) %>%
 				tf$reduce_sum(shape(1L, 2L)) %>%
@@ -412,7 +415,7 @@ setMethod(
 				make_iterator_one_shot()
 			res <- until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- train_step(batch$vplots, batch$weight, batch$fragment_size)
+				res <- train_step(batch$vplots, batch$weight)
 				loss_train <- c(loss_train, as.numeric(res$loss))
 				loss_train_reconstruction <- c(loss_train_reconstruction, as.numeric(res$loss_reconstruction))
 				loss_train_kl <- c(loss_train_kl, as.numeric(res$loss_kl))
@@ -423,7 +426,7 @@ setMethod(
 			iter <- make_iterator_one_shot(x$test)
 			until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- test_step(batch$vplots, batch$weight, batch$fragment_size)
+				res <- test_step(batch$vplots, batch$weight)
 				metric_test <- c(metric_test, as.numeric(res$metric_test))
 			})
 

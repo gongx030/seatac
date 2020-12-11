@@ -114,13 +114,13 @@ split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
-load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L, filters0 = 128L, min_reads = 15L){
+load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L, filters0 = 128L, min_reads = 15L, training = 'mix15'){
 
 	n_intervals <- 48L
 
-	message(sprintf('load_pretrained_vplot_vae_model | a pretrained model on 15 ATAC-seq datasets | block_size=%d', block_size))
+	message(sprintf('load_pretrained_vplot_vae_model | %s | block_size=%d', training, block_size))
 
-	model_id <- sprintf('https://s3.msi.umn.edu/gongx030/projects/seatac/models/model=Vae_block_size=%d_latent_dim=%d_filters0=%d_min_reads=%d', block_size, latent_dim, filters0, min_reads)
+	model_id <- sprintf('https://s3.msi.umn.edu/gongx030/projects/seatac/models/training=%s_block_size=%d_latent_dim=%d_filters0=%d_min_reads=%d', training, block_size, latent_dim, filters0, min_reads)
 	model_index_file <- sprintf('%s.index', model_id)
 	model_data_file <- sprintf('%s.data-00000-of-00001', model_id)
 
@@ -280,3 +280,16 @@ downsample_vplot <- function(x, num_reads = 1L){
 
 } # downsample_vplot
 
+
+#' get_fragment_size
+#'
+get_fragment_size <- function(x){
+	fragment_size <- x %>%
+		tf$reduce_sum(shape(0L, 2L, 3L))
+
+	fragment_size  <- (fragment_size / tf$reduce_sum(fragment_size)) %>%
+		tf$expand_dims(0L) %>%
+		tf$`repeat`(repeats = x$shape[[1]], axis = 0L)
+
+	fragment_size	
+} # get_fragment_size
