@@ -122,7 +122,7 @@ setMethod(
 	signature(
 		x = 'GRanges',
 		filename = 'character',
-		genome = 'BSgenome'
+		genome = 'character'
 	), 
 	function(
 		x, 
