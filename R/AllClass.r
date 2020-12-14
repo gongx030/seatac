@@ -25,19 +25,6 @@ setClass(
 )
 
 
-#' VplotsKmers
-#'
-#' @export
-setClass(
-	'VplotsKmers',
-	slot = c(
-		kmers = 'character',
-		k = 'integer'
-	),
-	contains = 'Vplots'
-)
-
-
 #' SummarizedVplots
 #'
 #' @export
