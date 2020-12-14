@@ -1,7 +1,7 @@
 Package: seatac
 Title: Predicting nucleosomes from ATAC-seq by variational autoencoder
-Version: 0.3.20
-Date: 2020-12-10
+Version: 0.3.21
+Date: 2020-12-14
 Author: Wuming Gong <gongx030@umn.edu>
 Maintainer: Wuming Gong <gongx030@umn.edu>
 Description: What the package does (one paragraph).

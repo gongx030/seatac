@@ -134,3 +134,4 @@ setMethod(
 		read_vplot(x, filename, genome, ...)
 	}
 )
+
