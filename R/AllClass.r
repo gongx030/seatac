@@ -5,8 +5,6 @@ setOldClass('tf_dataset')
 setOldClass('tensorflow.tensor')
 
 
-
-
 #' Vplots
 #'
 #' @export
@@ -24,19 +22,6 @@ setClass(
 		positions = 'numeric'
 	),
 	contains = 'RangedSummarizedExperiment'
-)
-
-
-#' VplotsKmers
-#'
-#' @export
-setClass(
-	'VplotsKmers',
-	slot = c(
-		kmers = 'character',
-		k = 'integer'
-	),
-	contains = 'Vplots'
 )
 
 
@@ -63,3 +48,11 @@ setClass(
 setClass('Model', slot = c(model = 'kerastools.model.RModel'))
 setClass('VaeModel', contains = 'Model')
 
+#' VplotsList
+#'
+#' @export
+#'
+setClass(
+	'VplotsList',
+	contains = 'SimpleList'
+)

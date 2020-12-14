@@ -7,7 +7,8 @@
 #' @param step The step for each sliding window
 #' @param batch_size The batch size of extraction operation (default: 4096L)
 #' 
-#' @return a new Vplot object which window_size is the specified width. 
+#' @return a new Vplot object which window_size is the specified width. The rowData and colData 
+#' in the input Vplots object will be missing in the new Vplot object.
 #'
 #' @export
 #'

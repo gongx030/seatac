@@ -114,13 +114,13 @@ split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
-load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L, filters0 = 128L, min_reads = 15L){
+load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L, filters0 = 128L, min_reads = 15L, training = 'mix15'){
 
 	n_intervals <- 48L
 
-	message(sprintf('load_pretrained_vplot_vae_model | a pretrained model on GM12878 | block_size=%d', block_size))
+	message(sprintf('load_pretrained_vplot_vae_model | %s | block_size=%d', training, block_size))
 
-	model_id <- sprintf('https://s3.msi.umn.edu/gongx030/projects/seatac/models/model=Vae_block_size=%d_latent_dim=%d_filters0=%d_min_reads=%d', block_size, latent_dim, filters0, min_reads)
+	model_id <- sprintf('https://s3.msi.umn.edu/gongx030/projects/seatac/models/training=%s_block_size=%d_latent_dim=%d_filters0=%d_min_reads=%d', training, block_size, latent_dim, filters0, min_reads)
 	model_index_file <- sprintf('%s.index', model_id)
 	model_data_file <- sprintf('%s.data-00000-of-00001', model_id)
 
@@ -141,7 +141,7 @@ load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L,
 	})
 
 	model <- VaeModel(block_size = block_size, n_intervals = n_intervals)
-	res <- model(tf$random$uniform(shape(1L, n_intervals, model$n_bins_per_block, 1L)))
+	res <- model(tf$random$uniform(shape(1L, n_intervals, model$n_bins_per_block, 1L)), tf$random$uniform(shape(1L, n_intervals)))
 	load_model_weights_tf(model, local_model_id)
 	new('VaeModel', model = model)
 
@@ -220,6 +220,7 @@ vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.
 
 #'
 #'
+#'
 get_bsgenome <- function(x){
 	if (x == 'hg19'){
 		require(BSgenome.Hsapiens.UCSC.hg19)
@@ -231,3 +232,64 @@ get_bsgenome <- function(x){
 		spritnf('unknown genome:%s', x) %>% stop()
 } # get_bsgenome
 
+
+#'
+#' @export
+#'
+VplotsList <- function(...){
+	x <- list(...)
+	new('VplotsList', x)
+}
+
+#'
+#' @export
+#'
+setAs('ANY', 'VplotsList', function(from) {
+	as(from, 'SimpleList')
+})
+
+
+#' Downsample V-plot
+#'
+#' Downsample a dense V-plot to a saprse V-plot, where the remaining number of reads is specified as `num_reads`.
+#'
+downsample_vplot <- function(x, num_reads = 1L){
+
+	batch_size <- x$shape[[1]]
+
+  j <- x %>%
+		tf$reshape(shape(batch_size, -1L)) %>% 
+		tf$math$log() %>%	 # to logit
+		tf$random$categorical(num_reads) %>%
+		tf$reshape(shape(batch_size * num_reads, 1L))
+
+	i <- matrix(c(1:batch_size) - 1L, batch_size, num_reads) %>%
+		tf$reshape(shape(batch_size * num_reads, 1L)) %>%
+		tf$cast(tf$int64)
+
+	y <- tf$SparseTensor(
+		indices = tf$concat(list(i, j), axis = 1L),
+		values = rep(1, batch_size * num_reads),
+		dense_shape = c(batch_size, x$shape[[2]] * x$shape[[3]])
+	) %>%
+		tf$sparse$reorder() %>%
+		tf$sparse$to_dense(validate_indices = FALSE) %>%	# not checking duplicated indices
+		tf$reshape(shape(batch_size, x$shape[[2]], x$shape[[3]], 1L)) %>%
+		scale_vplot()
+	y
+
+} # downsample_vplot
+
+
+#' get_fragment_size
+#'
+get_fragment_size <- function(x){
+	fragment_size <- x %>%
+		tf$reduce_sum(shape(0L, 2L, 3L))
+
+	fragment_size  <- (fragment_size / tf$reduce_sum(fragment_size)) %>%
+		tf$expand_dims(0L) %>%
+		tf$`repeat`(repeats = x$shape[[1]], axis = 0L)
+
+	fragment_size	
+} # get_fragment_size
