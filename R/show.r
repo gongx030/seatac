@@ -21,16 +21,3 @@ setMethod(
 )
 
 
-#' show-VplotsFitted
-#'
-#' @export
-setMethod(
-	'show',
-	signature(
-		object = 'VplotsKmers'
-	),
-	function(object){
-		callNextMethod()
-		cat(sprintf('## kmers: %s\n', object@k))
-	}
-)
