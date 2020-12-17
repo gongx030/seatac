@@ -3,6 +3,7 @@ setClassUnion('matrixOrNULL', members = c('matrix', 'NULL'))
 setOldClass('kerastools.model.RModel')
 setOldClass('tf_dataset')
 setOldClass('tensorflow.tensor')
+setOldClass('tensorflow.python.framework.sparse_tensor.SparseTensor')
 
 
 #' Vplots
@@ -47,6 +48,7 @@ setClass(
 
 setClass('Model', slot = c(model = 'kerastools.model.RModel'))
 setClass('VaeModel', contains = 'Model')
+setClass('SummarizedVaeModel', contains = 'Model')
 
 #' VplotsList
 #'
@@ -54,5 +56,14 @@ setClass('VaeModel', contains = 'Model')
 #'
 setClass(
 	'VplotsList',
+	contains = 'SimpleList'
+)
+
+#' SummarizedVplotsList
+#'
+#' @export
+#'
+setClass(
+	'SummarizedVplotsList',
 	contains = 'SimpleList'
 )

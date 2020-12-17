@@ -14,43 +14,30 @@ VplotEncoder <- function(
 		self$kernel_size <- kernel_size
 		self$window_strides <-  window_strides
 		self$interval_strides <-  interval_strides
+		self$n_layers <- length(filters)
 
-		self$conv1d_1 <- tf$keras$layers$Conv2D(
-			filters = filters[1],
-			kernel_size = kernel_size[1],
-			strides = shape(interval_strides[1], window_strides[1]),
-			activation = 'relu'
+		self$conv1d <- lapply(1:self$n_layers, function(i) 
+			tf$keras$layers$Conv2D(
+				filters = filters[i],
+				kernel_size = kernel_size[i],
+				strides = shape(interval_strides[i], window_strides[i]),
+				activation = 'relu'
+			)
 		)
 
-		self$conv1d_2 <- tf$keras$layers$Conv2D(
-			filters = filters[2],
-			kernel_size = kernel_size[2],
-			strides = shape(interval_strides[2], window_strides[2]),
-			activation = 'relu'
-		)
-
-		self$conv1d_3 <- tf$keras$layers$Conv2D(
-			filters = filters[3],
-			kernel_size = kernel_size[3],
-			strides = shape(interval_strides[3], window_strides[3]),
-			activation = 'relu'
-		)
-
-		self$bn_1 <- tf$keras$layers$BatchNormalization()
-		self$bn_2 <- tf$keras$layers$BatchNormalization()
-		self$bn_3 <- tf$keras$layers$BatchNormalization()
+		self$bn <- lapply(1:self$n_layers, function(i) tf$keras$layers$BatchNormalization())
 
 		self$flatten_1 <- tf$keras$layers$Flatten()
 
 		function(x, training = TRUE, mask = NULL){
+
+			for (i in 1:self$n_layers){
+				x <- x %>% 
+					self$conv1d[[i - 1]]() %>% # zero-based
+					self$bn[[i - 1]]()	# zero-based
+			}
 			y <- x %>%
-			self$conv1d_1() %>% 
-			self$bn_1() %>%
-			self$conv1d_2() %>% 
-			self$bn_2() %>%
-			self$conv1d_3() %>% 
-			self$bn_3() %>%
-			self$flatten_1()
+				self$flatten_1()
 			y
 		}
 	})
@@ -74,6 +61,7 @@ VplotDecoder <- function(
 
 		self$vplot_width <- vplot_width
 		self$vplot_height <- vplot_height
+		self$filters <- filters
 
 		if (vplot_width %% prod(window_strides) != 0)
 			stop(sprintf('vplot_width must be a multiple of %d', prod(window_strides)))
@@ -136,7 +124,12 @@ VplotDecoder <- function(
 #' VaeEncoder
 #' 
 VaeEncoder <- function(
-	latent_dim,
+	latent_dim = 1L,
+	filters = c(32L, 32L, 32L),
+	kernel_size = c(3L, 3L, 3L),
+	window_strides = c(2L, 2L, 2L),
+	interval_strides = c(2L, 2L, 2L),
+	distribution = 'MultivariateNormalDiag',
 	rate = 0.1,
 	name = NULL
 ){
@@ -144,22 +137,51 @@ VaeEncoder <- function(
 	keras_model_custom(name = name, function(self) {
 
 		self$latent_dim <- latent_dim
-		self$vplot_encoder <- VplotEncoder()
-		self$dense_1 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
 
-		function(x, fragment_size, training = TRUE, mask = NULL){
+		self$vplot_encoder <- VplotEncoder(
+			filters = filters,
+			kernel_size = kernel_size,
+			window_strides = window_strides,
+			interval_strides = interval_strides
+		)
+
+		if (distribution == 'MultivariateNormalDiag')
+			self$dense_1 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
+		else if (distribution == 'LogNormal')
+			self$dense_1 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
+		else if (distribution == 'None')
+			self$dense_1 <- tf$keras$layers$Dense(units = self$latent_dim)
+		else
+			stop(sprintf('unknown distribution: %s', distribution))
+
+		function(x, fragment_size = NULL, training = TRUE, mask = NULL){
 
 			y <- x %>%
 				self$vplot_encoder()
 
-			y <- tf$concat(list(y, fragment_size), axis = 1L)
-			y <- y %>%	self$dense_1()
+			if (!is.null(fragment_size)){
+				y <- tf$concat(list(y, fragment_size), axis = 1L)
+			}
 
-			tfp$distributions$MultivariateNormalDiag(
-				loc = y[, 1:self$latent_dim],
-				scale_diag = tf$nn$softplus(y[, (self$latent_dim + 1):(2 * self$latent_dim)] + 1e-3),
-				name = 'posterior'
-			)
+			y <- y %>%self$dense_1()
+
+			if (distribution == 'MultivariateNormalDiag'){
+ 	     	q_m <- y[, 1:self$latent_dim]
+				q_v <- tf$nn$softplus(y[, (self$latent_dim + 1):(2 * self$latent_dim)] + 1e-3)
+				tfp$distributions$MultivariateNormalDiag(
+					loc = q_m,
+					scale_diag = q_v
+				)
+			}else if (distribution == 'LogNormal'){
+ 	     	q_m <- y[, 1:self$latent_dim]
+				q_v <- tf$nn$softplus(y[, (self$latent_dim + 1):(2 * self$latent_dim)] + 1e-3)
+				xx <- tfp$distributions$LogNormal(
+					loc = q_m,
+					scale = sqrt(q_v)
+				)
+			}else if (distribution == 'None')
+				y
+				
 		}
 	})
 }
@@ -170,6 +192,10 @@ VaeDecoder <- function(
 	vplot_width,	# width of the image
 	vplot_height, # height of the image
 	filters0 = 64,
+	filters = c(32L, 32L, 1L),
+	kernel_size = c(3L, 3L, 3L),
+	window_strides = c(2L, 2L, 2L),
+	interval_strides = c(2L, 2L, 1L),
 	rate = 0.1,
 	name = NULL
 ){
@@ -177,16 +203,20 @@ VaeDecoder <- function(
 	keras_model_custom(name = name, function(self){
 
 		self$vplot_decoder <- VplotDecoder(
-			filters0 = filters0,																								 
 			vplot_width = vplot_width, 
-			vplot_height = vplot_height
+			vplot_height = vplot_height,
+			filters0 = filters0,																								 
+			filters = filters,
+			kernel_size = kernel_size,
+			window_strides = window_strides,
+			interval_strides = interval_strides
 		)
 	
 		function(x, training = TRUE){
 
 			y <- x %>%
 				self$vplot_decoder()
-	
+
 			x_pred <- y %>% tf$keras$activations$softmax(1L)
 			x_pred
 		}
@@ -207,7 +237,6 @@ VaeModel <- function(
 	 fragment_size_range  = c(80L, 320L),
 	 fragment_size_interval = 5L,
 	 rate = 0.1,
-
 	 name = NULL
 ){
 
