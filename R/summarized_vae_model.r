@@ -107,7 +107,13 @@ SummarizedVaeModel <- function(
 		self$fragment_size_dropout_1 <- tf$keras$layers$Dropout(rate)
 		self$fragment_size_dense_2 <- tf$keras$layers$Dense(n_intervals)
 
-		function(x, fragment_size, training = TRUE){
+		function(x, training = TRUE){
+
+			browser()
+
+			fragment_size <- x %>% 
+				tf$reduce_sum(shape(2L, 3L)) %>% 
+				scale01()
 
 			posterior <- self$encoder(x)
 			z <- posterior$sample()
@@ -197,21 +203,10 @@ setMethod(
 		reconstrution_loss <- tf$keras$losses$MeanSquaredError(reduction = 'none')	# loss for the V-plot
 		n <- x$shape[[1]]
 
-		train_step <- function(x, xn){
-
-			fragment_size <- x %>% 
-				tf$reduce_sum(shape(2L, 3L)) %>% 
-				scale01()
-
-			xe <- x %>% 
-				tf$reduce_sum(shape(1L, 2L, 3L), keepdims = TRUE)	%>%# batch wise read count sum
-				tf$multiply(xn) 
-
-			x <- x - xe
-			x <- x %>% tf$image$per_image_standardization()
+		train_step <- function(x){
 
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
-				res <- model@model(x, fragment_size)
+				res <- model@model(x)
 				loss_reconstruction <- reconstrution_loss(x, res$vplots) %>%
 					tf$reduce_sum(shape(1L, 2L)) %>%
 					tf$reduce_mean()
@@ -239,18 +234,6 @@ setMethod(
 		n_bins_per_window <- x$shape[[3]]
 		channels <- x$shape[[4]]
 
-		total <- x %>% tf$sparse$reduce_sum()
-		bs <- x %>% tf$sparse$reduce_sum(shape(1L, 2L, 3L), keepdims = TRUE)	# batch wise read count sum
-		vs <- x %>% tf$sparse$reduce_sum(shape(0L, 2L, 3L), keepdims = TRUE)	# vertical (fragment size wise) read count sum
-		hs <- x %>% tf$sparse$reduce_sum(shape(0L, 1L, 3L), keepdims = TRUE)	# horizontal (position wise) read count sum
-		cs <- x %>% tf$sparse$reduce_sum(shape(0L, 1L, 2L), keepdims = TRUE)	# channel read count sum
-		xn <- vs %>%
-			tf$math$divide(total) %>%
-			tf$multiply(hs) %>% 
-			tf$math$divide(total) %>% 
-			tf$multiply(cs) %>%
-			tf$math$divide(total) 
-
 		for (epoch in seq_len(epochs)){
 
 			batches <- cut_data(n, batch_size)
@@ -265,7 +248,7 @@ setMethod(
 				b <- batches[[i]]
 			 	xb <- tf$sparse$slice(x, c(b[1] - 1L, 0L, 0L, 0L),c(length(b), n_intervals, n_bins_per_window, channels))
 				xb <- xb %>% tf$sparse$to_dense() 	# to dense
-				res <- train_step(xb, xn)
+				res <- train_step(xb)
 
 				loss <- c(loss, as.numeric(res$loss))
 				loss_reconstruction <- c(loss_reconstruction, as.numeric(res$loss_reconstruction))
@@ -302,24 +285,6 @@ setMethod(
 		latent <- list()
 		x_pred <- list()
 		x_scaled <- list()
-
-		total <- x %>% tf$sparse$reduce_sum()
-		bs <- x %>% tf$sparse$reduce_sum(shape(1L, 2L, 3L), keepdims = TRUE)	# batch wise read count sum
-		vs <- x %>% tf$sparse$reduce_sum(shape(0L, 2L, 3L), keepdims = TRUE)	# vertical (fragment size wise) read count sum
-		hs <- x %>% tf$sparse$reduce_sum(shape(0L, 1L, 3L), keepdims = TRUE)	# horizontal (position wise) read count sum
-		cs <- x %>% tf$sparse$reduce_sum(shape(0L, 1L, 2L), keepdims = TRUE)	# channel read count sum
-
-		xn <- vs %>%
-			tf$math$divide(total) %>%
-			tf$multiply(hs) %>% 
-			tf$math$divide(total) %>% 
-			tf$multiply(cs) %>%
-			tf$math$divide(total) 
-
-#		xn <- vs %>%
-#			tf$math$divide(total) %>%
-#			tf$multiply(cs) %>%
-#			tf$math$divide(total) 
 
 		for (i in 1:length(batches)){
 
