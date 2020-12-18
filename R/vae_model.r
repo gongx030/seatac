@@ -27,8 +27,6 @@ VplotEncoder <- function(
 
 		self$bn <- lapply(1:self$n_layers, function(i) tf$keras$layers$BatchNormalization())
 
-		self$flatten_1 <- tf$keras$layers$Flatten()
-
 		function(x, training = TRUE, mask = NULL){
 
 			for (i in 1:self$n_layers){
@@ -36,9 +34,7 @@ VplotEncoder <- function(
 					self$conv1d[[i - 1]]() %>% # zero-based
 					self$bn[[i - 1]]()	# zero-based
 			}
-			y <- x %>%
-				self$flatten_1()
-			y
+			x
 		}
 	})
 }
@@ -62,9 +58,10 @@ VplotDecoder <- function(
 		self$vplot_width <- vplot_width
 		self$vplot_height <- vplot_height
 		self$filters <- filters
+		self$n_layers <- length(filters)
 
-		if (vplot_width %% prod(window_strides) != 0)
-			stop(sprintf('vplot_width must be a multiple of %d', prod(window_strides)))
+		stopifnot(vplot_width %% prod(window_strides) == 0)
+		stopifnot(vplot_height %% prod(interval_strides) == 0)
 
 		window_dim0 <- as.integer(vplot_width / prod(window_strides))
 		interval_dim0 <- as.integer(vplot_height / prod(interval_strides))
@@ -77,45 +74,42 @@ VplotDecoder <- function(
 
 		self$dropout_1 <- tf$keras$layers$Dropout(0.8)
 
-		self$deconv_1 <- tf$keras$layers$Conv2DTranspose(
-			filters = filters[1],
-			kernel_size = kernel_size[1],
-			strides = shape(interval_strides[1], window_strides[1]),
-			padding = 'same',
-			activation = 'relu'
+		self$deconv <- lapply(1:self$n_layers, function(i) 
+			if (i == self$n_layers){													
+				tf$keras$layers$Conv2DTranspose(
+					filters = filters[i],
+					kernel_size = kernel_size[i],
+					strides = shape(interval_strides[i], window_strides[i]),
+					padding = 'same'
+				)
+			}else{
+				tf$keras$layers$Conv2DTranspose(
+					filters = filters[i],
+					kernel_size = kernel_size[i],
+					strides = shape(interval_strides[i], window_strides[i]),
+					padding = 'same',
+					activation = 'relu'
+				)
+			}
 		)
 
-		self$deconv_2 <- tf$keras$layers$Conv2DTranspose(
-			filters = filters[2],
-			kernel_size = kernel_size[2],
-			strides = shape(interval_strides[2], window_strides[2]),
-			padding = 'same',
-			activation = 'relu'
-		)
-
-		self$deconv_3 <- tf$keras$layers$Conv2DTranspose(
-			filters = filters[3],
-			kernel_size = kernel_size[3],
-			strides = shape(interval_strides[3], window_strides[3]),
-			padding = 'same'
-		)
-
-		self$bn_1 <- tf$keras$layers$BatchNormalization()
-		self$bn_2 <- tf$keras$layers$BatchNormalization()
+		self$bn <- lapply(1:self$n_layers, function(i) tf$keras$layers$BatchNormalization())
 
 		self$reshape_1 <- tf$keras$layers$Reshape(target_shape = c(interval_dim0, window_dim0, filters0))
 
 		function(x, training = TRUE, mask = NULL){
-			y <- x %>%
+
+			x <- x %>%
 				self$dense_1() %>%
 				self$dropout_1() %>%
-				self$reshape_1() %>%
-				self$deconv_1() %>%
-				self$bn_1() %>%
-				self$deconv_2() %>%
-				self$bn_2() %>%
-				self$deconv_3() 
-			y
+				self$reshape_1() 
+
+			for (i in 1:self$n_layers){
+				x <- x %>% 
+					self$deconv[[i - 1]]() %>% # zero-based
+					self$bn[[i - 1]]()	# zero-based
+			}
+			x	
 		}
 	})
 }
@@ -145,6 +139,8 @@ VaeEncoder <- function(
 			interval_strides = interval_strides
 		)
 
+		self$flatten_1 <- tf$keras$layers$Flatten()
+
 		if (distribution == 'MultivariateNormalDiag')
 			self$dense_1 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
 		else if (distribution == 'LogNormal')
@@ -157,7 +153,8 @@ VaeEncoder <- function(
 		function(x, fragment_size = NULL, training = TRUE, mask = NULL){
 
 			y <- x %>%
-				self$vplot_encoder()
+				self$vplot_encoder() %>%
+				self$flatten_1()
 
 			if (!is.null(fragment_size)){
 				y <- tf$concat(list(y, fragment_size), axis = 1L)
