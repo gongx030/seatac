@@ -1,59 +1,11 @@
-#' SummarizedVplotEncoder
-#'
-SummarizedVaeEncoder <- function(
-	latent_dim = 1L,
-	filters = c(32L, 32L, 32L),
-	kernel_size = c(3L, 3L, 3L),
-	window_strides = c(2L, 2L, 2L),
-	interval_strides = c(2L, 2L, 2L),
-	rate = 0.1,
-	name = NULL
-){
-
-	keras_model_custom(name = name, function(self) {
-
-		self$latent_dim <- latent_dim
-
-		self$vplot_encoder <- VplotEncoder(
-			filters = filters,
-			kernel_size = kernel_size,
-			window_strides = window_strides,
-			interval_strides = interval_strides
-		)
-
-		self$dense_1 <- tf$keras$layers$Dense(1L, activation = 'relu')
-    self$dropout_1 <- tf$keras$layers$Dropout(0.8)
-		self$dense_2 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
-
-		function(x, mask = NULL){
-
-			y <- x %>%
-				self$vplot_encoder() %>%
-				tf$transpose(shape(0L, 3L, 1L, 2L)) %>%
-				tf$reshape(shape(x$shape[[1]], self$vplot_encoder$filters[[self$vplot_encoder$n_layers - 1]], -1L)) %>%
-				self$dense_1() %>%
-				self$dropout_1()  %>%
-				tf$squeeze(2L) %>%
-				self$dense_2()
-
-			q_m <- y[, 1:self$latent_dim]
-			q_v <- tf$nn$softplus(y[, (self$latent_dim + 1):(2 * self$latent_dim)] + 1e-3)
-			tfp$distributions$MultivariateNormalDiag(
-				loc = q_m,
-				scale_diag = q_v
-			)
-		}
-	})
-}
-
-
 #' SummarizedVaeModel
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 SummarizedVaeModel <- function(
-	 latent_dim = 10L,
+	 latent_dim_fragment_size = 2L,
+	 latent_dim_channel = 10L,
 	 n_intervals = 48L,
 	 bin_size = 5L,
 	 block_size = 640L,
@@ -79,18 +31,29 @@ SummarizedVaeModel <- function(
 		self$bin_size <- bin_size
 		self$n_bins_per_block <- as.integer(block_size / bin_size)
 		self$channels <- decoder_filters[length(decoder_filters)]
+		self$n_intervals <- n_intervals
+		self$latent_dim_channel <- latent_dim_channel
+		self$latent_dim_fragment_size <- latent_dim_fragment_size
+		self$latent_dim <- latent_dim_channel + latent_dim_fragment_size
 
-		self$encoder <- SummarizedVaeEncoder(
-			latent_dim = latent_dim,
+		self$prior <- tfp$distributions$MultivariateNormalDiag(
+			loc  = tf$zeros(shape(self$latent_dim)),
+			scale_identity_multiplier = 1
+		)
+
+		self$encoder <- VaeEncoder(
+			latent_dim = self$latent_dim,
 			filters = encoder_filters,
 			kernel_size = encoder_kernel_size,
 			window_strides = encoder_window_strides,
-			interval_strides = encoder_interval_strides
+			interval_strides = encoder_interval_strides,
+			rate = rate,
+			distribution = 'MultivariateNormalDiag'
 		)
 
-		self$decoder <- VplotDecoder(
+		self$channel_decoder <- VplotDecoder(
 			vplot_width = self$n_bins_per_block,
-			vplot_height = n_intervals,
+			vplot_height = 1L,
 			filters0 = filters0,
 			filters = decoder_filters,
 			kernel_size = decoder_kernel_size,
@@ -98,38 +61,42 @@ SummarizedVaeModel <- function(
 			interval_strides = decoder_interval_strides
 		)
 
-		self$prior <- tfp$distributions$MultivariateNormalDiag(
-			loc  = tf$zeros(shape(latent_dim)),
-			scale_identity_multiplier = 1
+		fragment_size_decoder_filters <- decoder_filters
+		fragment_size_decoder_filters[length(fragment_size_decoder_filters)] <- 1L
+		self$fragment_size_decoder <- VplotDecoder(
+			vplot_width = 1L,
+			vplot_height = self$n_intervals,
+			filters0 = filters0,
+			filters = fragment_size_decoder_filters,
+			kernel_size = decoder_kernel_size,
+			window_strides = decoder_window_strides,
+			interval_strides = decoder_interval_strides,
 		)
 
-		self$fragment_size_dense_1 <- tf$keras$layers$Dense(4L, activation = 'relu')
-		self$fragment_size_dropout_1 <- tf$keras$layers$Dropout(rate)
-		self$fragment_size_dense_2 <- tf$keras$layers$Dense(n_intervals)
-
-		function(x, training = TRUE){
-
-			browser()
-
-			fragment_size <- x %>% 
-				tf$reduce_sum(shape(2L, 3L)) %>% 
-				scale01()
+		function(x, ..., training = TRUE){
 
 			posterior <- self$encoder(x)
-			z <- posterior$sample()
-			x_pred <- z %>% self$decoder()
 
-			fragment_size <- fragment_size %>% 
-				self$fragment_size_dense_1() %>%
-				self$fragment_size_dropout_1() %>%
-				self$fragment_size_dense_2() %>%
-				tf$expand_dims(2L) %>%
-				tf$expand_dims(3L)
+			if (training){
+				z <- posterior$sample()
+			}else{
+				z <- posterior$mean()
+			}
+
+			z_channel <- z[, 1:self$latent_dim_channel]
+			z_fragment_size <- z[, (self$latent_dim_channel + 1):(self$latent_dim_channel + latent_dim_fragment_size)]
+
+			x_pred <- z_channel %>% self$channel_decoder()
+			fragment_size <- z_fragment_size %>% self$fragment_size_decoder()
 
 			list(
 				posterior = posterior, 
-				z = z, 
-				vplots = x_pred + fragment_size
+				z = z,
+				z_channel = z_channel,
+				z_fragment_size = z_fragment_size,
+				x_pred = x_pred,
+				fragment_size = fragment_size,
+				vplots = fragment_size + x_pred
 			)
 		}
 	})
@@ -174,6 +141,22 @@ setMethod(
       dense_shape = c(n, channels, n_bins_per_window, n_intervals)
     ) 
 		x <- x %>% tf$sparse$transpose(shape(0L, 3L, 2L, 1L))
+
+		x <- x %>% tf$sparse$to_dense()
+		total <- x %>% tf$reduce_sum()
+		bs <- x %>% tf$reduce_sum(shape(1L, 2L, 3L), keepdims = TRUE)
+		vs <- x %>% tf$reduce_sum(shape(0L, 2L, 3L), keepdims = TRUE)
+		hs <- x %>% tf$reduce_sum(shape(0L, 1L, 3L), keepdims = TRUE)
+		cs <- x %>% tf$reduce_sum(shape(0L, 1L, 2L), keepdims = TRUE)
+
+		xe <- bs %>%
+			tf$math$divide(total) %>%
+			tf$multiply(vs) %>%
+			tf$math$divide(total) %>%
+			tf$multiply(hs) %>%
+			tf$math$divide(total) %>%
+			tf$multiply(cs)
+		x <- (x - xe) / tf$math$maximum(xe, 1)
 		x
 	}
 )
@@ -187,7 +170,7 @@ setMethod(
 	'fit',
 	signature(
 		model = 'SummarizedVaeModel',
-		x = 'tensorflow.python.framework.sparse_tensor.SparseTensor'
+		x = 'tf_dataset'
 	),
 	function(
 		 model,
@@ -199,65 +182,57 @@ setMethod(
 	 ){
 
 		optimizer <- tf$keras$optimizers$Adam(learning_rate, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
+		mse <- tf$keras$losses$MeanSquaredError(reduction = 'none')
 
-		reconstrution_loss <- tf$keras$losses$MeanSquaredError(reduction = 'none')	# loss for the V-plot
-		n <- x$shape[[1]]
+		x <- x %>%
+	    dataset_batch(batch_size)
 
 		train_step <- function(x){
-
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
 				res <- model@model(x)
-				loss_reconstruction <- reconstrution_loss(x, res$vplots) %>%
-					tf$reduce_sum(shape(1L, 2L)) %>%
+				loss_reconstruction <- mse(tf$expand_dims(x, 4L), tf$expand_dims(res$vplots, 4L)) %>%
+					tf$reduce_sum(shape(1L, 2L, 3L)) %>%
 					tf$reduce_mean()
 				loss_kl <- (res$posterior$log_prob(res$z) - model@model$prior$log_prob(res$z)) %>%
 					tf$reduce_mean()
 				loss <- loss_reconstruction + loss_kl 
 	 		})
-
 			gradients <- tape$gradient(loss, model@model$trainable_variables)
 			list(gradients, model@model$trainable_variables) %>%
 				purrr::transpose() %>%
 				optimizer$apply_gradients()
 			list(
-				loss = loss,
 				loss_reconstruction = loss_reconstruction,
-				loss_kl = loss_kl
+				loss_kl = loss_kl,
+				loss = loss
 			)
 		}
 
-		if (compile)
+		if (compile){
 			train_step <- tf_function(train_step) # convert to graph mode
+		}
 
-		n <- x$shape[[1]]
-		n_intervals <- x$shape[[2]]
-		n_bins_per_window <- x$shape[[3]]
-		channels <- x$shape[[4]]
+    for (epoch in seq_len(epochs)){
 
-		for (epoch in seq_len(epochs)){
-
-			batches <- cut_data(n, batch_size)
-
-			# training 
 			loss <- NULL
 			loss_reconstruction <- NULL
 			loss_kl <- NULL
+			
+			iter <- x %>%
+				dataset_shuffle(1000L) %>%
+				make_iterator_one_shot()
 
-			for (i in 1:length(batches)){
-
-				b <- batches[[i]]
-			 	xb <- tf$sparse$slice(x, c(b[1] - 1L, 0L, 0L, 0L),c(length(b), n_intervals, n_bins_per_window, channels))
-				xb <- xb %>% tf$sparse$to_dense() 	# to dense
-				res <- train_step(xb)
-
+			until_out_of_range({
+				batch <- iterator_get_next(iter)
+				res <- train_step(batch)
 				loss <- c(loss, as.numeric(res$loss))
 				loss_reconstruction <- c(loss_reconstruction, as.numeric(res$loss_reconstruction))
 				loss_kl <- c(loss_kl, as.numeric(res$loss_kl))
-			}
+			})
 
-			message(sprintf('epoch=%6.d/%6.d | recon_loss=%15.7f | kl_loss=%15.7f | loss=%15.7f', epoch, epochs, mean(loss_reconstruction), mean(loss_kl), mean(loss)))
-
+			sprintf('epoch=%6.d/%6.d | recon_loss=%15.7f | kl_loss=%15.7f | loss=%15.7f', epoch, epochs, mean(loss_reconstruction), mean(loss_kl), mean(loss)) %>% message()
 		}
+
 		model
 	}
 )
@@ -269,7 +244,7 @@ setMethod(
 	'predict',
 	signature(
 		model = 'SummarizedVaeModel',
-		x = 'tensorflow.python.framework.sparse_tensor.SparseTensor'
+		x = 'tf_dataset'
 	),
 	function(
 		model,
@@ -277,48 +252,32 @@ setMethod(
 		batch_size = 8L # v-plot per batch
 	){
 
-		n <- x$shape[[1]]
-		n_intervals <- x$shape[[2]]
-		n_bins_per_window <- x$shape[[3]]
-		channels <- x$shape[[4]]
-		batches <- cut_data(n, batch_size)
-		latent <- list()
-		x_pred <- list()
-		x_scaled <- list()
 
-		for (i in 1:length(batches)){
-
-			b <- batches[[i]]
-		 	xb <- tf$sparse$slice(x, c(b[1] - 1L, 0L, 0L, 0L),c(length(b), n_intervals, n_bins_per_window, channels))
-			xb <- xb %>% tf$sparse$to_dense() 	# to dense
-
-			fragment_size <- xb %>% 
-				tf$reduce_sum(shape(2L, 3L), keepdims) %>% 
-				scale01()
-
-			xe <- xb %>% 
-				tf$reduce_sum(shape(1L, 2L, 3L), keepdims = TRUE)	%>%# batch wise read count sum
-				tf$multiply(xn) 
-
-			xb <- xb - xe
-			xb <- xb %>% tf$image$per_image_standardization()
-
-			posterior <- model@model$encoder(xb, fragment_size)
-			z <- posterior$mean()
-			latent[[i]] <- z
-			x_pred[[i]] <- model@model$decoder(z)
-			x_scaled[[i]] <- xb
-
-		}
-		latent <- tf$concat(latent, axis = 0L)
-		x_pred <- tf$concat(x_pred, axis = 0L)
-		x_scaled <- tf$concat(x_scaled, axis = 0L)
-
-		list(
-			latent = latent, 
-			x_pred = x_pred,
-			x_scaled = x_scaled
+		res <- list(
+			z = list(),
+			z_channel = list(),
+			z_fragment_size = list(),
+			x_pred = list(),
+			vplots = list(),
+			fragment_size = list()
 		)
+
+		iter <- x %>%
+	    dataset_batch(batch_size) %>%
+			make_iterator_one_shot()
+
+		until_out_of_range({
+			batch <- iterator_get_next(iter)
+			y <- model@model(batch, training = FALSE)
+			for (j in names(res)){
+				res[[j]] <- c(res[[j]], y[[j]])
+			}
+		})
+
+		for (j in names(res)){
+			res[[j]] <- tf$concat(res[[j]], axis = 0L)
+		}
+		res
 	}
 )
 
