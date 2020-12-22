@@ -146,6 +146,7 @@ setMethod(
 #' @param bin_size The bin size (default: 5L)
 #' @param fragment_size_range The range of the PE reads fragment sizes (default: c(80L, 320L))
 #' @param fragment_size_interval fragment_size_interval
+#' @return a SummarizedVplots object
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -183,6 +184,8 @@ setMethod(
 		n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval
 
 		classes <- names(x)	# could be no names
+		if (is.null(classes))
+			classes <- 1:length(x)
 		idx <- rep(1:length(x), sapply(x, length))	# number of binding site for each group
 		x <- unlist(x)
 		names(x) <- NULL

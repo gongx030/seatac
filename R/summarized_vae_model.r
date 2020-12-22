@@ -10,14 +10,11 @@ SummarizedVaeModel <- function(
 	 bin_size = 5L,
 	 block_size = 640L,
 	 filters0 = 128L,
+	 channels = 1L,
 	 encoder_filters = c(32L, 32L, 32L),
-	 encoder_kernel_size = c(3L, 3L, 3L),
+	 encoder_kernel_size = c(2L, 2L, 2L),
 	 encoder_window_strides = c(2L, 2L, 2L),
 	 encoder_interval_strides = c(2L, 2L, 2L),
-	 decoder_filters = c(32L, 32L, 1L),
-	 decoder_kernel_size = c(3L, 3L, 3L),
-	 decoder_window_strides = c(2L, 2L, 2L),
-	 decoder_interval_strides = c(2L, 2L, 1L),
 	 rate = 0.1,
 	 name = NULL
 ){
@@ -30,7 +27,7 @@ SummarizedVaeModel <- function(
 		self$block_size <- block_size
 		self$bin_size <- bin_size
 		self$n_bins_per_block <- as.integer(block_size / bin_size)
-		self$channels <- decoder_filters[length(decoder_filters)]
+		self$channels <- channels
 		self$n_intervals <- n_intervals
 		self$latent_dim_channel <- latent_dim_channel
 		self$latent_dim_fragment_size <- latent_dim_fragment_size
@@ -55,22 +52,20 @@ SummarizedVaeModel <- function(
 			vplot_width = self$n_bins_per_block,
 			vplot_height = 1L,
 			filters0 = filters0,
-			filters = decoder_filters,
-			kernel_size = decoder_kernel_size,
-			window_strides = decoder_window_strides,
-			interval_strides = decoder_interval_strides
+			filters = c(32L, self$channels),
+			kernel_size = c(2L, 2L),
+			window_strides = c(2L, 2L),
+			interval_strides = c(1L, 1L),
 		)
 
-		fragment_size_decoder_filters <- decoder_filters
-		fragment_size_decoder_filters[length(fragment_size_decoder_filters)] <- 1L
 		self$fragment_size_decoder <- VplotDecoder(
 			vplot_width = 1L,
 			vplot_height = self$n_intervals,
 			filters0 = filters0,
-			filters = fragment_size_decoder_filters,
-			kernel_size = decoder_kernel_size,
-			window_strides = decoder_window_strides,
-			interval_strides = decoder_interval_strides,
+			filters = 1L,
+			kernel_size = 2L,
+			window_strides = 1L,
+			interval_strides = 2L
 		)
 
 		function(x, ..., training = TRUE){
@@ -177,11 +172,11 @@ setMethod(
 		 x,
 		 batch_size = 32L,
 		 epochs = 100L,
-		 learning_rate = 1e-4,
+		 learning_rate = 1e-3,
 		 compile = FALSE
 	 ){
 
-		optimizer <- tf$keras$optimizers$Adam(learning_rate, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
+		optimizer <- tf$keras$optimizers$Adam(learning_rate)
 		mse <- tf$keras$losses$MeanSquaredError(reduction = 'none')
 
 		x <- x %>%
@@ -230,9 +225,9 @@ setMethod(
 				loss_kl <- c(loss_kl, as.numeric(res$loss_kl))
 			})
 
-			sprintf('epoch=%6.d/%6.d | recon_loss=%15.7f | kl_loss=%15.7f | loss=%15.7f', epoch, epochs, mean(loss_reconstruction), mean(loss_kl), mean(loss)) %>% message()
+			sprintf('epoch=%6.d/%6.d | recon_loss=%15.7f | kl_loss=%15.7f | loss=%15.7f', epoch, epochs, mean(loss_reconstruction), mean(loss_kl), mean(loss)) %>% 
+				message()
 		}
-
 		model
 	}
 )
@@ -251,7 +246,6 @@ setMethod(
 		x,
 		batch_size = 8L # v-plot per batch
 	){
-
 
 		res <- list(
 			z = list(),
