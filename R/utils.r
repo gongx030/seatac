@@ -65,28 +65,6 @@ reconstruct_vplot_from_blocks <- function(x){
 }
 
 
-#' get_angles
-#' Adopted from https://www.tensorflow.org/tutorials/text/transformer
-#'
-get_angles <- function(pos, i, d_model){
-	angle_rates <- 1 / (10000^ ( (2 * i %/% 2) / d_model ))
-  pos %*% angle_rates
-}
-
-positional_encoding <- function(position, d_model){
-	angle_rads <- get_angles(
-		matrix(0:(position - 1), position, 1),
-		matrix(0:(d_model - 1), 1, d_model),
-		d_model
-	)
-	even <- seq(1, ncol(angle_rads), by = 2)
-	angle_rads[, even] <- sin(angle_rads[, even])
-	odd <- seq(2, ncol(angle_rads), by = 2)
-	angle_rads[, odd] <- cos(angle_rads[, odd])
-	angle_rads
-} # positional_encoding
-
-
 #' split_dataset
 #'
 split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
