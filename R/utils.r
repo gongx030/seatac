@@ -143,29 +143,6 @@ cut_data <- function(n, batch_size){
 }
 
 
-#' compute_z_score
-#'
-compute_z_score <- function(x, pseudo_count = 1L){
-
-	counts <- assays(x)$counts %>%
-		tf$cast(tf$float32) %>%
-		tf$reshape(shape(length(x), x@n_intervals, x@n_bins_per_window))
-
-	counts <- counts + pseudo_count
-
-	# background probability along the fragment size dimension
-	p <- tf$reduce_sum(counts, axis = shape(0L, 2L), keepdims = TRUE) / tf$reduce_sum(counts, keepdims = TRUE)
-	n <- tf$reduce_sum(counts, 2L, keepdims = TRUE) # counts along the fragment size dimension per k-mer
-
-	# Z-score per position per fragment size interval per k-mer
-	Z <- (counts - n * p) / tf$math$sqrt(n * p * (1 - p)) # k-mer ~ fragment size ~ bins
-
-	SummarizedExperiment::assays(x)$z <- Z %>% tf$reshape(shape(length(x), x@n_intervals * x@n_bins_per_window)) %>% as.matrix()
-
-	x
-
-} # compute_z_score
-
 #' scale_vplot 
 #'
 #' @export
