@@ -135,6 +135,7 @@ setMethod(
 	}
 )
 
+
 #' Read aggregated V-plot from a list of genomic ranges (GRangeList)
 #'
 #' This function is to quickly read aggregated V-plot given a list of GRanges (e.g. motif binding sites) for 
@@ -256,3 +257,35 @@ setMethod(
 
 	}
 )
+
+#' Read aggregated V-plot from a list of genomic ranges (GRangeList)
+#'
+#' This function is to quickly read aggregated V-plot given a list of GRanges (e.g. motif binding sites) for 
+#' scATAC-seq.
+#'
+#' @param x a GRange object that define a set of genomic regions.
+#' @param filename BAM file name
+#' @param genome genome abbreviation such as mm10 or hg19
+#' @param ...
+#'
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
+setMethod(
+	'read_vplot',
+	signature(
+		x = 'GRangesList',
+		filename = 'character',
+		genome = 'character'
+	), 
+	function(
+		x, 
+		filename, 
+		genome,
+		...
+	){
+		genome <- get_bsgenome(genome)
+		read_vplot(x, filename, genome, ...)
+	}
+)
+

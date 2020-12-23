@@ -11,10 +11,12 @@ SummarizedVaeModel <- function(
 	 block_size = 640L,
 	 filters0 = 128L,
 	 channels = 1L,
-	 encoder_filters = c(32L, 32L, 32L),
-	 encoder_kernel_size = c(2L, 2L, 2L),
-	 encoder_window_strides = c(2L, 2L, 2L),
-	 encoder_interval_strides = c(2L, 2L, 2L),
+	 encoder_filters = c(32L, 32L),
+	 encoder_kernel_size = c(2L, 2L),
+	 encoder_window_strides = c(2L, 2L),
+	 encoder_interval_strides = c(2L, 2L),
+	 decoder_kernel_size = 2L,
+	 decoder_strides = 2L,
 	 rate = 0.1,
 	 name = NULL
 ){
@@ -52,10 +54,10 @@ SummarizedVaeModel <- function(
 			vplot_width = self$n_bins_per_block,
 			vplot_height = 1L,
 			filters0 = filters0,
-			filters = c(32L, self$channels),
-			kernel_size = c(2L, 2L),
-			window_strides = c(2L, 2L),
-			interval_strides = c(1L, 1L),
+			filters = self$channels,
+			kernel_size = decoder_kernel_size,
+			window_strides = decoder_strides,
+			interval_strides = 1L
 		)
 
 		self$fragment_size_decoder <- VplotDecoder(
@@ -63,9 +65,9 @@ SummarizedVaeModel <- function(
 			vplot_height = self$n_intervals,
 			filters0 = filters0,
 			filters = 1L,
-			kernel_size = 2L,
+			kernel_size = decoder_kernel_size,
 			window_strides = 1L,
-			interval_strides = 2L
+			interval_strides = decoder_strides
 		)
 
 		function(x, ..., training = TRUE){
@@ -253,7 +255,8 @@ setMethod(
 			z_fragment_size = list(),
 			x_pred = list(),
 			vplots = list(),
-			fragment_size = list()
+			fragment_size = list(),
+			x_scaled = list()
 		)
 
 		iter <- x %>%
@@ -263,6 +266,7 @@ setMethod(
 		until_out_of_range({
 			batch <- iterator_get_next(iter)
 			y <- model@model(batch, training = FALSE)
+			y$x_scaled <- batch
 			for (j in names(res)){
 				res[[j]] <- c(res[[j]], y[[j]])
 			}

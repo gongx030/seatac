@@ -41,15 +41,28 @@ VplotEncoder <- function(
 
 
 #' VplotDecoder
+#'
+#' A Vplot decoder network
+#' @param vplot_width V-plot width (genomic position-wise)
+#' @param vplot_height V-plot height (fragment size wise)
+#' @param filters0 The dimensionality of the output space of the first image from the latent space (default: 64L)
+#' @param filters The dimensionality of the output space of the deconved images (default: c(32L, 32L, 1L))
+#' @param kernel_size 
+#' @param interval_strides 
+#' @param window_strides
+#' @param rate Dropout rate (default: 0.1)
 #' 
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
 VplotDecoder <- function(
 	vplot_width,	# width of the image
 	vplot_height, # height of the image
 	filters0 = 64L,
 	filters = c(32L, 32L, 1L),
 	kernel_size = c(3L, 3L, 3L),
-	window_strides = c(2L, 2L, 2L),
 	interval_strides = c(2L, 2L, 1L),
+	window_strides = c(2L, 2L, 2L),
+	rate = 0.1,
 	name = NULL
 ){
 
@@ -62,6 +75,9 @@ VplotDecoder <- function(
 
 		stopifnot(vplot_width %% prod(window_strides) == 0)
 		stopifnot(vplot_height %% prod(interval_strides) == 0)
+		stopifnot(self$n_layers == length(kernel_size))
+		stopifnot(self$n_layers == length(window_strides))
+		stopifnot(self$n_layers == length(interval_strides))
 
 		window_dim0 <- as.integer(vplot_width / prod(window_strides))
 		interval_dim0 <- as.integer(vplot_height / prod(interval_strides))
@@ -72,7 +88,9 @@ VplotDecoder <- function(
 			activation = 'relu'
 		)
 
-		self$dropout_1 <- tf$keras$layers$Dropout(0.8)
+		self$dropout_1 <- tf$keras$layers$Dropout(rate)
+
+		self$reshape_1 <- tf$keras$layers$Reshape(target_shape = c(interval_dim0, window_dim0, filters0))
 
 		self$deconv <- lapply(1:self$n_layers, function(i) 
 			if (i == self$n_layers){													
@@ -95,9 +113,7 @@ VplotDecoder <- function(
 
 		self$bn <- lapply(1:self$n_layers, function(i) tf$keras$layers$BatchNormalization())
 
-		self$reshape_1 <- tf$keras$layers$Reshape(target_shape = c(interval_dim0, window_dim0, filters0))
-
-		function(x, training = TRUE, mask = NULL){
+		function(x, ...){
 
 			x <- x %>%
 				self$dense_1() %>%
