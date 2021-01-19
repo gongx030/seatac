@@ -1,3 +1,8 @@
+#' validate_bam
+#'
+#' Validate BAM files
+#' @param filenames file names
+#'
 validate_bam <- function(filenames){
 
   if (missing(filenames))

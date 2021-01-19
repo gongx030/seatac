@@ -20,7 +20,9 @@ setClass(
 		n_bins_per_window = 'integer',
 		breaks = 'numeric',
 		centers = 'numeric',
-		positions = 'numeric'
+		positions = 'numeric',
+		n_samples = 'integer',
+		samples = 'character'
 	),
 	contains = 'RangedSummarizedExperiment'
 )

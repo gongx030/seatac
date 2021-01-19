@@ -3,6 +3,11 @@
 #' Count how many reads fall into a specific fragment size range
 #'
 #' @param x a GRanges object defining the peaks; the width must be the same for all peaks.
+#' @param filename BAM file name.
+#' @param genome either a character such as 'mm10' or 'hg19', or a BS genome object such as 
+#' 				BSgenome.Mmusculus.UCSC.mm10
+#' @param fragment_size_range fragment size ranges (default:  c(80, 320))
+#' @return 
 #' 
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)

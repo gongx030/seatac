@@ -77,6 +77,7 @@ setMethod(
 
 		se <- SummarizedExperiment(assays = list(counts = counts))
 		SummarizedExperiment::rowRanges(se) <- gr
+		rowData(se) <- rowData(x)[rep(1:length(x), each = n_blocks_per_window), ]
 
 		new(
 			'Vplots',
@@ -89,7 +90,9 @@ setMethod(
 			n_bins_per_window = n_bins_per_block,
 			breaks = x@breaks,
 			centers = x@centers,
-			positions = seq(x@bin_size, block_size, by = x@bin_size) - (block_size / 2)
+			positions = seq(x@bin_size, block_size, by = x@bin_size) - (block_size / 2),
+			n_samples = x@n_samples,
+			samples = x@samples
 		)
 	}
 )

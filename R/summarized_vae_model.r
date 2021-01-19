@@ -4,8 +4,7 @@
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 SummarizedVaeModel <- function(
-	 latent_dim_fragment_size = 2L,
-	 latent_dim_channel = 10L,
+	 latent_dim = 10L,
 	 n_intervals = 48L,
 	 bin_size = 5L,
 	 block_size = 640L,
@@ -31,9 +30,7 @@ SummarizedVaeModel <- function(
 		self$n_bins_per_block <- as.integer(block_size / bin_size)
 		self$channels <- channels
 		self$n_intervals <- n_intervals
-		self$latent_dim_channel <- latent_dim_channel
-		self$latent_dim_fragment_size <- latent_dim_fragment_size
-		self$latent_dim <- latent_dim_channel + latent_dim_fragment_size
+		self$latent_dim <- latent_dim
 
 		self$prior <- tfp$distributions$MultivariateNormalDiag(
 			loc  = tf$zeros(shape(self$latent_dim)),
@@ -50,23 +47,13 @@ SummarizedVaeModel <- function(
 			distribution = 'MultivariateNormalDiag'
 		)
 
-		self$channel_decoder <- VplotDecoder(
+		self$decoder <- VplotDecoder(
 			vplot_width = self$n_bins_per_block,
-			vplot_height = 1L,
+			vplot_height = self$n_intervals,
 			filters0 = filters0,
 			filters = self$channels,
 			kernel_size = decoder_kernel_size,
 			window_strides = decoder_strides,
-			interval_strides = 1L
-		)
-
-		self$fragment_size_decoder <- VplotDecoder(
-			vplot_width = 1L,
-			vplot_height = self$n_intervals,
-			filters0 = filters0,
-			filters = 1L,
-			kernel_size = decoder_kernel_size,
-			window_strides = 1L,
 			interval_strides = decoder_strides
 		)
 
@@ -80,20 +67,12 @@ SummarizedVaeModel <- function(
 				z <- posterior$mean()
 			}
 
-			z_channel <- z[, 1:self$latent_dim_channel]
-			z_fragment_size <- z[, (self$latent_dim_channel + 1):(self$latent_dim_channel + latent_dim_fragment_size)]
-
-			x_pred <- z_channel %>% self$channel_decoder()
-			fragment_size <- z_fragment_size %>% self$fragment_size_decoder()
+			x_pred <- z %>% self$decoder()
 
 			list(
 				posterior = posterior, 
 				z = z,
-				z_channel = z_channel,
-				z_fragment_size = z_fragment_size,
-				x_pred = x_pred,
-				fragment_size = fragment_size,
-				vplots = fragment_size + x_pred
+				vplots = x_pred
 			)
 		}
 	})
@@ -117,12 +96,12 @@ setMethod(
 		model,
 		x
 	){
-
-		channels <- length(x[[1]])
+		
 		n_bins_per_window <- x[[1]]@n_bins_per_window
 		n_intervals <- x[[1]]@n_intervals
-		n <- length(x)
 
+		channels <- length(x[[1]])
+		n <- length(x)
 		x <- do.call('rbind', lapply(x, function(xx) assays(xx)$counts))
 
 		b <- rep(1:n, each = channels)	# row-wise batch index
@@ -140,6 +119,57 @@ setMethod(
 		x <- x %>% tf$sparse$transpose(shape(0L, 3L, 2L, 1L))
 
 		x <- x %>% tf$sparse$to_dense()
+		total <- x %>% tf$reduce_sum()
+		bs <- x %>% tf$reduce_sum(shape(1L, 2L, 3L), keepdims = TRUE)
+		vs <- x %>% tf$reduce_sum(shape(0L, 2L, 3L), keepdims = TRUE)
+		hs <- x %>% tf$reduce_sum(shape(0L, 1L, 3L), keepdims = TRUE)
+		cs <- x %>% tf$reduce_sum(shape(0L, 1L, 2L), keepdims = TRUE)
+
+		xe <- bs %>%
+			tf$math$divide(total) %>%
+			tf$multiply(vs) %>%
+			tf$math$divide(total) %>%
+			tf$multiply(hs) %>%
+			tf$math$divide(total) %>%
+			tf$multiply(cs)
+		x <- (x - xe) / tf$math$maximum(xe, 1)
+		x
+	}
+)
+
+
+#' prepare_data
+#'
+#' Prepare tfdataset for training and testing a VaeModel model
+#'
+#' @export
+#'
+setMethod(
+	'prepare_data',
+	signature(
+		model = 'SummarizedVaeModel',
+		x = 'VplotsList'
+	),
+	function(
+		model,
+		x
+	){
+		
+		n_bins_per_window <- x[[1]]@n_bins_per_window
+		n_intervals <- x[[1]]@n_intervals
+
+		channels <- length(x)
+		n <- length(x[[1]])
+
+		x <- lapply(x, function(xx) 
+			assays(xx)$counts %>%
+				as.matrix() %>%
+				tf$cast(tf$float32) %>%
+				tf$reshape(shape(n, n_intervals, n_bins_per_window)) %>%
+				tf$expand_dims(3L)
+		) %>% 
+			tf$concat(axis = 3L)
+			
 		total <- x %>% tf$reduce_sum()
 		bs <- x %>% tf$reduce_sum(shape(1L, 2L, 3L), keepdims = TRUE)
 		vs <- x %>% tf$reduce_sum(shape(0L, 2L, 3L), keepdims = TRUE)
@@ -251,11 +281,7 @@ setMethod(
 
 		res <- list(
 			z = list(),
-			z_channel = list(),
-			z_fragment_size = list(),
-			x_pred = list(),
 			vplots = list(),
-			fragment_size = list(),
 			x_scaled = list()
 		)
 

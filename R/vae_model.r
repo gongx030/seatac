@@ -43,13 +43,14 @@ VplotEncoder <- function(
 #' VplotDecoder
 #'
 #' A Vplot decoder network
+#'
 #' @param vplot_width V-plot width (genomic position-wise)
 #' @param vplot_height V-plot height (fragment size wise)
 #' @param filters0 The dimensionality of the output space of the first image from the latent space (default: 64L)
 #' @param filters The dimensionality of the output space of the deconved images (default: c(32L, 32L, 1L))
-#' @param kernel_size 
-#' @param interval_strides 
-#' @param window_strides
+#' @param kernel_size  kernel size
+#' @param interval_strides interval strides
+#' @param window_strides window strides
 #' @param rate Dropout rate (default: 0.1)
 #' 
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -134,7 +135,7 @@ VplotDecoder <- function(
 #' VaeEncoder
 #' 
 VaeEncoder <- function(
-	latent_dim = 1L,
+	latent_dim = 10L,
 	filters = c(32L, 32L, 32L),
 	kernel_size = c(3L, 3L, 3L),
 	window_strides = c(2L, 2L, 2L),
@@ -166,15 +167,11 @@ VaeEncoder <- function(
 		else
 			stop(sprintf('unknown distribution: %s', distribution))
 
-		function(x, fragment_size = NULL, training = TRUE, mask = NULL){
+		function(x, training = TRUE, mask = NULL){
 
 			y <- x %>%
 				self$vplot_encoder() %>%
 				self$flatten_1()
-
-			if (!is.null(fragment_size)){
-				y <- tf$concat(list(y, fragment_size), axis = 1L)
-			}
 
 			y <- y %>%self$dense_1()
 
@@ -268,18 +265,27 @@ VaeModel <- function(
 		br <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
 		self$breaks <- tf$constant(br)
 		self$centers <- tf$constant((br[-1] + br[-length(br)]) / 2)
+		self$positions <- tf$cast(seq(0 + bin_size / 2, block_size - bin_size / 2, by = bin_size) - (block_size / 2), tf$float32)
 		
-		self$is_nfr <- self$centers <= 100
-		self$is_nucleosome <- self$centers >= 180 & self$centers <= 247
-
 		self$encoder <- VaeEncoder(
-			latent_dim = latent_dim
+			latent_dim = latent_dim,
+			filters = c(32L, 32L, 32L),
+			kernel_size = c(3L, 3L, 3L),
+			window_strides = c(2L, 2L, 2L),
+			interval_strides = c(2L, 2L, 2L),
+			distribution = 'MultivariateNormalDiag',
+			rate = rate
 		)
 
 		self$decoder <- VaeDecoder(
-			filters0 = filters0,
 			vplot_width = self$n_bins_per_block,
-			vplot_height = n_intervals
+			vplot_height = n_intervals,
+			filters0 = filters0,
+			filters = c(32L, 32L, 1L),
+			kernel_size = c(3L, 3L, 3L),
+			window_strides = c(2L, 2L, 2L),
+			interval_strides = c(2L, 2L, 1L),
+			rate = rate
 		)
 
 		self$prior <- tfp$distributions$MultivariateNormalDiag(
@@ -287,13 +293,12 @@ VaeModel <- function(
 			scale_identity_multiplier = 1
 		)
 
-		function(x, fragment_size, training = TRUE){
+		function(x, b, training = TRUE){
 
-			posterior <- self$encoder(x, fragment_size)
+			posterior <- x %>% self$encoder()
 			z <- posterior$sample()
-
-			z_cond <- tf$concat(list(z, fragment_size), axis = 1L)
-			x_pred <- z_cond %>% self$decoder()
+			c <- list(z, b) %>% tf$concat(axis = 1L)
+			x_pred <- c %>% self$decoder()
 
 			list(
 				posterior = posterior, 
@@ -322,58 +327,75 @@ setMethod(
 		x
 	){
 
-		d <- list()
+		batch <- rowData(x)$batch %>%
+			factor(x@samples) %>%
+			as.numeric() %>% 
+			tf$cast(tf$int32) %>%
+			tf$one_hot(x@n_samples)
 
-		d$vplots <- assays(x)$counts %>%
+		x <- assays(x)$counts %>%
 			as.matrix() %>%
-			reticulate::array_reshape(c(    # convert into a C-style array
-				length(x),
-				x@n_intervals,
-				x@n_bins_per_window,
-				1L
-			)) %>%
-			tf$cast(tf$float32) 
-
-		d$vplots <- d$vplots %>%
+			tf$cast(tf$float32) %>%
+			tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window, 1L)) %>%
 			scale_vplot()
 
-		# add weight for each genomic bin
-		w <- tf$reduce_sum(d$vplots, 1L, keepdims = TRUE) > 0
+		w <- tf$reduce_sum(x, 1L, keepdims = TRUE) > 0
+		w <- w %>% tf$squeeze(3L)
 		w <- w %>% tf$cast(tf$float32)
-		d$weight <- w
 
-		d
+		list(
+			vplots = x,
+			weight = w,
+			batch = batch
+		)
 	}
 )
-
-
-#' prepare_data
-#'
-#' Prepare tfdataset for training and testing a VaeModel model
+#' fit
 #'
 #' @export
 #'
 setMethod(
-	'prepare_data',
+	'fit',
 	signature(
 		model = 'VaeModel',
-		x = 'VplotsList'
+		x = 'Vplots'
 	),
 	function(
-		model,
-		x
+		 model,
+		 x,
+		 batch_size = 32L,
+		 epochs = 100L,
+		 learning_rate = 1e-4,
+		 warmup = 50L,
+		 min_reads = 25L,	# min reads for the training blocks
+		 max_training_samples = 10000L,
+		 step_size = 20L,
+		 compile = TRUE
 	){
+		
+		stopifnot(x@window_size >= model@model$block_size)
 
-		d <- lapply(1:length(x), function(i){
-			model %>% prepare_data(x[[i]])
-		})
+		x <- x %>% 
+			slidingWindows(width = model@model$block_size, step = step_size, batch_size = 4096L)
 
-		for (j in names(d[[1]])){
-			d[[1]][[j]] <- tf$concat(lapply(1:length(x), function(i) d[[i]][[j]]), axis = 0L)
+		counts <- rowSums(assays(x)$counts)
+		sprintf('peaks >= %d reads: %d/%d', min_reads, sum(counts >= min_reads), length(x)) %>% 
+			message()
+		x <- x[counts >= min_reads]
+
+		if (length(x) > max_training_samples){
+			sprintf('downsampling %d peaks for training', max_training_samples) %>% 
+				message()
+			x <- sample(x, max_training_samples)
 		}
-		d[[1]]
+
+		x <- model %>% prepare_data(x)
+		x <- x %>% tensor_slices_dataset()
+		model <- model %>% fit(x, batch_size = batch_size, epochs = epochs, warmup = warmup, compile = compile, learning_rate = learning_rate)
+		model
 	}
 )
+
 
 #' fit
 #'
@@ -390,37 +412,27 @@ setMethod(
 		 x,
 		 batch_size = 32L,
 		 epochs = 100L,
-		 test_size = 0.15,
 		 learning_rate = 1e-4,
-		 num_reads = NA
+		 warmup = 50L,
+		 compile = TRUE
 	 ){
+
+		x <- x %>%
+			dataset_batch(batch_size)
 
 		optimizer <- tf$keras$optimizers$Adam(learning_rate, beta_1 = 0.9, beta_2 = 0.98, epsilon = 1e-9)
 
 		reconstrution_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')	# loss for the V-plot
 
-		x <- x %>% 
-			dataset_shuffle(1000L) %>%
-			split_dataset(test_size = test_size, batch_size = batch_size)
-
-		train_step <- function(x, w){
-
-			fragment_size <- get_fragment_size(x)
-
-			if (is.na(num_reads)){
-				x_input <- x
-			}else{
-				x_input <- downsample_vplot(x, num_reads)
-			}
-
+		train_step <- function(x, w, b, beta){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
-				res <- model@model(x_input, fragment_size)
-				loss_reconstruction <- (tf$squeeze(w, 3L) * reconstrution_loss(x, res$vplots)) %>%
+				res <- model@model(x, b)
+				loss_reconstruction <- (w * reconstrution_loss(x, res$vplots)) %>%
 					tf$reduce_sum(shape(1L, 2L)) %>%
 					tf$reduce_mean()
 				loss_kl <- (res$posterior$log_prob(res$z) - model@model$prior$log_prob(res$z)) %>%
 					tf$reduce_mean()
-				loss <- loss_reconstruction + loss_kl
+				loss <- loss_reconstruction + beta * loss_kl
 	 		})
 			gradients <- tape$gradient(loss, model@model$trainable_variables)
 			list(gradients, model@model$trainable_variables) %>%
@@ -433,46 +445,29 @@ setMethod(
 			)
 		}
 
-		test_step <- function(x, w){
-			fragment_size <- get_fragment_size(x)
-			res <- model@model(x, fragment_size)
-			metric_test <- (tf$squeeze(w, 3L) * reconstrution_loss(x, res$vplots)) %>%
-				tf$reduce_sum(shape(1L, 2L)) %>%
-				tf$reduce_mean()
-			list(
-				metric_test = metric_test
-			)
+		if (compile){
+			train_step <- tf_function(train_step) # convert to graph mode
 		}
 
-		train_step <- tf_function(train_step) # convert to graph mode
-		test_step <- tf_function(test_step) # convert to graph mode
+		beta <- c(seq(0, 1, length.out = warmup), rep(1, epochs - warmup))
 
 		for (epoch in seq_len(epochs)){
-			# training 
-			loss_train <- NULL 
-			loss_train_reconstruction <- NULL
-			loss_train_kl <- NULL
-			iter <- x$train %>%
+			loss <- NULL 
+			loss_reconstruction <- NULL
+			loss_kl <- NULL
+			iter <- x %>%
 				dataset_shuffle(1000L) %>%
 				make_iterator_one_shot()
 			res <- until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- train_step(batch$vplots, batch$weight)
-				loss_train <- c(loss_train, as.numeric(res$loss))
-				loss_train_reconstruction <- c(loss_train_reconstruction, as.numeric(res$loss_reconstruction))
-				loss_train_kl <- c(loss_train_kl, as.numeric(res$loss_kl))
+				res <- train_step(batch$vplots, batch$weight, batch$batch, beta[epoch])
+				loss <- c(loss, as.numeric(res$loss))
+				loss_reconstruction <- c(loss_reconstruction, as.numeric(res$loss_reconstruction))
+				loss_kl <- c(loss_kl, as.numeric(res$loss_kl))
 			})
 
-			# testing
-			metric_test <- NULL
-			iter <- make_iterator_one_shot(x$test)
-			until_out_of_range({
-				batch <- iterator_get_next(iter)
-				res <- test_step(batch$vplots, batch$weight)
-				metric_test <- c(metric_test, as.numeric(res$metric_test))
-			})
-
-			message(sprintf('epoch=%6.d/%6.d | train_recon_loss=%13.7f | train_kl_loss=%13.7f | train_loss=%13.7f | test_recon_loss=%13.7f', epoch, epochs, mean(loss_train_reconstruction), mean(loss_train_kl), mean(loss_train), mean(metric_test)))
+			sprintf('epoch=%6.d/%6.d | beta=%9.3f | recon_loss=%13.7f | kl_loss=%13.7f | loss=%13.7f', epoch, epochs, beta[epoch], mean(loss_reconstruction), mean(loss_kl), mean(loss)) %>%
+				message()
 
 		}
 		model
@@ -628,3 +623,112 @@ setMethod(
 	}
 ) # predict
 #'
+
+#' test_accessibility
+#'
+setMethod(
+	'test_accessibility',
+	signature(
+		model = 'VaeModel',
+		x = 'Vplots'
+	),
+	function(
+		model,
+		x,
+		contrasts = NULL,
+		min_reads = 5L,
+		center_size = 100L,
+		resample = 100L,
+		batch_size = 512L
+	){
+
+		stopifnot(is.character(contrasts) && length(contrasts) == 3)
+
+		field <- contrasts[1]
+		stopifnot(!is.null(mcols(x)[[field]]) && all(mcols(x)[[field]] %in% x@samples))
+
+		stopifnot(all(contrasts[2:3] %in% x@samples && contrasts[2] != contrasts[3]))
+
+		group1 <- mcols(x)[[field]] %in% contrasts[2]
+		group2 <- mcols(x)[[field]] %in% contrasts[3]
+
+		stopifnot(all(granges(x[group1]) == granges(x[group2])))
+
+		is_center <- model@model$positions >= -center_size / 2 & model@model$positions <= center_size / 2
+    is_nfr <- model@model$centers <= 100
+    is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
+
+		counts <- matrix(rowSums(assays(x)$counts), nrow = length(x) / x@n_samples, ncol = x@n_samples, dimnames = list(NULL, x@samples))
+		include <- rowSums(counts[, contrasts[2:3]] >= min_reads) == 2L
+		n <- sum(include)
+		include <- rep(include, x@n_samples)
+
+		y <- assays(x[include])$counts %>%
+			as.matrix() %>%
+			tf$cast(tf$float32) %>%
+			tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window)) %>%
+			tf$expand_dims(3L) %>%
+			scale_vplot() %>%
+			tf$reshape(shape(2L, n, x@n_intervals, x@n_bins_per_window, 1L))	
+
+		batch <- rowData(x[include])$batch %>%
+			factor(x@samples) %>%
+			as.numeric() %>% 
+			tf$cast(tf$int32) %>%
+			tf$one_hot(x@n_samples) %>%
+			tf$reshape(shape(2L, n, -1L))
+
+		bs <- cut_data(n, batch_size)
+		S <- list()
+		for (j in 1:length(bs)){
+
+			b <- bs[[j]]
+
+			posterior <- y[, b, , , , drop = FALSE] %>%
+				tf$reshape(shape(2L * length(b), x@n_intervals, x@n_bins_per_window, 1L)) %>%
+				model@model$encoder()
+
+			z <- posterior$sample(resample)
+
+			bb <- batch[, b, , drop = FALSE] %>% 
+				tf$reshape(shape(2L * length(b), -1L)) %>% 
+				tf$expand_dims(0L) %>%
+				tf$tile(shape(resample, 1L, 1L))
+
+			si <- list(z, bb) %>% 
+				tf$concat(axis = 2L) %>% 
+				tf$reshape(shape(resample * 2L * length(b), -1L)) %>%
+				model@model$decoder() %>% 
+				vplot2nucleosome(is_nucleosome, is_nfr) %>% 
+				tf$boolean_mask(is_center, axis = 1L) %>% 
+				tf$reduce_sum(1L, keepdims = TRUE) %>%
+				tf$reshape(shape(resample, 2L, length(b)))
+
+			S[[j]] <- (si[, 1, ] > si[, 2, ]) %>% 
+				tf$cast(tf$int32) %>% 
+				tf$reduce_sum(0L)
+
+			if (j %% 10 == 0){
+				sprintf('test_accessibility | batch=%6.d/%6.d', j, length(bs)) %>%
+					message()
+			}
+			
+		}
+
+		p <- S %>%
+			tf$concat(axis = 0L) %>%
+			tf$cast(tf$float32) %>% 
+			tf$math$add(1L) %>% 
+			tf$math$divide(resample) %>% 
+			tf$math$maximum(1/resample) %>%
+			as.numeric()
+		bf <- log10(p) - log10(1 - p)
+
+		res <- data.frame(prob = rep(NA, length(x)), bayes_factor = rep(NA, length(x)))
+		res[include, ] <- data.frame(prob = p, bayes_factor = bf)
+
+		mcols(x)[[sprintf('%s,%s', contrasts[2], contrasts[3])]] <- res
+		x
+	}
+)
+
