@@ -1,7 +1,8 @@
 #' validate_bam
 #'
 #' Validate BAM files
-#' @param filenames file names
+#'
+#' @param filenames BAM file names
 #'
 validate_bam <- function(filenames){
 

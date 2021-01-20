@@ -38,6 +38,8 @@ setMethod(
 			xi
 		})
 		se <- do.call('rbind', se)
+		se@samples <- unique(rowData(se)$batch)
+		se@n_samples <- length(se@samples)
 		se
 	}
 
@@ -210,7 +212,6 @@ setMethod(
 #'				constructing Vplot (default: c(80L, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 5L)
 #'
-#' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 read_vplot_core <- function(

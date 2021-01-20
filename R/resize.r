@@ -6,6 +6,7 @@
 #' @param width Width of the sub-window
 #' @param fix A character vector containing the values "start", "end", or "center" denoting what to use as an anchor for each element in x.
 #' @return a new Vplots object
+#' @export
 #'
 setMethod(
 	'resize',

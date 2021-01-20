@@ -1,6 +1,7 @@
 #' Read BAM file
 #'
 #' Read the aligned paired-end reads over the given peaks. 
+#'
 #' @param filename BAM file names 
 #' @param peaks a GRange object that define a set of genomic regions.
 #' @param genome a BSgenome for genome information

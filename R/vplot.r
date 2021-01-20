@@ -1,6 +1,12 @@
 #' vplot
+#' 
+#' Plot a Vplot object
+#' 
+#' @param x a Vplots object
+#' @param field  The assays field that is used for Vplots (default: 'counts')
 #'
 #' @export
+#'
 setMethod(
 	'vplot',
 	signature(
@@ -15,24 +21,15 @@ setMethod(
 	}
 )
 
-#' vplot
+
+#' vplot_core
+#' 
+#' Plot a Vplot object
+#' 
+#' @param x a Vplots object
+#' @param field  The assays field that is used for Vplots (default: 'counts')
+#' @param ... Arguments passed to image()
 #'
-#' @export
-setMethod(
-	'vplot',
-	signature(
-		x = 'SummarizedVplots'
-	),
-	function(
-		x,
-		field = 'counts',
-		...
-	){
-		vplot_core(x, field, ...)
-	}
-)
-
-
 vplot_core <- function(x, field, ...){
 	z <- assays(x)[[field]]
 	w <- 1 / rowSums(z)

@@ -51,7 +51,6 @@ cut_data <- function(n, batch_size){
 #' @param x Vplots in tensorflow.tensor object ([batch, height, width, 1])
 #' @return scaled Vplots in tensorflow.tensor object ([batch, height, width, 1])
 #'
-#' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 scale_vplot <- function(x){
