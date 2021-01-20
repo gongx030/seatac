@@ -40,11 +40,3 @@ setClass(
 	contains = 'SimpleList'
 )
 
-#' SummarizedVplotsList
-#'
-#' @export
-#'
-setClass(
-	'SummarizedVplotsList',
-	contains = 'SimpleList'
-)
