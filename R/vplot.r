@@ -40,7 +40,8 @@ vplot_core <- function(x, field, ...){
 	z <- z / sum(z)
 	z <- matrix(z, x@n_bins_per_window, x@n_intervals) 
 
-	image(x = x@positions, y = x@centers, z, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), yaxt = 'n', xlab = '', ylab = 'fragment size', ...)
+	image(x = x@positions, y = x@centers, z, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), xaxt = 'n', yaxt = 'n', xlab = '', ylab = 'fragment size', ...)
 	abline(v = 0, lty = 2, col = 'yellow')
-	axis(2, c(0, 100, 180, 247))
+	axis(1, c(min(x@positionsc), 0, max(x@positions)), c((-x@window_size / 2, 0, @window_size / 2)))
+	axis(2, c(x_center@fragment_size_range[1], 100, 180, 247, x_center@fragment_size_range[2]))
 } # vplot_core
