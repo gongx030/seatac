@@ -824,7 +824,11 @@ setMethod(
 			tf$math$add(1L) %>% 
 			tf$math$divide(sampling) %>% 
 			tf$math$maximum(1/sampling) %>%
+			tf$math$minimum(1 - 1/sampling) %>%
 			as.numeric()
+
+		if (all(contrasts[2:3][order(contrasts[2:3])] != contrasts[2:3]))
+			p <- 1 - p
 
 		bf <- log10(p) - log10(1 - p)
 
