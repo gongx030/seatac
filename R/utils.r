@@ -129,6 +129,7 @@ load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L,
 #' cut data
 #' 
 #' Cut a sequence into small batches
+#'
 #' @param n Length of the sequence
 #' @param batch_size Batch size
 #' @return a list of sequence indices, where the length of the list is the number of batches.
@@ -144,6 +145,11 @@ cut_data <- function(n, batch_size){
 
 
 #' scale_vplot 
+#' 
+#' Scale the Vplot so that the sum of reads at each position is one. 
+#' 
+#' @param x Vplots in tensorflow.tensor object ([batch, height, width, 1])
+#' @return scaled Vplots in tensorflow.tensor object ([batch, height, width, 1])
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -155,10 +161,22 @@ scale_vplot <- function(x){
 }
 
 
+#' vplot2nucleosome
 #' 
+#' Calcualting the nucleosome score (eta) from Vplots
+#'
+#' @param x Vplots in tensorflow.tensor object ([batch, height, width, 1])
+#' @param is_nucleosome Logistic indicator for the nucleosome region in Vplots (e.g. between 180 and 247) ([height])
+#' @param is_nfr Logistic indicator for the NFR region in Vplots (e.g. < 100) ([height])
+#' @param scale Scale factor for calculating the nucleosome score (default: -10)
+#' @param offset Offset factor for calculating the nucleosome score (default: -0.95)
+#' 
+#' @return a tensorflow.tensor object of the calculated nucleosome score ([batch, width])
 #' @export
+#' @author Wuming Gong (gongx030@umn.edu)
 #'
 vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.95){
+
 	di <- x %>%
 		tf$boolean_mask(is_nucleosome, axis = 1L) %>%
 		tf$reduce_sum(1L) %>%
@@ -174,7 +192,9 @@ vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.
 } # vplot2nucleosome
 
 
+#' VplotsList
 #'
+#' @param ... Arguments passed to list()
 #' @export
 #'
 VplotsList <- function(...){
@@ -182,7 +202,8 @@ VplotsList <- function(...){
 	new('VplotsList', x)
 }
 
-#'
+#' setAs
+#'  
 #' @export
 #'
 setAs('ANY', 'VplotsList', function(from) {
@@ -193,6 +214,9 @@ setAs('ANY', 'VplotsList', function(from) {
 #' Downsample V-plot
 #'
 #' Downsample a dense V-plot to a saprse V-plot, where the remaining number of reads is specified as `num_reads`.
+#' @param x a tensorflow.tensor object of Vplots
+#' @param num_reads The target number of reads (default: 1L)
+#' @return down-sampled Vplots in tensorflow.tensor object
 #'
 downsample_vplot <- function(x, num_reads = 1L){
 
