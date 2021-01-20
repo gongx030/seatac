@@ -222,17 +222,3 @@ downsample_vplot <- function(x, num_reads = 1L){
 } # downsample_vplot
 
 
-#' get_fragment_size
-#'
-get_fragment_size <- function(x){
-	fragment_size <- x %>%
-		tf$reduce_sum(shape(0L, 2L, 3L))
-
-	fragment_size  <- (fragment_size / tf$reduce_sum(fragment_size)) %>%
-		tf$expand_dims(0L) %>%
-		tf$`repeat`(repeats = x$shape[[1]], axis = 0L)
-
-	fragment_size	
-} # get_fragment_size
-
-
