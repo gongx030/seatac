@@ -319,7 +319,7 @@ VaeModel <- function(
 
 		self$decoder <- VaeDecoder(
 			vplot_width = self$n_bins_per_block,
-			vplot_height = n_intervals,
+			vplot_height = self$n_intervals,
 			filters0 = filters0,
 			filters = c(32L, 32L, 1L),
 			kernel_size = c(3L, 3L, 3L),
