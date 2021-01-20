@@ -20,6 +20,8 @@ setMethod(
 		if (width > x@window_size)
 			return(x)
 
+		n_bins_per_block <- as.integer(width / x@bin_size)
+
 		if (fix == 'center'){
 			center <- round(x@n_bins_per_window / 2)
 			start <- round((x@window_size / x@bin_size - width / x@bin_size) / 2)
@@ -27,7 +29,6 @@ setMethod(
 		}else
 			stop(sprintf('unknown fix: %s', fix))
 
-		n_bins_per_block <- as.integer(width / x@bin_size)
 
 		d <- assays(x)$counts %>%
 			summary() %>%
