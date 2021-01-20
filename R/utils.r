@@ -66,6 +66,14 @@ reconstruct_vplot_from_blocks <- function(x){
 
 
 #' split_dataset
+#' 
+#' Split a tfdataset object into training and testing sets
+#'
+#' @param x a tfdataset object
+#' @param test_size The ratio of the testing set (default 0.15)
+#' @param batch_size Batch size (default: 64L)
+#' @return a list that include a training and a testing dataset, where both of them are 
+#'					tfdataset object
 #'
 split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 
