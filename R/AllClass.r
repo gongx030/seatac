@@ -9,6 +9,7 @@ setOldClass('tensorflow.python.framework.sparse_tensor.SparseTensor')
 #' Vplots
 #'
 #' @export
+#'
 setClass(
 	'Vplots', 
 	slot = c(

@@ -102,14 +102,6 @@ VplotsList <- function(...){
 	new('VplotsList', x)
 }
 
-#' setAs
-#'  
-#' @export
-#'
-setAs('ANY', 'VplotsList', function(from) {
-	as(from, 'SimpleList')
-})
-
 
 #' downsample_vplot
 #'
