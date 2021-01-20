@@ -85,47 +85,6 @@ split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 } # split_dataset
 
 
-#' load_pretrained_vae_model
-#'
-#' Load pretrained sequence agnostic VAE model for V-plot
-#'
-#' @export
-#' @author Wuming Gong (gongx030@umn.edu)
-#'
-load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L, filters0 = 128L, min_reads = 15L, training = 'mix15'){
-
-	n_intervals <- 48L
-
-	message(sprintf('load_pretrained_vplot_vae_model | %s | block_size=%d', training, block_size))
-
-	model_id <- sprintf('https://s3.msi.umn.edu/gongx030/projects/seatac/models/training=%s_block_size=%d_latent_dim=%d_filters0=%d_min_reads=%d', training, block_size, latent_dim, filters0, min_reads)
-	model_index_file <- sprintf('%s.index', model_id)
-	model_data_file <- sprintf('%s.data-00000-of-00001', model_id)
-
-	local_model_id <- tempfile()
-	local_model_index_file <- sprintf('%s.index', local_model_id)
-	local_model_data_file <- sprintf('%s.data-00000-of-00001', local_model_id)
-
-	tryCatch({
-		download.file(model_index_file, local_model_index_file)
-	}, error = function(e){
-		stop(sprintf('failed downloading %s', model_index_file))
-	})
-
-	tryCatch({
-		download.file(model_data_file, local_model_data_file)
-	}, error = function(e){
-		stop(sprintf('failed downloading %s', model_data_file))
-	})
-
-	model <- VaeModel(block_size = block_size, n_intervals = n_intervals)
-	res <- model(tf$random$uniform(shape(1L, n_intervals, model$n_bins_per_block, 1L)), tf$random$uniform(shape(1L, n_intervals)))
-	load_model_weights_tf(model, local_model_id)
-	new('VaeModel', model = model)
-
-} # load_pretrained_vplot_vae_model
-
-
 #' cut data
 #' 
 #' Cut a sequence into small batches
