@@ -302,7 +302,7 @@ VaeModel <- function(
 		self$fragment_size_range <- fragment_size_range
 		self$fragment_size_interval <- fragment_size_interval
 		br <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
-		self$n_intervals <- length(bs)
+		self$n_intervals <- length(br)
 		self$breaks <- tf$constant(br)
 		self$centers <- tf$constant((br[-1] + br[-length(br)]) / 2)
 		self$positions <- tf$cast(seq(0 + bin_size / 2, block_size - bin_size / 2, by = bin_size) - (block_size / 2), tf$float32)
