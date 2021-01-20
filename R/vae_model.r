@@ -556,6 +556,7 @@ setMethod(
 #' @param x a Vplots object
 #' @param batch_size Batch size (default: 256L)
 #' @return a new Vplots object which assays have the predicted counts
+#'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #' 
