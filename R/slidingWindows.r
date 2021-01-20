@@ -3,8 +3,8 @@
 #' Get the sliding V-plots
 #'
 #' @param x a Vplots object
-#' @param width The width of the sliding window
-#' @param step The step for each sliding window
+#' @param width The width of the sliding window (default: 640L)
+#' @param step The step for each sliding window (default: 20L)
 #' @param batch_size The batch size of extraction operation (default: 4096L)
 #' 
 #' @return a new Vplot object which window_size is the specified width. The rowData and colData 
@@ -17,7 +17,12 @@ setMethod(
   signature(
 		x = 'Vplots'
 	),
-	function(x, width, step, batch_size = 4096L){
+	function(
+		x, 
+		width = 640L, 
+		step = 20L, 
+		batch_size = 4096L
+	){
 
 		stopifnot(width %% x@bin_size == 0)
 
