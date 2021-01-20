@@ -20,50 +20,6 @@ extract_blocks_from_vplot <- function(x, n_bins_per_block){
 	y
 }
 
-#' reconstruct_vplot_from_blocks
-#'
-#' https://stackoverflow.com/questions/50706431/please-how-to-do-this-basic-thing-with-tensorflow
-#'
-reconstruct_vplot_from_blocks <- function(x){
-
-	batch <- x$shape[[1]]
-	n_blocks_per_window <- x$shape[[2]]
-	n_intervals <- x$shape[[3]]
-	n_bins_per_block <- x$shape[[4]]
-	window_size <- as.integer(n_blocks_per_window + n_bins_per_block - 1)
-
-	padding <- matrix(as.integer(c(0, 0, 0, 0, 0, n_blocks_per_window * n_intervals)), 3, 2, byrow = TRUE)
-	zeros <- tf$zeros(c(batch, n_blocks_per_window, n_intervals))
-
-	w <- rep(n_bins_per_block, window_size)
-	w[1:n_bins_per_block] <- w[1:n_bins_per_block] - n_bins_per_block:1 + 1
-	w[(window_size - n_bins_per_block + 1):window_size] <- w[(window_size - n_bins_per_block + 1):window_size] - 1:n_bins_per_block + 1
-
-	w <- tf$constant(w, dtype = tf$float32) %>%
-		tf$reshape(c(1L, 1L, window_size, 1L))
-
-	y <- x %>% 
-		tf$transpose(perm = c(0L, 1L, 3L, 2L, 4L)) %>%
-		tf$reshape(c(batch, n_blocks_per_window, n_bins_per_block * n_intervals)) %>%
-		tf$pad(padding, 'CONSTANT')
-
-	y <- tf$concat(list(y, zeros), axis = 2L)
-	y <- y %>% tf$reshape(c(batch, -1L))
-	y <- y[, 1:(y$shape[[2]] - n_blocks_per_window * n_intervals)]
-	y <- y %>% tf$reshape(c(batch, n_blocks_per_window, window_size + 1L, n_intervals))
-	y <- y %>% tf$transpose(perm = c(0L, 1L, 3L, 2L))
-
-	y <- y[, , , 1:window_size]
-
-	y <- y %>% 
-		tf$reduce_sum(axis = 1L) %>%
-		tf$expand_dims(-1L)  %>%
-		tf$multiply(1 / w)
-
-	y
-
-}
-
 
 #' split_dataset
 #' 
