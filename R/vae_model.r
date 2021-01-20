@@ -375,9 +375,11 @@ setMethod(
 
 		batch <- rowData(x)$batch %>%
 			factor(x@samples) %>%
-			as.numeric() %>% 
+			as.numeric() %>%
+			matrix(length(x), 1L) %>% 
 			tf$cast(tf$int32) %>%
-			tf$one_hot(x@n_samples)
+			tf$one_hot(x@n_samples) %>% 
+			tf$squeeze(1L)
 
 		x <- assays(x)$counts %>%
 			as.matrix() %>%
