@@ -1,3 +1,9 @@
+#' rbind
+#' 
+#' Bind Vplots object at the batch dimension
+#' @param ... Argument passed to callNextMethod
+#' @return a combined Vplots object
+#'
 setMethod(
 	'rbind',
 	signature(
