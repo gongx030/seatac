@@ -50,7 +50,6 @@ setClass(
 
 setClass('Model', slot = c(model = 'kerastools.model.RModel'))
 setClass('VaeModel', contains = 'Model')
-setClass('SummarizedVaeModel', contains = 'Model')
 
 #' VplotsList
 #'

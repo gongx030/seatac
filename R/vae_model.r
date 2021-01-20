@@ -1,5 +1,13 @@
 #' VplotEncoder
 #'
+#' A Vplot encoder network
+#' 
+#' @param filters filters
+#' @param kernel_size kernel size
+#' @param window_strides Position level strides
+#' @param interval_strides Fragment size level strides
+#' @param name model name
+#'
 VplotEncoder <- function(
 	filters = c(32L, 32L, 32L),
 	kernel_size = c(3L, 3L, 3L),
@@ -49,11 +57,10 @@ VplotEncoder <- function(
 #' @param filters0 The dimensionality of the output space of the first image from the latent space (default: 64L)
 #' @param filters The dimensionality of the output space of the deconved images (default: c(32L, 32L, 1L))
 #' @param kernel_size  kernel size
-#' @param interval_strides interval strides
-#' @param window_strides window strides
+#' @param window_strides Position level strides
+#' @param interval_strides Fragment size level strides
 #' @param rate Dropout rate (default: 0.1)
-#' 
-#' @author Wuming Gong (gongx030@umn.edu)
+#' @param name Model name
 #'
 VplotDecoder <- function(
 	vplot_width,	# width of the image
@@ -133,6 +140,17 @@ VplotDecoder <- function(
 
 
 #' VaeEncoder
+#'
+#' A VAE encoder network
+#' 
+#' @param latent_dim Latent dimension (default: 10L)
+#' @param filters Filters
+#' @param kernel_size Kernel sizes
+#' @param window_strides Position level strides
+#' @param interval_strides Fragment size level strides
+#' @param distribution Output distributions (MultivariateNormalDiag, LogNormal, or None)
+#' @param rate Dropout rate (default: 0.1)
+#' @param name model name
 #' 
 VaeEncoder <- function(
 	latent_dim = 10L,
@@ -196,7 +214,19 @@ VaeEncoder <- function(
 	})
 }
 
-#' Decoder
+#' VaeDecoder
+#' 
+#' A VAE decoder network
+#' 
+#' @param vplot_width Vplot width
+#' @param vplot_height Vplot height
+#' @param filters0 The dimensionality of the output space of the first image from the latent space (default: 64L)
+#' @param filters The dimensionality of the output space of the deconved images (default: c(32L, 32L, 1L))
+#' @param kernel_size  kernel size
+#' @param window_strides Position level strides
+#' @param interval_strides Fragment size level strides
+#' @param rate Dropout rate (default: 0.1)
+#' @param name Model name
 #' 
 VaeDecoder <- function(
 	vplot_width,	# width of the image
@@ -234,22 +264,30 @@ VaeDecoder <- function(
 }
 
 #' VaeModel
+#' 
+#' A VAE model for V-plot
+#'
+#' @param latent_dim Latent dimension (default: 10L)
+#' @param block_size Block size in base pairs (default: 640L)
+#' @param bin_size Bin size in base pairs(default: 5L) 
+#' @param filters0 Filter size after the latent layer (default: 128L)
+#' @param fragment_size_range  Fragment size ranges (default: c(80L, 320L))
+#' @param fragment_size_interval Fragment size interval (default: 5L)
+#' @param rate Dropout rate (default: 0.1)
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 VaeModel <- function(
 	 latent_dim = 10L,
-	 n_intervals,
+	 block_size = 640L,
 	 bin_size = 5L,
-	 block_size,
 	 filters0 = 128L,
 	 fragment_size_range  = c(80L, 320L),
 	 fragment_size_interval = 5L,
 	 rate = 0.1,
 	 name = NULL
 ){
-
 
 	keras_model_custom(name = name, function(self){
 
@@ -263,6 +301,7 @@ VaeModel <- function(
 		self$fragment_size_range <- fragment_size_range
 		self$fragment_size_interval <- fragment_size_interval
 		br <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
+		self$n_intervals <- length(bs)
 		self$breaks <- tf$constant(br)
 		self$centers <- tf$constant((br[-1] + br[-length(br)]) / 2)
 		self$positions <- tf$cast(seq(0 + bin_size / 2, block_size - bin_size / 2, by = bin_size) - (block_size / 2), tf$float32)
@@ -312,9 +351,15 @@ VaeModel <- function(
 
 #' prepare_data
 #'
-#' Prepare tfdataset for training and testing a VaeModel model
+#' Prepare dataset for training and a V-plot model
+#' 
+#' @param model a VaeModel object, initialized by `new('VaeModel', model = VaeModel(...))`
+#' @param x a Vplots object
 #'
+#' @return a list that include `vplots`, `weight` and `batch`
+#' 
 #' @export
+#' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
 	'prepare_data',
@@ -350,9 +395,27 @@ setMethod(
 		)
 	}
 )
+
+
 #' fit
 #'
+#' Fit a VaeModel
+#'
+#' @param model a VaeModel object, initialized by `new('VaeModel', model = VaeModel(...))`
+#' @param x a Vplots object
+#' @param batch_size Batch size (default: 256L)
+#' @param epochs Number of training epochs (default: 500L)
+#' @param learning_rate Learning rate (default: 1e-4)
+#' @param warmup Warmup epochs (default: 50L)
+#' @param min_reads Mininum number of reads of the V-plots that are used for training (default: 25L)
+#' @param max_training_samples Maximum training samples (default: 10000L)
+#' @param step_size Step size for sub-sampling Vplots
+#' @param compile Whether or not compile the tensorflow model (default: TRUE)
+#'
+#' @return a VaeModel
+#'
 #' @export
+#' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
 	'fit',
@@ -363,8 +426,8 @@ setMethod(
 	function(
 		 model,
 		 x,
-		 batch_size = 32L,
-		 epochs = 100L,
+		 batch_size = 256L,
+		 epochs = 500L,
 		 learning_rate = 1e-4,
 		 warmup = 50L,
 		 min_reads = 25L,	# min reads for the training blocks
@@ -399,7 +462,17 @@ setMethod(
 
 #' fit
 #'
-#' @export
+#' Fit a VaeModel
+#'
+#' @param model a VaeModel object, initialized by `new('VaeModel', model = VaeModel(...))`
+#' @param x a tf_dataset object
+#' @param batch_size Batch size (default: 256L)
+#' @param epochs Number of training epochs (default: 500L)
+#' @param learning_rate Learning rate (default: 1e-4)
+#' @param warmup Warmup epochs (default: 50L)
+#' @param compile Whether or not compile the tensorflow model (default: TRUE)
+#'
+#' @return a VaeModel
 #'
 setMethod(
 	'fit',
@@ -474,9 +547,18 @@ setMethod(
 	}
 )
 
-#'
-#' @export 
-#'
+#' predict
+#' 
+#' Predict nucleosome scoreo
+#' 
+#' @param model a trained VaeModel object
+#' @param x a Vplots object
+#' @param batch_size Batch size (default: 256L)
+#' @param step_size Step size for sub-sampling Vplots
+#' @param scale Scale factor for calculating the nucleosome score (default: -10)
+#' @param offset Offset factor for calculating the nucleosome score (default: -0.95)
+#' @param min_reads Mininum number of reads of the V-plot that are used for predicting (default: 1L)
+#' 
 setMethod(
 	'predict',
 	signature(
@@ -624,8 +706,27 @@ setMethod(
 ) # predict
 #'
 
+
 #' test_accessibility
 #'
+#' Testing the accessibility changes between two samples
+#'
+#' @param model a trained VaeModel object
+#' @param x a Vplots object
+#' @param contrasts This argument specifies what comparison to extract from the object to build a results table.
+#' 				This argument must be a character vector with exactly three elements: the name of a factor in the design formula, 
+#'				the name of the numerator level for the fold change, and the name of the denominator level for the fold change 
+#' @param min_reads The mininum number of reads of the Vplots that are used for comparison (default 5L).  
+#'				Both Vplots must have at least this amount of reads
+#' @param sampling Number of sampling used to computing Bayes factor (default: 200L)
+#' @param batch_size Batch size (default: 4L)
+#'
+#' @return a Vplots object that includes the testing results in rowData fields
+#'
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
+#' 
 setMethod(
 	'test_accessibility',
 	signature(
@@ -638,8 +739,8 @@ setMethod(
 		contrasts = NULL,
 		min_reads = 5L,
 		center_size = 100L,
-		resample = 100L,
-		batch_size = 512L
+		sampling = 100L,
+		batch_size = 4L
 	){
 
 		stopifnot(is.character(contrasts) && length(contrasts) == 3)
@@ -688,21 +789,21 @@ setMethod(
 				tf$reshape(shape(2L * length(b), x@n_intervals, x@n_bins_per_window, 1L)) %>%
 				model@model$encoder()
 
-			z <- posterior$sample(resample)
+			z <- posterior$sample(sampling)
 
 			bb <- batch[, b, , drop = FALSE] %>% 
 				tf$reshape(shape(2L * length(b), -1L)) %>% 
 				tf$expand_dims(0L) %>%
-				tf$tile(shape(resample, 1L, 1L))
+				tf$tile(shape(sampling, 1L, 1L))
 
 			si <- list(z, bb) %>% 
 				tf$concat(axis = 2L) %>% 
-				tf$reshape(shape(resample * 2L * length(b), -1L)) %>%
+				tf$reshape(shape(sampling* 2L * length(b), -1L)) %>%
 				model@model$decoder() %>% 
 				vplot2nucleosome(is_nucleosome, is_nfr) %>% 
 				tf$boolean_mask(is_center, axis = 1L) %>% 
 				tf$reduce_sum(1L, keepdims = TRUE) %>%
-				tf$reshape(shape(resample, 2L, length(b)))
+				tf$reshape(shape(sampling, 2L, length(b)))
 
 			S[[j]] <- (si[, 1, ] > si[, 2, ]) %>% 
 				tf$cast(tf$int32) %>% 
@@ -719,9 +820,10 @@ setMethod(
 			tf$concat(axis = 0L) %>%
 			tf$cast(tf$float32) %>% 
 			tf$math$add(1L) %>% 
-			tf$math$divide(resample) %>% 
-			tf$math$maximum(1/resample) %>%
+			tf$math$divide(sampling) %>% 
+			tf$math$maximum(1/sampling) %>%
 			as.numeric()
+
 		bf <- log10(p) - log10(1 - p)
 
 		res <- data.frame(prob = rep(NA, length(x)), bayes_factor = rep(NA, length(x)))
@@ -730,5 +832,5 @@ setMethod(
 		mcols(x)[[sprintf('%s,%s', contrasts[2], contrasts[3])]] <- res
 		x
 	}
-)
+) # test_accessibility
 

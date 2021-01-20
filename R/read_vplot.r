@@ -5,7 +5,8 @@
 #' @param x a GRange object that define a set of genomic regions.
 #' @param filenames BAM file names
 #' @param bin_size The bin size (default: 5L)
-#' @param fragment_size_range The range of the PE reads fragment sizes (default: c(80L, 320L))
+#' @param fragment_size_range The range of the PE reads fragment sizes that are used for 
+#'				constructing Vplot (default: c(80L, 320L))
 #' @param fragment_size_interval fragment_size_interval
 #'
 #' @export
@@ -43,37 +44,6 @@ setMethod(
 ) # read_vplot
 
 
-#' Read the V-plot
-#' 
-#' Read the V-plot from BAM files within a set of genomic regions
-#'
-#' @param x a GRange object that define a set of genomic regions.
-#' @param filenames BAM file names
-#' @param genome genome abbreviation such as mm10 or hg19
-#' @param ...
-#'
-#' @export
-#' @author Wuming Gong (gongx030@umn.edu)
-#'
-setMethod(
-	'read_vplot',
-	signature(
-		x = 'GRanges',
-		filenames = 'character',
-		genome = 'character'
-	), 
-	function(
-		x, 
-		filenames, 
-		genome,
-		...
-	){
-		genome <- get_bsgenome(genome)
-		read_vplot(x, filename, genome, ...)
-	}
-)
-
-
 #' Read aggregated V-plot from a list of genomic ranges (GRangeList)
 #'
 #' This function is to quickly read aggregated V-plot given a list of GRanges (e.g. motif binding sites) for 
@@ -82,12 +52,13 @@ setMethod(
 #' @param x a GRangeList object that define a list of genomic region sets.
 #' @param filenames BAM file names
 #' @param genome a BSgenome object
-#' @param bin_size The bin size (default: 5L)
+#' @param bin_size The bin size in base pairs (default: 5L)
 #' @param fragment_size_range The range of the PE reads fragment sizes (default: c(80L, 320L))
-#' @param fragment_size_interval fragment_size_interval
+#' @param fragment_size_interval Fragment size interval (default: 5L)
 #' @return a SummarizedVplots object
 #'
 #' @export
+#'
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
@@ -235,8 +206,9 @@ setMethod(
 #' @param x a GRange object that define a set of genomic regions.
 #' @param filenames BAM file names
 #' @param bin_size The bin size (default: 5L)
-#' @param fragment_size_range The range of the PE reads fragment sizes (default: c(80L, 320L))
-#' @param fragment_size_interval fragment_size_interval (default: 5L)
+#' @param fragment_size_range The range of the PE reads fragment sizes that are used for 
+#'				constructing Vplot (default: c(80L, 320L))
+#' @param fragment_size_interval Fragment size interval (default: 5L)
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)

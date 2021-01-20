@@ -173,20 +173,6 @@ vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.
 
 } # vplot2nucleosome
 
-#'
-#'
-#'
-get_bsgenome <- function(x){
-	if (x == 'hg19'){
-		require(BSgenome.Hsapiens.UCSC.hg19)
-		BSgenome.Hsapiens.UCSC.hg19
-	}else if (x == 'mm10'){
-		require(BSgenome.Mmusculus.UCSC.mm10)
-		BSgenome.Mmusculus.UCSC.mm10
-	}else
-		spritnf('unknown genome:%s', x) %>% stop()
-} # get_bsgenome
-
 
 #'
 #' @export
