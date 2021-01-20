@@ -722,6 +722,7 @@ setMethod(
 			tf$math$divide(resample) %>% 
 			tf$math$maximum(1/resample) %>%
 			as.numeric()
+
 		bf <- log10(p) - log10(1 - p)
 
 		res <- data.frame(prob = rep(NA, length(x)), bayes_factor = rep(NA, length(x)))
