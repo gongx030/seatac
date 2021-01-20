@@ -832,8 +832,8 @@ setMethod(
 
 		bf <- log10(p) - log10(1 - p)
 
-		res <- data.frame(prob = rep(NA, length(x)), bayes_factor = rep(NA, length(x)))
-		res[include, ] <- data.frame(prob = p, bayes_factor = bf)
+		res <- data.frame(bayes_factor_close = rep(NA, length(x)), bayes_factor_open = rep(NA, length(x)))
+		res[include, ] <- data.frame(bayes_factor_close = bf, bayes_factor_open = -bf)
 
 		mcols(x)[[sprintf('%s,%s', contrasts[2], contrasts[3])]] <- res
 		x
