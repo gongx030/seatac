@@ -548,9 +548,54 @@ setMethod(
 	}
 )
 
+#' predict_vplots
+#' 
+#' Predict V-plots
+#' 
+#' @param model a trained VaeModel object
+#' @param x a Vplots object
+#' @param batch_size Batch size (default: 256L)
+#' 
+setMethod(
+	'predict_vplots',
+	signature(
+		model = 'VaeModel',
+		x = 'Vplots'
+	),
+	function(
+		model,
+		x,
+		batch_size = 256L # v-plot per batch
+	){
+
+		stopifnot(model@model$block_size == x@window_size)
+
+		d <- model %>% 
+			prepare_data(x) %>%
+			tensor_slices_dataset() %>%
+			dataset_batch(batch_size)
+
+		iter <- d %>% make_iterator_one_shot()
+		x_pred <- NULL
+		res <- until_out_of_range({
+			batch <- iterator_get_next(iter)
+			posterior <- model@model$encoder(batch$vplots)
+			z <- posterior$mean()
+			c <- list(z, batch$batch) %>% tf$concat(axis = 1L)
+			x_pred <- c(x_pred, c %>% model@model$decoder())
+		})
+		x_pred <- x_pred %>% tf$concat(axis = 0L)
+
+		assays(x)$predicted_counts <- x_pred %>% 
+			tf$reshape(shape(length(x), -1L)) %>%
+			as.matrix()
+		x
+	}
+)
+
 #' predict
 #' 
-#' Predict nucleosome scoreo
+#' Predict nucleosome score
 #' 
 #' @param model a trained VaeModel object
 #' @param x a Vplots object

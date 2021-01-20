@@ -42,6 +42,6 @@ vplot_core <- function(x, field, ...){
 
 	image(x = x@positions, y = x@centers, z, col = colorpanel(100, low = 'blue', mid = 'white', high = 'red'), xaxt = 'n', yaxt = 'n', xlab = '', ylab = 'fragment size', ...)
 	abline(v = 0, lty = 2, col = 'yellow')
-	axis(1, c(min(x@positionsc), 0, max(x@positions)), c((-x@window_size / 2, 0, @window_size / 2)))
+	axis(1, c(min(x@positionsc), 0, max(x@positions)), c(-x@window_size / 2, 0, x@window_size / 2))
 	axis(2, c(x_center@fragment_size_range[1], 100, 180, 247, x_center@fragment_size_range[2]))
 } # vplot_core
