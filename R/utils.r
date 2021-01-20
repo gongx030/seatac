@@ -90,18 +90,6 @@ vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.
 } # vplot2nucleosome
 
 
-#' VplotsList
-#' 
-#' Build a VplotsList from a list of Vplots
-#'
-#' @param ... Arguments passed to list()
-#' @export
-#'
-VplotsList <- function(...){
-	x <- list(...)
-	new('VplotsList', x)
-}
-
 
 #' downsample_vplot
 #'
