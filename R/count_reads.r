@@ -4,7 +4,7 @@
 #'
 #' @param x a GRanges object defining the peaks; the width must be the same for all peaks.
 #' @param filename BAM file name.
-#' @param a BS genome object such as BSgenome.Mmusculus.UCSC.mm10
+#' @param genome a BS genome object such as BSgenome.Mmusculus.UCSC.mm10
 #' @param fragment_size_range fragment size ranges (default:  c(80, 320))
 #' @return 
 #' 

@@ -4,6 +4,7 @@
 #' 
 #' @param x a Vplots object
 #' @param field  The assays field that is used for Vplots (default: 'counts')
+#' @param ... Arguments passed to vplot_core()
 #'
 #' @export
 #'

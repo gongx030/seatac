@@ -4,6 +4,7 @@
 #'
 #' @param x a GRange object that define a set of genomic regions.
 #' @param filenames BAM file names
+#' @param genome a BSgenome object
 #' @param bin_size The bin size (default: 5L)
 #' @param fragment_size_range The range of the PE reads fragment sizes that are used for 
 #'				constructing Vplot (default: c(80L, 320L))
@@ -79,6 +80,8 @@ setMethod(
 		fragment_size_interval = 5L
 	){
 
+		stopifnot(length(filenames) == 1)
+
 		window_size <- width(x) %>% unlist()
 
 		if (length(unique(window_size)) > 1)
@@ -103,7 +106,7 @@ setMethod(
 		names(x) <- NULL
 
 		# read everything from the BAM file.  For bulk ATAC-seq, this may change to only read a subset of regions
-		g <- read_bam(filename, genome = genome)
+		g <- read_bam(filenames, genome = genome)
 		g <- g[strand(g) == '+']
 		g <- GRanges(
 			seqnames = seqnames(g), 
@@ -114,14 +117,14 @@ setMethod(
 		g <- g[!is.na(g$fragment_size)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
 
 		if (length(g) == 0){
-			warning(sprintf('there is no qualified reads in %s', filename))
+			warning(sprintf('there is no qualified reads in %s', filenames))
 			return(NULL)
 		}
 
 		non_empty <- x %over% g	
 
 		if (!any(non_empty)){
-			sprintf('there is no qualified motifs in %s', filename) %>% warning()
+			sprintf('there is no qualified motifs in %s', filenames) %>% warning()
 			return(NULL)
 		}
 
@@ -169,36 +172,6 @@ setMethod(
 	}
 )
 
-#' Read aggregated V-plot from a list of genomic ranges (GRangeList)
-#'
-#' This function is to quickly read aggregated V-plot given a list of GRanges (e.g. motif binding sites) for 
-#' scATAC-seq.
-#'
-#' @param x a GRange object that define a set of genomic regions.
-#' @param filename BAM file name
-#' @param genome genome abbreviation such as mm10 or hg19
-#' @param ...
-#'
-#' @export
-#' @author Wuming Gong (gongx030@umn.edu)
-#'
-setMethod(
-	'read_vplot',
-	signature(
-		x = 'GRangesList',
-		filenames = 'character',
-		genome = 'character'
-	), 
-	function(
-		x, 
-		filenames, 
-		genome,
-		...
-	){
-		genome <- get_bsgenome(genome)
-		read_vplot(x, filename, genome, ...)
-	}
-)
 
 
 #' Read the V-plot
@@ -206,7 +179,8 @@ setMethod(
 #' Read the V-plot from BAM files within a set of genomic regions
 #'
 #' @param x a GRange object that define a set of genomic regions.
-#' @param filenames BAM file names
+#' @param filename BAM file names
+#' @param genome a BSgenome object
 #' @param bin_size The bin size (default: 5L)
 #' @param fragment_size_range The range of the PE reads fragment sizes that are used for 
 #'				constructing Vplot (default: c(80L, 320L))

@@ -16,7 +16,7 @@ setMethod(
 		peaks = 'GRanges',
 		genome = 'BSgenome'
 	), 
-	function(filename, peaks, genome, ...){
+	function(filename, peaks, genome){
 
 		validate_bam(filename)
 
@@ -67,7 +67,7 @@ setMethod(
 		peaks = 'missing',
 		genome = 'BSgenome'
 	), 
-	function(filename, peaks, genome, ...){
+	function(filename, peaks, genome){
 
 		validate_bam(filename)
 

@@ -5,6 +5,7 @@
 #' @param filename BAM file name
 #' @param peaks a peak object
 #' @param genome a genome object
+#' @param ... Other arguments
 #'
 setGeneric('read_bam', function(filename, peaks, genome, ...) standardGeneric('read_bam'))
 
@@ -12,9 +13,10 @@ setGeneric('read_bam', function(filename, peaks, genome, ...) standardGeneric('r
 #'
 #' The generic function of read_vplot
 #'
-#' @param filename BAM file name
-#' @param peaks a peak object
+#' @param x a genomic object
+#' @param filenames BAM file name
 #' @param genome a genome object
+#' @param ... Other arguments
 #'
 setGeneric('read_vplot', function(x, filenames, genome, ...) standardGeneric('read_vplot'))
 
@@ -22,9 +24,10 @@ setGeneric('read_vplot', function(x, filenames, genome, ...) standardGeneric('re
 #'
 #' The generic function of count_reads
 #'
+#' @param x a genomic object
 #' @param filename BAM file name
-#' @param peaks a peak object
 #' @param genome a genome object
+#' @param ... Other arguments
 #'
 setGeneric('count_reads', function(x, filename, genome, ...) standardGeneric('count_reads'))
 
@@ -33,6 +36,7 @@ setGeneric('count_reads', function(x, filename, genome, ...) standardGeneric('co
 #' The generic function of vplot
 #'
 #' @param x a Vplot object
+#' @param ... Other arguments
 #'
 setGeneric('vplot', function(x, ...) standardGeneric('vplot'))
 
@@ -42,6 +46,7 @@ setGeneric('vplot', function(x, ...) standardGeneric('vplot'))
 #'
 #' @param model a model object
 #' @param x a data object that include the Vplot information
+#' @param ... Other arguments
 #'
 setGeneric('prepare_data', function(model, x, ...) standardGeneric('prepare_data'))
 
@@ -51,6 +56,7 @@ setGeneric('prepare_data', function(model, x, ...) standardGeneric('prepare_data
 #'
 #' @param model a model object
 #' @param x a data object that include the Vplot information
+#' @param ... Other arguments
 #'
 setGeneric('fit', function(model, x, ...) standardGeneric('fit'))
 
@@ -60,6 +66,7 @@ setGeneric('fit', function(model, x, ...) standardGeneric('fit'))
 #'
 #' @param model a model object
 #' @param x a data object that include the Vplot information
+#' @param ... Other arguments
 #'
 setGeneric('predict', function(model, x, ...) standardGeneric('predict'))
 
@@ -68,6 +75,7 @@ setGeneric('predict', function(model, x, ...) standardGeneric('predict'))
 #' The generic function of scale01
 #'
 #' @param x a data object
+#' @param ... Other arguments
 #'
 setGeneric('scale01', function(x, ...) standardGeneric('scale01'))
 
@@ -77,5 +85,6 @@ setGeneric('scale01', function(x, ...) standardGeneric('scale01'))
 #'
 #' @param model a model object
 #' @param x a data object that include the Vplot information
+#' @param ... Other arguments
 #'
 setGeneric('test_accessibility', function(model, x, ...) standardGeneric('test_accessibility'))

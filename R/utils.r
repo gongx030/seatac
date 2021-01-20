@@ -71,7 +71,6 @@ scale_vplot <- function(x){
 #' @param offset Offset factor for calculating the nucleosome score (default: -0.95)
 #' 
 #' @return a tensorflow.tensor object of the calculated nucleosome score ([batch, width])
-#' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.95){
@@ -92,6 +91,8 @@ vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.
 
 
 #' VplotsList
+#' 
+#' Build a VplotsList from a list of Vplots
 #'
 #' @param ... Arguments passed to list()
 #' @export
@@ -110,9 +111,10 @@ setAs('ANY', 'VplotsList', function(from) {
 })
 
 
-#' Downsample V-plot
+#' downsample_vplot
 #'
 #' Downsample a dense V-plot to a saprse V-plot, where the remaining number of reads is specified as `num_reads`.
+#'
 #' @param x a tensorflow.tensor object of Vplots
 #' @param num_reads The target number of reads (default: 1L)
 #' @return down-sampled Vplots in tensorflow.tensor object
@@ -143,5 +145,3 @@ downsample_vplot <- function(x, num_reads = 1L){
 	y
 
 } # downsample_vplot
-
-

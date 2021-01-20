@@ -274,6 +274,7 @@ VaeDecoder <- function(
 #' @param fragment_size_range  Fragment size ranges (default: c(80L, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 5L)
 #' @param rate Dropout rate (default: 0.1)
+#' @param name Model name
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -554,7 +555,7 @@ setMethod(
 #' @param model a trained VaeModel object
 #' @param x a Vplots object
 #' @param batch_size Batch size (default: 256L)
-#' @param step_size Step size for sub-sampling Vplots
+#' @param step Step size for sub-sampling Vplots
 #' @param scale Scale factor for calculating the nucleosome score (default: -10)
 #' @param offset Offset factor for calculating the nucleosome score (default: -0.95)
 #' @param min_reads Mininum number of reads of the V-plot that are used for predicting (default: 1L)
@@ -718,6 +719,7 @@ setMethod(
 #'				the name of the numerator level for the fold change, and the name of the denominator level for the fold change 
 #' @param min_reads The mininum number of reads of the Vplots that are used for comparison (default 5L).  
 #'				Both Vplots must have at least this amount of reads
+#' @param center_size The center region of the Vplots considered for testing (default: 100L)
 #' @param sampling Number of sampling used to computing Bayes factor (default: 200L)
 #' @param batch_size Batch size (default: 4L)
 #'

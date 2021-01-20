@@ -28,7 +28,12 @@ setClass(
 )
 
 
+#' Model
+#'
 setClass('Model', slot = c(model = 'kerastools.model.RModel'))
+
+#' VaeModel
+#'
 setClass('VaeModel', contains = 'Model')
 
 #' VplotsList
