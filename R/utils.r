@@ -1,26 +1,3 @@
-#' extract_blocks_from_vplot
-#'
-extract_blocks_from_vplot <- function(x, n_bins_per_block){
-
-	n_intervals <- x$shape[[2]]
-
-	y <- x %>%
-		tf$image$extract_patches(
-			sizes = c(1L, n_intervals, n_bins_per_block, 1L),
-			strides = c(1L, 1L, 1L, 1L),
-			rates = c(1L, 1L, 1L, 1L),
-			padding = 'VALID'
-		) %>%
-		tf$squeeze(axis = 1L)
-
-	y <- y %>%
-		tf$reshape(c(y$shape[[1]], y$shape[[2]], n_intervals, n_bins_per_block)) %>%
-		tf$expand_dims(-1L)
-
-	y
-}
-
-
 #' split_dataset
 #' 
 #' Split a tfdataset object into training and testing sets
