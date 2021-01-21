@@ -35,7 +35,7 @@ VplotEncoder <- function(
 
 		self$bn <- lapply(1:self$n_layers, function(i) tf$keras$layers$BatchNormalization())
 
-		function(x, training = TRUE, mask = NULL){
+		function(x, ...){
 
 			for (i in 1:self$n_layers){
 				x <- x %>% 
@@ -121,11 +121,11 @@ VplotDecoder <- function(
 
 		self$bn <- lapply(1:self$n_layers, function(i) tf$keras$layers$BatchNormalization())
 
-		function(x, ...){
+		function(x, ..., training = TRUE){
 
 			x <- x %>%
 				self$dense_1() %>%
-				self$dropout_1() %>%
+				self$dropout_1(training = training) %>%
 				self$reshape_1() 
 
 			for (i in 1:self$n_layers){
@@ -185,7 +185,7 @@ VaeEncoder <- function(
 		else
 			stop(sprintf('unknown distribution: %s', distribution))
 
-		function(x, training = TRUE, mask = NULL){
+		function(x, ...){
 
 			y <- x %>%
 				self$vplot_encoder() %>%
@@ -252,10 +252,10 @@ VaeDecoder <- function(
 			interval_strides = interval_strides
 		)
 	
-		function(x, training = TRUE){
+		function(x, training = TRUE, ...){
 
 			y <- x %>%
-				self$vplot_decoder()
+				self$vplot_decoder(training = training)
 
 			x_pred <- y %>% tf$keras$activations$softmax(1L)
 			x_pred
@@ -338,7 +338,7 @@ VaeModel <- function(
 			posterior <- x %>% self$encoder()
 			z <- posterior$sample()
 			c <- list(z, b) %>% tf$concat(axis = 1L)
-			x_pred <- c %>% self$decoder()
+			x_pred <- c %>% self$decoder(training = training)
 
 			list(
 				posterior = posterior, 
@@ -588,7 +588,7 @@ setMethod(
 			posterior <- model@model$encoder(batch$vplots)
 			z <- posterior$mean()
 			c <- list(z, batch$batch) %>% tf$concat(axis = 1L)
-			x_pred <- c(x_pred, c %>% model@model$decoder())
+			x_pred <- c(x_pred, c %>% model@model$decoder(training = FALSE))
 		})
 		x_pred <- x_pred %>% tf$concat(axis = 0L)
 
@@ -817,6 +817,7 @@ setMethod(
 		n <- sum(include)
 		include <- rep(include, x@n_samples)
 
+		# there might be a memory issue if length(x) is too large
 		y <- assays(x[include])$counts %>%
 			as.matrix() %>%
 			tf$cast(tf$float32) %>%
@@ -852,7 +853,7 @@ setMethod(
 			si <- list(z, bb) %>% 
 				tf$concat(axis = 2L) %>% 
 				tf$reshape(shape(sampling* 2L * length(b), -1L)) %>%
-				model@model$decoder() %>% 
+				model@model$decoder(training = FALSE) %>% 
 				vplot2nucleosome(is_nucleosome, is_nfr) %>% 
 				tf$boolean_mask(is_center, axis = 1L) %>% 
 				tf$reduce_sum(1L, keepdims = TRUE) %>%
