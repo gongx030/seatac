@@ -811,8 +811,6 @@ setMethod(
 
 		stopifnot(all(granges(x[group1]) == granges(x[group2])))
 
-		
-
 		is_center <- model@model$positions >= -center_size / 2 & model@model$positions <= center_size / 2
     is_nfr <- model@model$centers <= 100
     is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
@@ -833,6 +831,7 @@ setMethod(
 			tf$expand_dims(3L) %>%
 			scale_vplot() %>%
 			tf$reshape(shape(2L, n, x@n_intervals, x@n_bins_per_window, 1L))	
+
 
 		batch <- rowData(x[include])$batch %>%
 			factor(x@samples) %>%
@@ -887,7 +886,7 @@ setMethod(
 			tf$math$minimum(1 - 1/sampling) %>%
 			as.numeric()
 
-		if (all(contrasts[2:3][order(contrasts[2:3])] != contrasts[2:3]))
+		if (which(x@samples == contrasts[2]) > which(x@samples == contrasts[3]))
 			p <- 1 - p
 
 		bf <- log10(p) - log10(1 - p)
