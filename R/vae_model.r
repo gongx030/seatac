@@ -493,6 +493,9 @@ setMethod(
 		 compile = TRUE
 	 ){
 
+		if (warmup > epochs)
+			warmup <- epochs
+
 		x <- x %>%
 			dataset_batch(batch_size)
 
@@ -808,14 +811,19 @@ setMethod(
 
 		stopifnot(all(granges(x[group1]) == granges(x[group2])))
 
+		
+
 		is_center <- model@model$positions >= -center_size / 2 & model@model$positions <= center_size / 2
     is_nfr <- model@model$centers <= 100
     is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
 
 		counts <- matrix(rowSums(assays(x)$counts), nrow = length(x) / x@n_samples, ncol = x@n_samples, dimnames = list(NULL, x@samples))
 		include <- rowSums(counts[, contrasts[2:3]] >= min_reads) == 2L
-		n <- sum(include)
-		include <- rep(include, x@n_samples)
+		n0 <- length(include)	# number of total unique intervals
+		n <- sum(include)	# number of qualitified genomic region to test
+		include <- matrix(include, nrow = n0, ncol = x@n_samples, dimnames = list(NULL, x@samples))
+		include[, !colnames(include) %in% contrasts[2:3]] <- FALSE
+		include <- c(include)
 
 		# there might be a memory issue if length(x) is too large
 		y <- assays(x[include])$counts %>%
