@@ -6,4 +6,4 @@
 
 [development_fragment_size](https://github.com/gongx030/seatac/tree/development_fragment_size): In the VAE model, the fragment size from each batch was encoded as a latent vector, concatenated with `z`, and fed into the decoder.  Since the batch effect of ATAC-seq was mostly due to the fragment size distribution, so this setting should be able to capture most of the batch effects.  Most importantly, this setting works for the pre-trained model. 
 
-In branch [development_fragment_size](https://github.com/gongx030/seatac/tree/development_fragment_size), we will use Wald test to replace the permutation test to evaluate the significance of accessibility changes. 
+In branch [development_fragment_size](https://github.com/gongx030/seatac/tree/development_fragment_size), we will use Wald test to replace the permutation test to evaluate the significance of accessibility changes. This will significantly increase the testing speed. 
