@@ -60,34 +60,23 @@ scale_vplot <- function(x){
 }
 
 
-#' vplot2nucleosome
+#' get_nucleosome_score
 #' 
 #' Calcualting the nucleosome score (eta) from Vplots
 #'
-#' @param x Vplots in tensorflow.tensor object ([batch, height, width, 1])
-#' @param is_nucleosome Logistic indicator for the nucleosome region in Vplots (e.g. between 180 and 247) ([height])
-#' @param is_nfr Logistic indicator for the NFR region in Vplots (e.g. < 100) ([height])
-#' @param scale Scale factor for calculating the nucleosome score (default: -10)
-#' @param offset Offset factor for calculating the nucleosome score (default: -0.95)
+#' @param x a tensorflow.tensor object 
+#' @param beta0 Scale factor for calculating the nucleosome score 
+#' @param beta1 Offset factor for calculating the nucleosome score 
 #' 
-#' @return a tensorflow.tensor object of the calculated nucleosome score ([batch, width])
+#' @return a tensorflow.tensor object of the calculated nucleosome score 
+#'
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
-vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.95){
+get_nucleosome_score <- function(x, beta0 = -6.0880, beta1 = 22.7500){
 
-	di <- x %>%
-		tf$boolean_mask(is_nucleosome, axis = 1L) %>%
-		tf$reduce_sum(1L) %>%
-		tf$squeeze(2L)
+	1 / (1 + 1 / exp(beta0 + beta1 * x))
 
-	nfr <- x %>%
-		tf$boolean_mask(is_nfr, axis = 1L) %>%
-		tf$reduce_sum(1L) %>%
-		tf$squeeze(2L)
-
-	1 / (1 + tf$math$exp(scale * (di / (di + nfr)  + offset)))
-
-} # vplot2nucleosome
+} # get_nucleosome_score
 
 
 
@@ -125,3 +114,19 @@ downsample_vplot <- function(x, num_reads = 1L){
 	y
 
 } # downsample_vplot
+
+#' block_center
+#'
+#' Label the center of a x-length sequence
+#' @param x length of the sequence
+#' @return a binary vector indicating the center of the sequence with length x
+#'
+block_center <- function(x){
+	y <- rep(FALSE, x)
+	if (x %% 2 == 0){
+		y[(x / 2):(x / 2 + 1)] <- TRUE
+	}else
+		y[(x + 1) / 2] <- TRUE
+	y
+}
+

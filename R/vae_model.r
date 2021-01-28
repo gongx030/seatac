@@ -923,12 +923,15 @@ setMethod(
 #'
 #' @param model a trained VaeModel object
 #' @param x a Vplots object
-#' @param min_reads The mininum number of reads of the Vplots that are used for evaluation (default 5L).  
-#' @param center_size The center region of the Vplots considered for testing (default: 100L)
-#' @param sampling Number of sampling used to computing Bayes factor (default: 200L)
+#' @param sampling Number of sampling used to computing Bayes factor (default: 100L)
 #' @param batch_size Batch size (default: 4L)
 #'
-#' @return a Vplots object that includes the nucleosome prediction in rowData fields
+#' @return a Vplots object that includes the nucleosome prediction in rowData fields (rowData(x)$nucleosome_score)
+#' 				* mu: mean nucleosome scores from resampling
+#' 				* std: std of nucleosome scores from resampling
+#' 				* nu: sum of two shape parameters of beta distribution (nu = alpha + beta)
+#' 				* alpha, beta: estimated shape parameter
+#' 				* prob: probability of nucleosome score greater than 0.5, estimated by a beta distribution
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -943,17 +946,13 @@ setMethod(
 	function(
 		model,
 		x,
-		min_reads = 5L,
-		center_size = 100L,
 		sampling = 100L,
-		threshold = 0.1,
 		batch_size = 4L
 	){
 
     stopifnot(model@model$block_size == x@window_size)
 
-		is_center <- model@model$positions >= -center_size / 2 & model@model$positions <= center_size / 2
-    is_nfr <- model@model$centers <= 100
+		is_center <- block_center(model@model$block_size / model@model$bin_size)
     is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
 
 		d <- prepare_data(model, x) %>%
@@ -962,7 +961,7 @@ setMethod(
 
 		iter <- d %>% make_iterator_one_shot()
 
-		pvalue <- NULL
+		nucleosome <- NULL
 
 		res <- until_out_of_range({
 			batch <- iterator_get_next(iter)
@@ -973,21 +972,36 @@ setMethod(
 				tf$expand_dims(0L) %>%
 				tf$tile(shape(sampling, 1L, 1L))
 
-			ns <- list(z, fragment_size) %>%
+			x_center <- list(z, fragment_size) %>%
 				tf$concat(axis = 2L) %>%
 				tf$reshape(shape(sampling * n, -1L)) %>%
 				model@model$decoder(training = FALSE) %>%
-				vplot2nucleosome(is_nucleosome, is_nfr) %>%
-				tf$boolean_mask(is_center, axis = 1L) %>% 
-				tf$reduce_sum(1L, keepdims = TRUE) %>%
-				tf$reshape(shape(sampling, n))
+				tf$boolean_mask(is_center, axis = 2L)
 
-			pvalue <- c(pvalue, (ns > threshold) %>% tf$cast(tf$float32) %>% tf$reduce_sum(0L) %>% tf$math$add(1) %>% tf$math$divide(sampling + 1))
+			ns <- x_center %>% 
+				tf$boolean_mask(is_nucleosome, axis = 1L) %>%
+				tf$reduce_sum(1L, keepdims = TRUE)  %>%
+				tf$reduce_mean(2L) %>%
+				tf$squeeze(shape(1L, 2L)) %>%
+				get_nucleosome_score() %>%
+				tf$reshape(shape(sampling, n)) 
+
+			nucleosome <- c(nucleosome, ns)
 
 		})
 
-		pvalue <- pvalue %>% tf$concat(axis = 0L)
-		rowData(x)$nucleosome_score <- data.frame(pvalue = as.numeric(pvalue))
+		nucleosome <-  nucleosome %>% tf$concat(axis = 1L)
+		nucleosome <- nucleosome %>% 
+			tf$transpose(shape(1L, 0L)) %>%
+			as.matrix()
+
+		rowData(x)$nucleosome_score <- data.frame(
+			mu = rowMeans(nucleosome),
+		  std = rowSds(nucleosome)
+		) %>%
+			mutate(nu = mu * (1 - mu) / std^2 - 1) %>%
+		 	mutate(alpha = mu * nu, beta = (1 - mu) * nu) %>%
+		 	mutate(prob = pbeta(0.5, shape1 = alpha, shape2 = beta, lower.tail = FALSE))
 		x
 	}
 )
