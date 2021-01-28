@@ -333,11 +333,11 @@ VaeModel <- function(
 			scale_identity_multiplier = 1
 		)
 
-		function(x, b, training = TRUE){
+		function(x, fragment_size, training = TRUE){
 
 			posterior <- x %>% self$encoder()
 			z <- posterior$sample()
-			c <- list(z, b) %>% tf$concat(axis = 1L)
+			c <- list(z, fragment_size) %>% tf$concat(axis = 1L)
 			x_pred <- c %>% self$decoder(training = training)
 
 			list(
@@ -378,8 +378,22 @@ setMethod(
 			as.numeric() %>%
 			matrix(length(x), 1L) %>% 
 			tf$cast(tf$int32) %>%
+			tf$math$subtract(1L) %>%
 			tf$one_hot(x@n_samples) %>% 
 			tf$squeeze(1L)
+
+		fragment_size <- assays(x)$counts %>%
+			as.matrix() %>%
+			tf$cast(tf$float32) %>%
+			tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window)) %>%
+			tf$reduce_sum(2L) # fragment size per sample
+
+		fragment_size <- batch %>% 
+			tf$matmul(fragment_size, transpose_a = TRUE) %>%
+			scale01()	# average fragment size per batch
+
+		fragment_size <- batch %>%
+			tf$matmul(fragment_size)	# proporate the batch-wise fragment size to each sample
 
 		x <- assays(x)$counts %>%
 			as.matrix() %>%
@@ -394,7 +408,7 @@ setMethod(
 		list(
 			vplots = x,
 			weight = w,
-			batch = batch
+			fragment_size = fragment_size
 		)
 	}
 )
@@ -455,6 +469,9 @@ setMethod(
 			x <- sample(x, max_training_samples)
 		}
 
+		sprintf('# of training samples: %d', length(x)) %>% 
+			message()
+
 		x <- model %>% prepare_data(x)
 		x <- x %>% tensor_slices_dataset()
 		model <- model %>% fit(x, batch_size = batch_size, epochs = epochs, warmup = warmup, compile = compile, learning_rate = learning_rate)
@@ -503,9 +520,9 @@ setMethod(
 
 		reconstrution_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')	# loss for the V-plot
 
-		train_step <- function(x, w, b, beta){
+		train_step <- function(x, w, fragment_size, beta){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
-				res <- model@model(x, b)
+				res <- model@model(x, fragment_size)
 				loss_reconstruction <- (w * reconstrution_loss(x, res$vplots)) %>%
 					tf$reduce_sum(shape(1L, 2L)) %>%
 					tf$reduce_mean()
@@ -539,7 +556,7 @@ setMethod(
 				make_iterator_one_shot()
 			res <- until_out_of_range({
 				batch <- iterator_get_next(iter)
-				res <- train_step(batch$vplots, batch$weight, batch$batch, beta[epoch])
+				res <- train_step(batch$vplots, batch$weight, batch$fragment_size, beta[epoch])
 				loss <- c(loss, as.numeric(res$loss))
 				loss_reconstruction <- c(loss_reconstruction, as.numeric(res$loss_reconstruction))
 				loss_kl <- c(loss_kl, as.numeric(res$loss_kl))
@@ -898,4 +915,80 @@ setMethod(
 		x
 	}
 ) # test_accessibility
+
+
+#' predict_nucleosome
+#'
+#' Predicting the nucleosome 
+#'
+#' @param model a trained VaeModel object
+#' @param x a Vplots object
+#' @param min_reads The mininum number of reads of the Vplots that are used for evaluation (default 5L).  
+#' @param center_size The center region of the Vplots considered for testing (default: 100L)
+#' @param sampling Number of sampling used to computing Bayes factor (default: 200L)
+#' @param batch_size Batch size (default: 4L)
+#'
+#' @return a Vplots object that includes the nucleosome prediction in rowData fields
+#'
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
+#' 
+setMethod(
+	'predict_nucleosome',
+	signature(
+		model = 'VaeModel',
+		x = 'Vplots'
+	),
+	function(
+		model,
+		x,
+		min_reads = 5L,
+		center_size = 100L,
+		sampling = 100L,
+		threshold = 0.1,
+		batch_size = 4L
+	){
+
+    stopifnot(model@model$block_size == x@window_size)
+
+		is_center <- model@model$positions >= -center_size / 2 & model@model$positions <= center_size / 2
+    is_nfr <- model@model$centers <= 100
+    is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
+
+		d <- prepare_data(model, x) %>%
+			tensor_slices_dataset() %>%
+			dataset_batch(batch_size)
+
+		iter <- d %>% make_iterator_one_shot()
+
+		pvalue <- NULL
+
+		res <- until_out_of_range({
+			batch <- iterator_get_next(iter)
+			n <- batch$vplots$shape[[1]]
+			posterior <- model@model$encoder(batch$vplots)
+			z <- posterior$sample(sampling)
+			fragment_size <- batch$fragment_size %>%
+				tf$expand_dims(0L) %>%
+				tf$tile(shape(sampling, 1L, 1L))
+
+			ns <- list(z, fragment_size) %>%
+				tf$concat(axis = 2L) %>%
+				tf$reshape(shape(sampling * n, -1L)) %>%
+				model@model$decoder(training = FALSE) %>%
+				vplot2nucleosome(is_nucleosome, is_nfr) %>%
+				tf$boolean_mask(is_center, axis = 1L) %>% 
+				tf$reduce_sum(1L, keepdims = TRUE) %>%
+				tf$reshape(shape(sampling, n))
+
+			pvalue <- c(pvalue, (ns > threshold) %>% tf$cast(tf$float32) %>% tf$reduce_sum(0L) %>% tf$math$add(1) %>% tf$math$divide(sampling + 1))
+
+		})
+
+		pvalue <- pvalue %>% tf$concat(axis = 0L)
+		rowData(x)$nucleosome_score <- data.frame(pvalue = as.numeric(pvalue))
+		x
+	}
+)
 
