@@ -610,7 +610,7 @@ setMethod(
 		x_pred <- NULL
 		res <- until_out_of_range({
 			batch <- iterator_get_next(iter)
-			res <- model@model(batch$vplots, batch$fragment_size)
+			res <- model@model(batch$vplots, batch$fragment_size, training = FALSE)
 			x_pred <- c(x_pred, res$vplots)
 		})
 		x_pred <- x_pred %>% tf$concat(axis = 0L)
