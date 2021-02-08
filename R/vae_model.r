@@ -600,6 +600,7 @@ setMethod(
 	){
 
 		stopifnot(model@model$block_size == x@window_size)
+		is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
 
 		d <- model %>% 
 			prepare_data(x) %>%
@@ -621,6 +622,69 @@ setMethod(
 		x
 	}
 )
+
+
+#' predict_nucleosome_signal
+#' 
+#' Predict nucleosome signal
+#' 
+#' @param model a trained VaeModel object
+#' @param x a Vplots object
+#' @param batch_size Batch size (default: 256L)
+#' @return a new Vplots object which assays have the predicted counts
+#'
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#' 
+setMethod(
+	'predict_nucleosome_signal',
+	signature(
+		model = 'VaeModel',
+		x = 'Vplots'
+	),
+	function(
+		model,
+		x,
+		batch_size = 256L # v-plot per batch
+	){
+
+		stopifnot(model@model$block_size == x@window_size)
+		is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
+
+		d <- model %>% 
+			prepare_data(x) %>%
+			tensor_slices_dataset() %>%
+			dataset_batch(batch_size)
+
+		iter <- d %>% make_iterator_one_shot()
+		nucleosome_signal <- NULL
+		res <- until_out_of_range({
+			batch <- iterator_get_next(iter)
+			res <- model@model(batch$vplots, batch$fragment_size, training = FALSE)
+
+			ns_pred <- res$vplots %>% 
+				tf$boolean_mask(is_nucleosome, axis = 1L) %>%
+				tf$reduce_sum(1L, keepdims = TRUE)  %>%
+				tf$squeeze(shape(1L, 3L)) 
+
+			nucleosome_signal <- c(nucleosome_signal , ns_pred)
+		})
+		nucleosome_signal <- nucleosome_signal %>% tf$concat(axis = 0L)
+		nucleosome_signal <- nucleosome_signal %>% as.matrix()
+
+		bins <- slidingWindows(granges(x), model@model$bin_size, model@model$bin_size) %>% 
+			unlist()
+		cvg <- coverage(bins, weight = c(t(nucleosome_signal)))
+		rowData(x)$nucleosome_signal <- cvg[granges(x)] %>% as.matrix()
+		x
+	}
+)
+
+
+
+
+
+
 
 
 #' test_accessibility
