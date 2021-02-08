@@ -665,7 +665,8 @@ setMethod(
 			ns_pred <- res$vplots %>% 
 				tf$boolean_mask(is_nucleosome, axis = 1L) %>%
 				tf$reduce_sum(1L, keepdims = TRUE)  %>%
-				tf$squeeze(shape(1L, 3L)) 
+				tf$squeeze(shape(1L, 3L)) %>%
+				get_nucleosome_score()
 
 			nucleosome_signal <- c(nucleosome_signal , ns_pred)
 		})
