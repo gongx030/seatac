@@ -530,12 +530,7 @@ setMethod(
 			nucleosome_signal <- c(nucleosome_signal , ns_pred)
 		})
 		nucleosome_signal <- nucleosome_signal %>% tf$concat(axis = 0L)
-		nucleosome_signal <- nucleosome_signal %>% as.matrix()
-
-		bins <- slidingWindows(granges(x), model@model$bin_size, model@model$bin_size) %>% 
-			unlist()
-		cvg <- coverage(bins, weight = c(t(nucleosome_signal)))
-		rowData(x)$nucleosome_signal <- cvg[granges(x)] %>% as.matrix()
+		rowData(x)$nucleosome_signal <- nucleosome_signal %>% as.matrix()
 		x
 	}
 )
