@@ -336,7 +336,12 @@ VaeModel <- function(
 		function(x, fragment_size, training = TRUE){
 
 			posterior <- x %>% self$encoder()
-			z <- posterior$sample()
+
+			if (training){
+				z <- posterior$sample()
+			}else{
+				z <- posterior$mean()
+			}
 			c <- list(z, fragment_size) %>% tf$concat(axis = 1L)
 			x_pred <- c %>% self$decoder(training = training)
 
@@ -605,10 +610,8 @@ setMethod(
 		x_pred <- NULL
 		res <- until_out_of_range({
 			batch <- iterator_get_next(iter)
-			posterior <- model@model$encoder(batch$vplots)
-			z <- posterior$mean()
-			c <- list(z, batch$batch) %>% tf$concat(axis = 1L)
-			x_pred <- c(x_pred, c %>% model@model$decoder(training = FALSE))
+			res <- model@model(batch$vplots, batch$fragment_size)
+			x_pred <- c(x_pred, res$vplots)
 		})
 		x_pred <- x_pred %>% tf$concat(axis = 0L)
 
