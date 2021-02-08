@@ -483,7 +483,7 @@ setMethod(
 )
 
 
-#' predict_nucleosome_signal
+#' predict_nucleosome
 #' 
 #' Predict nucleosome signal
 #' 
@@ -496,7 +496,7 @@ setMethod(
 #' @author Wuming Gong (gongx030@umn.edu)
 #' 
 setMethod(
-	'predict_nucleosome_signal',
+	'predict_nucleosome',
 	signature(
 		model = 'VaeModel',
 		x = 'Vplots'
@@ -539,11 +539,6 @@ setMethod(
 		x
 	}
 )
-
-
-
-
-
 
 
 
@@ -685,16 +680,16 @@ setMethod(
 ) # test_accessibility
 
 
-#' predict_nucleosome
+#' test_nucleosome
 #'
-#' Predicting the nucleosome 
+#' Test the nucleosome at the center of the block
 #'
 #' @param model a trained VaeModel object
 #' @param x a Vplots object
 #' @param sampling Number of sampling used to computing Bayes factor (default: 100L)
 #' @param batch_size Batch size (default: 4L)
 #'
-#' @return a Vplots object that includes the nucleosome prediction in rowData fields (rowData(x)$nucleosome_score)
+#' @return a Vplots object that includes the nucleosome prediction (at the center of the block) in rowData fields (rowData(x)$nucleosome_score)
 #' 				* mu: mean nucleosome scores from resampling
 #' 				* std: std of nucleosome scores from resampling
 #' 				* nu: sum of two shape parameters of beta distribution (nu = alpha + beta)
@@ -706,7 +701,7 @@ setMethod(
 #'
 #' 
 setMethod(
-	'predict_nucleosome',
+	'test_nucleosome',
 	signature(
 		model = 'VaeModel',
 		x = 'Vplots'
