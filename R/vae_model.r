@@ -220,6 +220,7 @@ VaeModel <- function(
 #' 
 #' @param model a VaeModel object, initialized by `new('VaeModel', model = VaeModel(...))`
 #' @param x a Vplots object
+#' @param weight Whether or not include positional weight
 #'
 #' @return a list that include `vplots`, `weight` and `batch`
 #' 
@@ -234,7 +235,8 @@ setMethod(
 	),
 	function(
 		model,
-		x
+		x,
+		training = TRUE
 	){
 
 		batch <- rowData(x)$batch %>%
@@ -246,15 +248,7 @@ setMethod(
 			tf$one_hot(x@n_samples) %>% 
 			tf$squeeze(1L)
 
-		fragment_size <- assays(x)$counts %>%
-			as.matrix() %>%
-			tf$cast(tf$float32) %>%
-			tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window)) %>%
-			tf$reduce_sum(2L) # fragment size per sample
-
-		fragment_size <- batch %>% 
-			tf$matmul(fragment_size, transpose_a = TRUE) %>%
-			scale01()	# average fragment size per batch
+		fragment_size <- get_fragment_size_per_batch(x)
 
 		fragment_size <- batch %>%
 			tf$matmul(fragment_size)	# proporate the batch-wise fragment size to each sample
@@ -265,15 +259,19 @@ setMethod(
 			tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window, 1L)) %>%
 			scale_vplot()
 
-		w <- tf$reduce_sum(x, 1L, keepdims = TRUE) > 0
-		w <- w %>% tf$squeeze(3L)
-		w <- w %>% tf$cast(tf$float32)
-
-		list(
+		d <- list(
 			vplots = x,
-			weight = w,
-			fragment_size = fragment_size
+			fragment_size = fragment_size,
+			batch = batch
 		)
+
+		if (training){
+			w <- tf$reduce_sum(x, 1L, keepdims = TRUE) > 0
+			w <- w %>% tf$squeeze(3L)
+			w <- w %>% tf$cast(tf$float32)
+			d$weight <- w
+		}
+		d
 	}
 )
 
@@ -336,7 +334,7 @@ setMethod(
 		sprintf('# of training samples: %d', length(x)) %>% 
 			message()
 
-		x <- model %>% prepare_data(x)
+		x <- model %>% prepare_data(x, training = TRUE)
 		x <- x %>% tensor_slices_dataset()
 		model <- model %>% fit(x, batch_size = batch_size, epochs = epochs, warmup = warmup, compile = compile, learning_rate = learning_rate)
 		model
@@ -462,7 +460,7 @@ setMethod(
 		is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
 
 		d <- model %>% 
-			prepare_data(x) %>%
+			prepare_data(x, training = FALSE) %>%
 			tensor_slices_dataset() %>%
 			dataset_batch(batch_size)
 
@@ -511,7 +509,7 @@ setMethod(
 		is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
 
 		d <- model %>% 
-			prepare_data(x) %>%
+			prepare_data(x, training = FALSE) %>%
 			tensor_slices_dataset() %>%
 			dataset_batch(batch_size)
 
@@ -586,87 +584,89 @@ setMethod(
 
 		stopifnot(all(granges(x[group1]) == granges(x[group2])))
 
-		is_center <- model@model$positions >= -center_size / 2 & model@model$positions <= center_size / 2
-    is_nfr <- model@model$centers <= 100
-    is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
+		is_center <- block_center(model@model$block_size / model@model$bin_size)
+
+		fs <- x %>% get_fragment_size_per_batch() %>% as.matrix()
+		is_nucleosome <- t(apply(fs, 1, cluster_fragment_size))
+		is_nucleosome <- is_nucleosome %>% tf$cast(tf$float32)
 
 		counts <- matrix(rowSums(assays(x)$counts), nrow = length(x) / x@n_samples, ncol = x@n_samples, dimnames = list(NULL, x@samples))
-		include <- rowSums(counts[, contrasts[2:3]] >= min_reads) == 2L
+		include <- rowSums(counts[, contrasts[2:3]] > 0) == 2L
+
 		n0 <- length(include)	# number of total unique intervals
 		n <- sum(include)	# number of qualitified genomic region to test
 		include <- matrix(include, nrow = n0, ncol = x@n_samples, dimnames = list(NULL, x@samples))
 		include[, !colnames(include) %in% contrasts[2:3]] <- FALSE
 		include <- c(include)
 
-		# there might be a memory issue if length(x) is too large
-		y <- assays(x[include])$counts %>%
-			as.matrix() %>%
-			tf$cast(tf$float32) %>%
-			tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window)) %>%
-			tf$expand_dims(3L) %>%
-			scale_vplot() %>%
-			tf$reshape(shape(2L, n, x@n_intervals, x@n_bins_per_window, 1L))	
+		d <- model %>% 
+			prepare_data(x[include], training = FALSE)
+		browser()
 
+		d$vplots <- d$vplots %>%
+			tf$reshape(shape(2L, n, x@n_intervals, x@n_bins_per_window, 1L)) %>%
+			tf$transpose(shape(1L, 0L, 2L, 3L, 4L))
 
-		batch <- rowData(x[include])$batch %>%
-			factor(x@samples) %>%
-			as.numeric() %>% 
-			tf$cast(tf$int32) %>%
-			tf$one_hot(x@n_samples) %>%
-			tf$reshape(shape(2L, n, -1L))
+		d$fragment_size <- d$fragment_size %>%
+			tf$reshape(shape(2L, n, x@n_intervals)) %>%
+			tf$transpose(shape(1L, 0L, 2L))
 
-		bs <- cut_data(n, batch_size)
-		S <- list()
-		for (j in 1:length(bs)){
+		d <- d %>% 
+			tensor_slices_dataset() %>%
+			dataset_batch(batch_size)
 
-			b <- bs[[j]]
+		iter <- d %>% make_iterator_one_shot()
 
-			posterior <- y[, b, , , , drop = FALSE] %>%
-				tf$reshape(shape(2L * length(b), x@n_intervals, x@n_bins_per_window, 1L)) %>%
+		P <- NULL
+
+		res <- until_out_of_range({
+
+			batch <- iterator_get_next(iter)
+			bs <- batch$vplots$shape[[1]]
+
+			posterior <- batch$vplots %>%
+				tf$reshape(shape(2L * bs, x@n_intervals, x@n_bins_per_window, 1L)) %>%
 				model@model$encoder()
 
 			z <- posterior$sample(sampling)
 
-			bb <- batch[, b, , drop = FALSE] %>% 
-				tf$reshape(shape(2L * length(b), -1L)) %>% 
+			fs <- batch$fragment_size %>%
+				tf$reshape(shape(2L * bs, x@n_intervals)) %>%
 				tf$expand_dims(0L) %>%
 				tf$tile(shape(sampling, 1L, 1L))
 
-			si <- list(z, bb) %>% 
-				tf$concat(axis = 2L) %>% 
-				tf$reshape(shape(sampling* 2L * length(b), -1L)) %>%
+			p <- list(z, fs) %>%
+				tf$concat(axis = 2L) %>%
+				tf$reshape(shape(sampling* 2L * bs, -1L)) %>%
 				model@model$decoder(training = FALSE) %>% 
-				vplot2nucleosome(is_nucleosome, is_nfr) %>% 
-				tf$boolean_mask(is_center, axis = 1L) %>% 
-				tf$reduce_sum(1L, keepdims = TRUE) %>%
-				tf$reshape(shape(sampling, 2L, length(b)))
+				tf$boolean_mask(is_center, axis = 2L) %>%
+				tf$boolean_mask(is_nucleosome, axis = 1L) %>%
+				tf$reduce_sum(1L, keepdims = TRUE)  %>%
+				tf$reduce_mean(2L) %>%
+				tf$squeeze(shape(1L, 2L)) %>%
+				get_nucleosome_score() %>%
+				tf$reshape(shape(sampling, 2L, bs))
 
-			S[[j]] <- (si[, 1, ] > si[, 2, ]) %>% 
-				tf$cast(tf$int32) %>% 
-				tf$reduce_sum(0L)
+			P <- c(P, p)
 
-			if (j %% 10 == 0){
-				sprintf('test_accessibility | batch=%6.d/%6.d', j, length(bs)) %>%
-					message()
-			}
-			
-		}
+		})
 
-		p <- S %>%
-			tf$concat(axis = 0L) %>%
-			tf$cast(tf$float32) %>% 
-			tf$math$add(1L) %>% 
-			tf$math$divide(sampling) %>% 
-			tf$math$maximum(1/sampling) %>%
-			tf$math$minimum(1 - 1/sampling) %>%
-			as.numeric()
+		P <- P %>% tf$concat(2L)
+
+		L <- log( (1e-5 + P[, 1, ] * (1 - P[, 2, ])) / (1e-5 + P[, 2, ] * (1 - P[, 1, ])) )
+		mu <- L %>% tf$reduce_mean(0L) %>% as.numeric()
+		std <- L %>% tf$math$reduce_std(0L) %>% as.numeric()
+
+		browser()
 
 		if (which(x@samples == contrasts[2]) > which(x@samples == contrasts[3]))
-			p <- 1 - p
+			mu <- -mu
+		
 
 		bf <- log10(p) - log10(1 - p)
 
-		res <- data.frame(bayes_factor_close = rep(NA, length(x)), bayes_factor_open = rep(NA, length(x)))
+		res <- data.frame(close = rep(NA, length(x)), open = rep(NA, length(x)))
+
 		res[include, ] <- data.frame(bayes_factor_close = bf, bayes_factor_open = -bf)
 
 		mcols(x)[[sprintf('%s,%s', contrasts[2], contrasts[3])]] <- res
@@ -711,9 +711,14 @@ setMethod(
     stopifnot(model@model$block_size == x@window_size)
 
 		is_center <- block_center(model@model$block_size / model@model$bin_size)
-    is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
 
-		d <- prepare_data(model, x) %>%
+		fs <- x %>% get_fragment_size_per_batch() %>% as.matrix()
+		is_nucleosome <- t(apply(fs, 1, cluster_fragment_size))
+		is_nucleosome <- is_nucleosome %>% tf$cast(tf$float32)
+
+		d <- prepare_data(model, x, training = FALSE) 
+		d$is_nucleosome <- tf$matmul(d$batch, is_nucleosome)
+		d <- d %>%
 			tensor_slices_dataset() %>%
 			dataset_batch(batch_size)
 
@@ -722,6 +727,7 @@ setMethod(
 		nucleosome <- NULL
 
 		res <- until_out_of_range({
+
 			batch <- iterator_get_next(iter)
 			n <- batch$vplots$shape[[1]]
 			posterior <- model@model$encoder(batch$vplots)
@@ -734,14 +740,19 @@ setMethod(
 				tf$concat(axis = 2L) %>%
 				tf$reshape(shape(sampling * n, -1L)) %>%
 				model@model$decoder(training = FALSE) %>%
-				tf$boolean_mask(is_center, axis = 2L)
+				tf$boolean_mask(is_center, axis = 2L) %>%
+				tf$reduce_mean(2L) %>%
+				tf$squeeze(2L)
+
+			is_nucleosome <- batch$is_nucleosome %>%
+			  tf$expand_dims(0L) %>%
+				tf$tile(shape(sampling, 1L, 1L)) %>%
+				tf$reshape(shape(sampling * n, -1L))
 
 			ns <- x_center %>% 
-				tf$boolean_mask(is_nucleosome, axis = 1L) %>%
-				tf$reduce_sum(1L, keepdims = TRUE)  %>%
-				tf$reduce_mean(2L) %>%
-				tf$squeeze(shape(1L, 2L)) %>%
-				get_nucleosome_score() %>%
+				tf$math$multiply(is_nucleosome) %>%
+				tf$reduce_sum(1L) %>%
+#				get_nucleosome_score() %>%
 				tf$reshape(shape(sampling, n)) 
 
 			nucleosome <- c(nucleosome, ns)

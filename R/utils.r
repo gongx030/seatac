@@ -115,6 +115,7 @@ downsample_vplot <- function(x, num_reads = 1L){
 
 } # downsample_vplot
 
+
 #' block_center
 #'
 #' Label the center of a x-length sequence
@@ -129,4 +130,63 @@ block_center <- function(x){
 		y[(x + 1) / 2] <- TRUE
 	y
 }
+
+
+
+#' get_fragment_size_per_batch
+#'
+#' Get the aggregated fragment size distribution per batch
+#' @param x a Vplot object
+#'
+get_fragment_size_per_batch <- function(x){
+
+	batch <- rowData(x)$batch %>%
+		factor(x@samples) %>%
+		as.numeric() %>%
+		matrix(length(x), 1L) %>%
+		tf$cast(tf$int32) %>%
+		tf$math$subtract(1L) %>%
+		tf$one_hot(x@n_samples) %>%
+		tf$squeeze(1L)
+
+	fragment_size <- assays(x)$counts %>%
+		as.matrix() %>%
+		tf$cast(tf$float32) %>%
+		tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window)) %>%
+		tf$reduce_sum(2L) # fragment size per sample
+
+	fragment_size <- batch %>%
+		tf$matmul(fragment_size, transpose_a = TRUE) %>%
+		scale01()  # average fragment size per batch
+
+	fragment_size
+}
+
+
+#' cluster_fragment_size
+#'
+#' Cluster the fragment size distribution
+#' @param x a numeric vector of the fragment_size distribution
+cluster_fragment_size <- function(x, n = 10000){
+
+	fragment_size <- sample(1:length(x), n, prob = x, replace = TRUE)
+	
+	mo1 <- FLXMRglm(family = "Gamma")
+	mo2 <- FLXMRglm(family = "gaussian")
+	flexfit <- flexmix(fragment_size ~ 1, data = data.frame(fragment_size = fragment_size), k = 2, model = list(mo1, mo2))
+	cls <- clusters(flexfit)
+
+	is_nucleosome <- rep(FALSE, length(x))
+
+	if (mean(fragment_size[cls == 1]) < mean(fragment_size[cls == 2]))
+		mono_nucleosome <- unique(fragment_size[cls == 2])
+	else
+		mono_nucleosome <- unique(fragment_size[cls == 1])
+
+	is_nucleosome[mono_nucleosome] <- TRUE
+
+	is_nucleosome
+
+} # cluster_fragment_size
+
 

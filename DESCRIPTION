@@ -27,4 +27,5 @@ Imports:
 	Rsamtools,
 	GenomicAlignments,
 	gplots,
-	BSgenome
+	BSgenome,
+	flexmix
