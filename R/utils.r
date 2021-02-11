@@ -165,28 +165,35 @@ get_fragment_size_per_batch <- function(x){
 
 #' cluster_fragment_size
 #'
-#' Cluster the fragment size distribution
+#' Identify the NFR and mono nucleosome proportion of the fragment size distribution
+#' by fitting a Gamma-Gaussian mixture model
+#'
 #' @param x a numeric vector of the fragment_size distribution
-cluster_fragment_size <- function(x, n = 10000){
+#' @param n maximum value in x
+#' @param k number of clusters
+#'
+cluster_fragment_size <- function(x, n = 32L, k = 2L){
 
-	fragment_size <- sample(1:length(x), n, prob = x, replace = TRUE)
+	stopifnot(all(x <= n))
 	
 	mo1 <- FLXMRglm(family = "Gamma")
 	mo2 <- FLXMRglm(family = "gaussian")
-	flexfit <- flexmix(fragment_size ~ 1, data = data.frame(fragment_size = fragment_size), k = 2, model = list(mo1, mo2))
+	flexfit <- flexmix(fragment_size ~ 1, data = data.frame(fragment_size = x), k = k, model = list(mo1, mo2))
 	cls <- clusters(flexfit)
 
-	is_nucleosome <- rep(FALSE, length(x))
+	sprintf('cluster_fragment_size | num samples=%d | k=%d', length(x), k) %>% message()
 
-	if (mean(fragment_size[cls == 1]) < mean(fragment_size[cls == 2]))
-		mono_nucleosome <- unique(fragment_size[cls == 2])
+	stopifnot(length(unique(cls)) == 2L)
+
+	is_nucleosome <- rep(FALSE, n)
+
+	if (mean(x[cls == 1]) < mean(x[cls == 2]))
+		mono_nucleosome <- unique(x[cls == 2])
 	else
-		mono_nucleosome <- unique(fragment_size[cls == 1])
+		mono_nucleosome <- unique(x[cls == 1])
 
 	is_nucleosome[mono_nucleosome] <- TRUE
 
 	is_nucleosome
 
 } # cluster_fragment_size
-
-

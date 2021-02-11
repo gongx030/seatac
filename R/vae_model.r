@@ -130,8 +130,8 @@ VaeDecoder <- function(
 #' @param block_size Block size in base pairs (default: 640L)
 #' @param bin_size Bin size in base pairs(default: 5L) 
 #' @param filters0 Filter size after the latent layer (default: 128L)
-#' @param fragment_size_range  Fragment size ranges (default: c(80L, 320L))
-#' @param fragment_size_interval Fragment size interval (default: 5L)
+#' @param fragment_size_range  Fragment size ranges (default: c(0L, 320L))
+#' @param fragment_size_interval Fragment size interval (default: 10L)
 #' @param rate Dropout rate (default: 0.1)
 #' @param name Model name
 #'
@@ -143,8 +143,8 @@ VaeModel <- function(
 	 block_size = 640L,
 	 bin_size = 5L,
 	 filters0 = 128L,
-	 fragment_size_range  = c(80L, 320L),
-	 fragment_size_interval = 5L,
+	 fragment_size_range  = c(0L, 320L),
+	 fragment_size_interval = 10L,
 	 rate = 0.1,
 	 name = NULL
 ){
@@ -239,6 +239,8 @@ setMethod(
 		training = TRUE
 	){
 
+		d <- list()
+
 		batch <- rowData(x)$batch %>%
 			factor(x@samples) %>%
 			as.numeric() %>%
@@ -248,22 +250,23 @@ setMethod(
 			tf$one_hot(x@n_samples) %>% 
 			tf$squeeze(1L)
 
-		fragment_size <- get_fragment_size_per_batch(x)
+		d$batch <- batch
 
-		fragment_size <- batch %>%
+		if (training){ # dataset specific fragment size
+			fragment_size <- get_fragment_size_per_batch(x)
+		}else{
+			fs <- get(load(system.file('data', 'fragment_size.rda', package = 'seatac')))
+			fragment_size <- matrix(fs$prob, nrow = 1, ncol = nrow(fs)) %>% tf$cast(tf$float32)
+		}
+		d$fragment_size <- batch %>%
 			tf$matmul(fragment_size)	# proporate the batch-wise fragment size to each sample
 
-		x <- assays(x)$counts %>%
+		d$vplots <- assays(x)$counts %>%
 			as.matrix() %>%
 			tf$cast(tf$float32) %>%
 			tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window, 1L)) %>%
 			scale_vplot()
 
-		d <- list(
-			vplots = x,
-			fragment_size = fragment_size,
-			batch = batch
-		)
 
 		if (training){
 			w <- tf$reduce_sum(x, 1L, keepdims = TRUE) > 0
@@ -457,7 +460,6 @@ setMethod(
 	){
 
 		stopifnot(model@model$block_size == x@window_size)
-		is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
 
 		d <- model %>% 
 			prepare_data(x, training = FALSE) %>%
@@ -712,12 +714,12 @@ setMethod(
 
 		is_center <- block_center(model@model$block_size / model@model$bin_size)
 
-		fs <- x %>% get_fragment_size_per_batch() %>% as.matrix()
-		is_nucleosome <- t(apply(fs, 1, cluster_fragment_size))
-		is_nucleosome <- is_nucleosome %>% tf$cast(tf$float32)
+#		fs <- x %>% get_fragment_size_per_batch() %>% as.matrix()
+#		is_nucleosome <- t(apply(fs, 1, cluster_fragment_size))
+#		is_nucleosome <- is_nucleosome %>% tf$cast(tf$float32)
 
 		d <- prepare_data(model, x, training = FALSE) 
-		d$is_nucleosome <- tf$matmul(d$batch, is_nucleosome)
+#		d$is_nucleosome <- tf$matmul(d$batch, is_nucleosome)
 		d <- d %>%
 			tensor_slices_dataset() %>%
 			dataset_batch(batch_size)
@@ -744,25 +746,59 @@ setMethod(
 				tf$reduce_mean(2L) %>%
 				tf$squeeze(2L)
 
-			is_nucleosome <- batch$is_nucleosome %>%
-			  tf$expand_dims(0L) %>%
-				tf$tile(shape(sampling, 1L, 1L)) %>%
-				tf$reshape(shape(sampling * n, -1L))
+#			  tf$expand_dims(0L) %>%
+#				tf$tile(shape(sampling, 1L, 1L)) %>%
+#				tf$reshape(shape(sampling * n, -1L))
+
+#			ns <- x_center %>% 
+#				tf$math$multiply(is_nucleosome) %>%
+#				tf$reduce_sum(1L) %>%
+#				tf$reshape(shape(sampling, n)) 
 
 			ns <- x_center %>% 
-				tf$math$multiply(is_nucleosome) %>%
-				tf$reduce_sum(1L) %>%
-#				get_nucleosome_score() %>%
-				tf$reshape(shape(sampling, n)) 
+				tf$reshape(shape(sampling, n, -1L)) 
 
 			nucleosome <- c(nucleosome, ns)
 
 		})
 
-		nucleosome <-  nucleosome %>% tf$concat(axis = 1L)
-		nucleosome <- nucleosome %>% 
-			tf$transpose(shape(1L, 0L)) %>%
-			as.matrix()
+		nucleosome <-  nucleosome %>% 
+			tf$concat(axis = 1L) %>%
+			tf$reduce_mean(0L)
+
+#				get_nucleosome_score() %>%
+
+		batch <- rowData(x)$batch %>%
+			factor(x@samples) %>%
+			as.numeric() %>%
+			matrix(length(x), 1L) %>%
+			tf$cast(tf$int32) %>%
+			tf$math$subtract(1L) %>%
+			tf$one_hot(x@n_samples) %>%
+			tf$squeeze(1L)
+
+		fragment_size_per_batch <- nucleosome %>% 
+			tf$matmul(batch, transpose_a = TRUE) %>%
+			tf$math$divide(tf$reduce_sum(batch, 0L)) %>%
+			tf$matmul(batch, transpose_b = TRUE) %>%
+			tf$transpose(shape(1L, 0L))
+
+		fs <- as.matrix(nucleosome - fragment_size_per_batch)
+		fs <- t(scale(t(fs)))
+		d <- as.data.frame(fs)
+		is_nucleosome <- rowData(x)$batch == rowData(x)$group
+		m <- glm(is_nucleosome ~ ., data.frame(is_nucleosome = is_nucleosome, d), family = 'binomial')
+		i <- rowData(x)$group == 'GM12878'
+		table(stats::predict(m, data.frame(is_nucleosome = is_nucleosome, d)[i, ], type = 'response') > 0.5, is_nucleosome[i])
+		i <- rowData(x)$group == 'K562'
+		table(stats::predict(m, data.frame(is_nucleosome = is_nucleosome, d)[i, ], type = 'response') > 0.5, is_nucleosome[i])
+
+		i <- rowData(x)$group == 'GM12878'
+		m <- glm(is_nucleosome ~ ., data.frame(is_nucleosome = is_nucleosome, d)[i, ], family = 'binomial')
+		table(stats::predict(m, data.frame(is_nucleosome = is_nucleosome, d)[i, ], type = 'response') > 0.5, is_nucleosome[i])
+		i <- rowData(x)$group == 'K562'
+		m <- glm(is_nucleosome ~ ., data.frame(is_nucleosome = is_nucleosome, d)[i, ], family = 'binomial')
+		table(stats::predict(m, data.frame(is_nucleosome = is_nucleosome, d)[i, ], type = 'response') > 0.5, is_nucleosome[i])
 
 		rowData(x)$nucleosome_score <- data.frame(
 			mu = rowMeans(nucleosome),
@@ -774,4 +810,5 @@ setMethod(
 		x
 	}
 )
+
 

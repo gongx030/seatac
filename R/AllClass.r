@@ -37,6 +37,10 @@ setClass('Model', slot = c(model = 'kerastools.model.RModel'))
 #'
 setClass('VaeModel', contains = 'Model')
 
+#' NucleosomeModel
+#'
+setClass('NucleosomeModel', contains = 'Model')
+
 #' VplotsList
 #'
 #' @export

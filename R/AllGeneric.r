@@ -20,6 +20,17 @@ setGeneric('read_bam', function(filename, peaks, genome, ...) standardGeneric('r
 #'
 setGeneric('read_vplot', function(x, filenames, genome, ...) standardGeneric('read_vplot'))
 
+#' read_aggregated_vplot
+#'
+#' The generic function of read_aggregated_vplot
+#'
+#' @param x a genomic object
+#' @param filenames BAM file name
+#' @param genome a genome object
+#' @param ... Other arguments
+#'
+setGeneric('read_aggregated_vplot', function(x, filenames, genome, ...) standardGeneric('read_aggregated_vplot'))
+
 #' count_reads
 #'
 #' The generic function of count_reads
@@ -121,3 +132,13 @@ setGeneric('predict_nucleosome', function(model, x, ...) standardGeneric('predic
 #'
 setGeneric('test_nucleosome', function(model, x, ...) standardGeneric('test_nucleosome'))
 
+#' read_fragment_size_profile
+#'
+#' The generic function of read_fragment_size_profile
+#'
+#' @param x a genomic object
+#' @param filename BAM file name
+#' @param genome a genome object
+#' @param ... Other arguments
+#'
+setGeneric('read_fragment_size_profile', function(x, filename, genome, ...) standardGeneric('read_fragment_size_profile'))
