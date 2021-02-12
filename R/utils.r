@@ -72,7 +72,7 @@ scale_vplot <- function(x){
 #'
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
-get_nucleosome_score <- function(x, beta0 = -6.0880, beta1 = 22.7500){
+get_nucleosome_score <- function(x, beta0 = -8.23990, beta1 = 13.19315){
 
 	1 / (1 + 1 / exp(beta0 + beta1 * x))
 

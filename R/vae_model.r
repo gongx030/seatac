@@ -267,9 +267,8 @@ setMethod(
 			tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window, 1L)) %>%
 			scale_vplot()
 
-
 		if (training){
-			w <- tf$reduce_sum(x, 1L, keepdims = TRUE) > 0
+			w <- tf$reduce_sum(d$vplots, 1L, keepdims = TRUE) > 0
 			w <- w %>% tf$squeeze(3L)
 			w <- w %>% tf$cast(tf$float32)
 			d$weight <- w
@@ -313,7 +312,7 @@ setMethod(
 		 learning_rate = 1e-4,
 		 warmup = 50L,
 		 min_reads = 25L,	# min reads for the training blocks
-		 max_training_samples = 10000L,
+		 max_training_samples_per_batch = 1000L,
 		 step_size = 20L,
 		 compile = TRUE
 	){
@@ -328,11 +327,15 @@ setMethod(
 			message()
 		x <- x[counts >= min_reads]
 
-		if (length(x) > max_training_samples){
-			sprintf('downsampling %d peaks for training', max_training_samples) %>% 
-				message()
-			x <- sample(x, max_training_samples)
-		}
+		h <- lapply(x@samples, function(i){
+			j <- which(rowData(x)$batch == i)
+			if (length(j) > max_training_samples_per_batch)
+				j <- sample(j, max_training_samples_per_batch)
+			j
+		})
+		h <- unlist(h)
+
+		x <- x[h]
 
 		sprintf('# of training samples: %d', length(x)) %>% 
 			message()
@@ -508,12 +511,14 @@ setMethod(
 	){
 
 		stopifnot(model@model$block_size == x@window_size)
-		is_nucleosome <- model@model$centers >= 180 & model@model$centers <= 247
 
 		d <- model %>% 
 			prepare_data(x, training = FALSE) %>%
 			tensor_slices_dataset() %>%
 			dataset_batch(batch_size)
+
+		fs <- get(load(system.file('data', 'fragment_size.rda', package = 'seatac')))
+		is_nucleosome <- fs$is_nucleosome
 
 		iter <- d %>% make_iterator_one_shot()
 		nucleosome_signal <- NULL
@@ -675,140 +680,4 @@ setMethod(
 		x
 	}
 ) # test_accessibility
-
-
-#' test_nucleosome
-#'
-#' Test the nucleosome at the center of the block
-#'
-#' @param model a trained VaeModel object
-#' @param x a Vplots object
-#' @param sampling Number of sampling used to computing Bayes factor (default: 100L)
-#' @param batch_size Batch size (default: 4L)
-#'
-#' @return a Vplots object that includes the nucleosome prediction (at the center of the block) in rowData fields (rowData(x)$nucleosome_score)
-#' 				* mu: mean nucleosome scores from resampling
-#' 				* std: std of nucleosome scores from resampling
-#' 				* nu: sum of two shape parameters of beta distribution (nu = alpha + beta)
-#' 				* alpha, beta: estimated shape parameter
-#' 				* prob: probability of nucleosome score greater than 0.5, estimated by a beta distribution
-#'
-#' @export
-#' @author Wuming Gong (gongx030@umn.edu)
-#'
-#' 
-setMethod(
-	'test_nucleosome',
-	signature(
-		model = 'VaeModel',
-		x = 'Vplots'
-	),
-	function(
-		model,
-		x,
-		sampling = 100L,
-		batch_size = 4L
-	){
-
-    stopifnot(model@model$block_size == x@window_size)
-
-		is_center <- block_center(model@model$block_size / model@model$bin_size)
-
-#		fs <- x %>% get_fragment_size_per_batch() %>% as.matrix()
-#		is_nucleosome <- t(apply(fs, 1, cluster_fragment_size))
-#		is_nucleosome <- is_nucleosome %>% tf$cast(tf$float32)
-
-		d <- prepare_data(model, x, training = FALSE) 
-#		d$is_nucleosome <- tf$matmul(d$batch, is_nucleosome)
-		d <- d %>%
-			tensor_slices_dataset() %>%
-			dataset_batch(batch_size)
-
-		iter <- d %>% make_iterator_one_shot()
-
-		nucleosome <- NULL
-
-		res <- until_out_of_range({
-
-			batch <- iterator_get_next(iter)
-			n <- batch$vplots$shape[[1]]
-			posterior <- model@model$encoder(batch$vplots)
-			z <- posterior$sample(sampling)
-			fragment_size <- batch$fragment_size %>%
-				tf$expand_dims(0L) %>%
-				tf$tile(shape(sampling, 1L, 1L))
-
-			x_center <- list(z, fragment_size) %>%
-				tf$concat(axis = 2L) %>%
-				tf$reshape(shape(sampling * n, -1L)) %>%
-				model@model$decoder(training = FALSE) %>%
-				tf$boolean_mask(is_center, axis = 2L) %>%
-				tf$reduce_mean(2L) %>%
-				tf$squeeze(2L)
-
-#			  tf$expand_dims(0L) %>%
-#				tf$tile(shape(sampling, 1L, 1L)) %>%
-#				tf$reshape(shape(sampling * n, -1L))
-
-#			ns <- x_center %>% 
-#				tf$math$multiply(is_nucleosome) %>%
-#				tf$reduce_sum(1L) %>%
-#				tf$reshape(shape(sampling, n)) 
-
-			ns <- x_center %>% 
-				tf$reshape(shape(sampling, n, -1L)) 
-
-			nucleosome <- c(nucleosome, ns)
-
-		})
-
-		nucleosome <-  nucleosome %>% 
-			tf$concat(axis = 1L) %>%
-			tf$reduce_mean(0L)
-
-#				get_nucleosome_score() %>%
-
-		batch <- rowData(x)$batch %>%
-			factor(x@samples) %>%
-			as.numeric() %>%
-			matrix(length(x), 1L) %>%
-			tf$cast(tf$int32) %>%
-			tf$math$subtract(1L) %>%
-			tf$one_hot(x@n_samples) %>%
-			tf$squeeze(1L)
-
-		fragment_size_per_batch <- nucleosome %>% 
-			tf$matmul(batch, transpose_a = TRUE) %>%
-			tf$math$divide(tf$reduce_sum(batch, 0L)) %>%
-			tf$matmul(batch, transpose_b = TRUE) %>%
-			tf$transpose(shape(1L, 0L))
-
-		fs <- as.matrix(nucleosome - fragment_size_per_batch)
-		fs <- t(scale(t(fs)))
-		d <- as.data.frame(fs)
-		is_nucleosome <- rowData(x)$batch == rowData(x)$group
-		m <- glm(is_nucleosome ~ ., data.frame(is_nucleosome = is_nucleosome, d), family = 'binomial')
-		i <- rowData(x)$group == 'GM12878'
-		table(stats::predict(m, data.frame(is_nucleosome = is_nucleosome, d)[i, ], type = 'response') > 0.5, is_nucleosome[i])
-		i <- rowData(x)$group == 'K562'
-		table(stats::predict(m, data.frame(is_nucleosome = is_nucleosome, d)[i, ], type = 'response') > 0.5, is_nucleosome[i])
-
-		i <- rowData(x)$group == 'GM12878'
-		m <- glm(is_nucleosome ~ ., data.frame(is_nucleosome = is_nucleosome, d)[i, ], family = 'binomial')
-		table(stats::predict(m, data.frame(is_nucleosome = is_nucleosome, d)[i, ], type = 'response') > 0.5, is_nucleosome[i])
-		i <- rowData(x)$group == 'K562'
-		m <- glm(is_nucleosome ~ ., data.frame(is_nucleosome = is_nucleosome, d)[i, ], family = 'binomial')
-		table(stats::predict(m, data.frame(is_nucleosome = is_nucleosome, d)[i, ], type = 'response') > 0.5, is_nucleosome[i])
-
-		rowData(x)$nucleosome_score <- data.frame(
-			mu = rowMeans(nucleosome),
-		  std = rowSds(nucleosome)
-		) %>%
-			mutate(nu = mu * (1 - mu) / std^2 - 1) %>%
-		 	mutate(alpha = mu * nu, beta = (1 - mu) * nu) %>%
-		 	mutate(prob = pbeta(0.5, shape1 = alpha, shape2 = beta, lower.tail = FALSE))
-		x
-	}
-)
-
 

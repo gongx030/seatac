@@ -47,6 +47,57 @@ setMethod(
 ) # read_vplot
 
 
+#' Read the V-plot
+#' 
+#' Read the V-plot from BAM files within a set of genomic regions
+#'
+#' @param x a GRangesList object that define a set of genomic regions.
+#' @param filenames BAM file names
+#' @param genome a BSgenome object
+#' @param bin_size The bin size (default: 5L)
+#' @param fragment_size_range The range of the PE reads fragment sizes that are used for 
+#'				constructing Vplot (default: c(0, 320L))
+#' @param fragment_size_interval Fragment size interval (default: 10L)
+#'
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
+setMethod(
+	'read_vplot',
+	signature(
+		x = 'GRangesList',
+		filenames = 'character',
+		genome = 'BSgenome'
+	), 
+	function(
+		x, 
+		filenames, 
+		genome,
+		bin_size = 5L,
+		fragment_size_range = c(0, 320L),
+		fragment_size_interval = 10L
+	){
+
+		if (is.null(names(filenames)))
+			names(filenames) <- 1:length(filenames)
+
+		stopifnot(!any(duplicated(names(filenames))))
+
+		stopifnot(length(x) == length(filenames))
+
+		se <- lapply(1:length(filenames), function(i){
+			xi <- read_vplot_core(x[[i]], filenames[i], genome, bin_size, fragment_size_range, fragment_size_interval)
+			rowData(xi)$batch <- names(filenames)[i]
+			xi@samples <- names(filenames)[i]
+			xi
+		})
+		se <- do.call('rbind', se)
+		se@samples <- unique(rowData(se)$batch)
+		se@n_samples <- length(se@samples)
+		se
+	}
+
+) # read_vplot
 
 
 
@@ -59,8 +110,8 @@ setMethod(
 #' @param genome a BSgenome object
 #' @param bin_size The bin size (default: 5L)
 #' @param fragment_size_range The range of the PE reads fragment sizes that are used for 
-#'				constructing Vplot (default: c(80L, 320L))
-#' @param fragment_size_interval Fragment size interval (default: 5L)
+#'				constructing Vplot (default: c(0L, 320L))
+#' @param fragment_size_interval Fragment size interval (default: 10L)
 #'
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
@@ -69,8 +120,8 @@ read_vplot_core <- function(
 	filename, 
 	genome, 
 	bin_size = 5L, 
-	fragment_size_range = c(80L, 320L), 
-	fragment_size_interval = 5L
+	fragment_size_range = c(0L, 320L), 
+	fragment_size_interval = 10L
 ){
 	window_size <- width(x)
 

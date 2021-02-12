@@ -122,16 +122,6 @@ setGeneric('predict_vplots', function(model, x, ...) standardGeneric('predict_vp
 setGeneric('predict_nucleosome', function(model, x, ...) standardGeneric('predict_nucleosome'))
 
 
-#' test_nucleosome
-#'
-#' The generic function of test_nucleosome
-#'
-#' @param model a model object
-#' @param x a data object that include the Vplot information
-#' @param ... Other arguments
-#'
-setGeneric('test_nucleosome', function(model, x, ...) standardGeneric('test_nucleosome'))
-
 #' read_fragment_size_profile
 #'
 #' The generic function of read_fragment_size_profile
