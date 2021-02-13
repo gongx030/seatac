@@ -256,7 +256,9 @@ setMethod(
 			fragment_size <- get_fragment_size_per_batch(x)
 		}else{
 			fs <- get(load(system.file('data', 'fragment_size.rda', package = 'seatac')))
-			fragment_size <- matrix(fs$prob, nrow = 1, ncol = nrow(fs)) %>% tf$cast(tf$float32)
+			fragment_size <- matrix(fs$prob, nrow = 1, ncol = nrow(fs)) %>% 
+				tf$cast(tf$float32)  %>%
+				tf$tile(shape(batch$shape[[2]], 1L))
 		}
 		d$fragment_size <- batch %>%
 			tf$matmul(fragment_size)	# proporate the batch-wise fragment size to each sample
