@@ -3,7 +3,6 @@
 #' @docType data
 #'
 #' @usage data(fragment_size)
-#' @export
 #'
 #' @keywords datasets
 #'
