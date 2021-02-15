@@ -121,6 +121,7 @@ downsample_vplot <- function(x, num_reads = 1L){
 #' Label the center of a x-length sequence
 #' @param x length of the sequence
 #' @return a binary vector indicating the center of the sequence with length x
+#' @export
 #'
 block_center <- function(x){
 	y <- rep(FALSE, x)
