@@ -255,7 +255,7 @@ setMethod(
 		if (training){ # dataset specific fragment size
 			fragment_size <- get_fragment_size_per_batch(x)
 		}else{
-			fs <- get(load(system.file('data', 'fragment_size.rda', package = 'seatac')))
+			data(fragment_size)	# fs
 			fragment_size <- matrix(fs$prob, nrow = 1, ncol = nrow(fs)) %>% 
 				tf$cast(tf$float32)  %>%
 				tf$tile(shape(batch$shape[[2]], 1L))
@@ -519,7 +519,7 @@ setMethod(
 			tensor_slices_dataset() %>%
 			dataset_batch(batch_size)
 
-		fs <- get(load(system.file('data', 'fragment_size.rda', package = 'seatac')))
+		data(fragment_size)
 		is_nucleosome <- fs$is_nucleosome
 
 		iter <- d %>% make_iterator_one_shot()
@@ -589,7 +589,7 @@ setMethod(
 
 		stopifnot(all(granges(x[group1]) == granges(x[group2])))	# make sure the genomic intervals are consistent
 
-		fs <- get(load(system.file('data', 'fragment_size.rda', package = 'seatac')))
+		data(fragment_size)
     is_nucleosome <- fs$is_nucleosome
 
 		is_center <- block_center(model@model$block_size / model@model$bin_size)
