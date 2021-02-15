@@ -256,7 +256,7 @@ setMethod(
 			fragment_size <- get_fragment_size_per_batch(x)
 		}else{
 			data(fragment_size)	# fs
-			fragment_size <- matrix(fs$prob, nrow = 1, ncol = nrow(fs)) %>% 
+			fragment_size <- matrix(fragment_size$prob, nrow = 1, ncol = nrow(fragment_size)) %>% 
 				tf$cast(tf$float32)  %>%
 				tf$tile(shape(batch$shape[[2]], 1L))
 		}
@@ -520,7 +520,7 @@ setMethod(
 			dataset_batch(batch_size)
 
 		data(fragment_size)
-		is_nucleosome <- fs$is_nucleosome
+		is_nucleosome <- fragment_size$is_nucleosome
 
 		iter <- d %>% make_iterator_one_shot()
 		nucleosome_signal <- NULL
@@ -590,7 +590,7 @@ setMethod(
 		stopifnot(all(granges(x[group1]) == granges(x[group2])))	# make sure the genomic intervals are consistent
 
 		data(fragment_size)
-    is_nucleosome <- fs$is_nucleosome
+    is_nucleosome <- fragment_size$is_nucleosome
 
 		is_center <- block_center(model@model$block_size / model@model$bin_size)
 
