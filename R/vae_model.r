@@ -553,9 +553,6 @@ setMethod(
 #' @param contrasts This argument specifies what comparison to extract from the object to build a results table.
 #' 				This argument must be a character vector with exactly three elements: the name of a factor in the design formula, 
 #'				the name of the numerator level for the fold change, and the name of the denominator level for the fold change 
-#' @param min_reads The mininum number of reads of the Vplots that are used for comparison (default 5L).  
-#'				Both Vplots must have at least this amount of reads
-#' @param center_size The center region of the Vplots considered for testing (default: 100L)
 #' @param sampling Number of sampling used to computing Bayes factor (default: 200L)
 #' @param batch_size Batch size (default: 4L)
 #'
@@ -575,9 +572,8 @@ setMethod(
 		model,
 		x,
 		contrasts = NULL,
-		min_reads = 5L,
-		center_size = 100L,
 		sampling = 100L,
+		min_reads = 5L,
 		batch_size = 4L
 	){
 
@@ -591,16 +587,15 @@ setMethod(
 		group1 <- mcols(x)[[field]] %in% contrasts[2]
 		group2 <- mcols(x)[[field]] %in% contrasts[3]
 
-		stopifnot(all(granges(x[group1]) == granges(x[group2])))
+		stopifnot(all(granges(x[group1]) == granges(x[group2])))	# make sure the genomic intervals are consistent
+
+		fs <- get(load(system.file('data', 'fragment_size.rda', package = 'seatac')))
+    is_nucleosome <- fs$is_nucleosome
 
 		is_center <- block_center(model@model$block_size / model@model$bin_size)
 
-		fs <- x %>% get_fragment_size_per_batch() %>% as.matrix()
-		is_nucleosome <- t(apply(fs, 1, cluster_fragment_size))
-		is_nucleosome <- is_nucleosome %>% tf$cast(tf$float32)
-
 		counts <- matrix(rowSums(assays(x)$counts), nrow = length(x) / x@n_samples, ncol = x@n_samples, dimnames = list(NULL, x@samples))
-		include <- rowSums(counts[, contrasts[2:3]] > 0) == 2L
+		include <- rowSums(counts[, contrasts[2:3]] > min_reads) == 2L
 
 		n0 <- length(include)	# number of total unique intervals
 		n <- sum(include)	# number of qualitified genomic region to test
@@ -609,18 +604,7 @@ setMethod(
 		include <- c(include)
 
 		d <- model %>% 
-			prepare_data(x[include], training = FALSE)
-		browser()
-
-		d$vplots <- d$vplots %>%
-			tf$reshape(shape(2L, n, x@n_intervals, x@n_bins_per_window, 1L)) %>%
-			tf$transpose(shape(1L, 0L, 2L, 3L, 4L))
-
-		d$fragment_size <- d$fragment_size %>%
-			tf$reshape(shape(2L, n, x@n_intervals)) %>%
-			tf$transpose(shape(1L, 0L, 2L))
-
-		d <- d %>% 
+			prepare_data(x[include], training = FALSE) %>%
 			tensor_slices_dataset() %>%
 			dataset_batch(batch_size)
 
@@ -634,49 +618,50 @@ setMethod(
 			bs <- batch$vplots$shape[[1]]
 
 			posterior <- batch$vplots %>%
-				tf$reshape(shape(2L * bs, x@n_intervals, x@n_bins_per_window, 1L)) %>%
+				tf$reshape(shape(bs, x@n_intervals, x@n_bins_per_window, 1L)) %>%
 				model@model$encoder()
 
 			z <- posterior$sample(sampling)
 
 			fs <- batch$fragment_size %>%
-				tf$reshape(shape(2L * bs, x@n_intervals)) %>%
 				tf$expand_dims(0L) %>%
 				tf$tile(shape(sampling, 1L, 1L))
 
 			p <- list(z, fs) %>%
 				tf$concat(axis = 2L) %>%
-				tf$reshape(shape(sampling* 2L * bs, -1L)) %>%
+				tf$reshape(shape(sampling* bs, -1L)) %>%
 				model@model$decoder(training = FALSE) %>% 
-				tf$boolean_mask(is_center, axis = 2L) %>%
 				tf$boolean_mask(is_nucleosome, axis = 1L) %>%
-				tf$reduce_sum(1L, keepdims = TRUE)  %>%
+				tf$boolean_mask(is_center, axis = 2L) %>%
+				tf$reduce_sum(1L, keepdims = TRUE) %>%
 				tf$reduce_mean(2L) %>%
 				tf$squeeze(shape(1L, 2L)) %>%
 				get_nucleosome_score() %>%
-				tf$reshape(shape(sampling, 2L, bs))
+				tf$reshape(shape(sampling, bs))
 
 			P <- c(P, p)
 
 		})
 
-		P <- P %>% tf$concat(2L)
+		P <- P %>% tf$concat(1L)
 
-		L <- log( (1e-5 + P[, 1, ] * (1 - P[, 2, ])) / (1e-5 + P[, 2, ] * (1 - P[, 1, ])) )
+		P <- P %>%
+			tf$reshape(shape(sampling, 2L, n))
+
+		L <- log( (1e-10 + P[, 1, ] * (1 - P[, 2, ])) / (1e-10 + P[, 2, ] * (1 - P[, 1, ])) )
 		mu <- L %>% tf$reduce_mean(0L) %>% as.numeric()
-		std <- L %>% tf$math$reduce_std(0L) %>% as.numeric()
+		se <- L %>% tf$math$reduce_std(0L) %>% tf$math$divide(sqrt(sampling)) %>% as.numeric()
 
-		browser()
 
 		if (which(x@samples == contrasts[2]) > which(x@samples == contrasts[3]))
 			mu <- -mu
-		
 
-		bf <- log10(p) - log10(1 - p)
-
-		res <- data.frame(close = rep(NA, length(x)), open = rep(NA, length(x)))
-
-		res[include, ] <- data.frame(bayes_factor_close = bf, bayes_factor_open = -bf)
+		pval <- 1 - pnorm(mu, 0, se)
+		res <- matrix(NA, nrow = nrow(x), ncol = 4L, dimnames = list(NULL, c('mu', 'se', 'pvalue', 'padj')))
+		res[include, 'mu'] <- mu
+		res[include, 'se'] <- se
+		res[include, 'pvalue'] <- pval
+		res[include, 'padj'] <- p.adjust(pval)
 
 		mcols(x)[[sprintf('%s,%s', contrasts[2], contrasts[3])]] <- res
 		x
