@@ -145,6 +145,11 @@ read_vplot_core <- function(
 	n_bins_per_window <- window_size / bin_size
 	peaks <- reduce(resize(x, fix = 'center', width = window_size + 2000))
 	g <- read_bam(filename, peaks = peaks, genome = genome)
+
+	cov <- coverage(g)[x] %>% 
+		as.matrix()
+	cov <- log(cov + 1)
+
 	g <- g[strand(g) == '+']
 	g <- GRanges(
 		seqnames = seqnames(g), 
@@ -169,7 +174,7 @@ read_vplot_core <- function(
 	counts <- t(BC %*% CF)  # bins ~ fragment size
 	dim(counts) <- c(n_bins_per_window * n_intervals, length(x))
 	counts <- t(counts)
-	counts <- counts[, h]
+	counts <- counts[, h, drop = FALSE]
 
 	seqlevels(x) <- seqlevels(genome)
 	seqlengths(seqinfo(x)) <- seqlengths(genome)
@@ -180,6 +185,7 @@ read_vplot_core <- function(
 		rowRanges = x
 	)
 	rowData(se)$id <- 1:length(x)
+	rowData(se)$coverage <- cov
 
 	new(
 		'Vplots', 

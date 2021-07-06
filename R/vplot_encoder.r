@@ -6,43 +6,46 @@
 #' @param kernel_size kernel size
 #' @param window_strides Position level strides
 #' @param interval_strides Fragment size level strides
+#' @param distribution Output distributions (MultivariateNormalDiag, LogNormal, or None)
+#' @param rate Dropout rate (default: 0.1)
 #' @param name model name
 #'
 VplotEncoder <- function(
-	filters = c(32L, 32L, 32L),
-	kernel_size = c(3L, 3L, 3L),
-	window_strides = c(2L, 2L, 2L),
-	interval_strides = c(2L, 2L, 2L),
+	downsample_layers = 4L,
+	filters = 32L,
+	kernel_size = 3L,
+	rate = 0.1,
+	momentum = 0.8,
 	name = NULL
 ){
 
 	keras_model_custom(name = name, function(self) {
 
-		self$filters <- filters
-		self$kernel_size <- kernel_size
-		self$window_strides <-  window_strides
-		self$interval_strides <-  interval_strides
-		self$n_layers <- length(filters)
+		self$downsample_layers <- downsample_layers
 
-		self$conv1d <- lapply(1:self$n_layers, function(i) 
+		self$conv <- lapply(1:self$downsample_layers, function(i) tf$keras$Sequential(list(
 			tf$keras$layers$Conv2D(
-				filters = filters[i],
-				kernel_size = kernel_size[i],
-				strides = shape(interval_strides[i], window_strides[i]),
-				activation = 'relu'
-			)
-		)
+				filters = filters,
+				kernel_size = kernel_size,
+				strides = shape(2L, 2L)
+			),
+			tf$keras$layers$Activation('relu'),
+			tf$keras$layers$BatchNormalization(momentum = momentum)
+		)))
 
-		self$bn <- lapply(1:self$n_layers, function(i) tf$keras$layers$BatchNormalization())
+		self$flatten_1 <- tf$keras$layers$Flatten()
 
 		function(x, ...){
 
-			for (i in 1:self$n_layers){
+			for (i in 1:self$downsample_layers){
 				x <- x %>% 
-					self$conv1d[[i - 1]]() %>% # zero-based
-					self$bn[[i - 1]]()	# zero-based
+					self$conv[[i - 1]]() 
 			}
-			x
+			y <- x %>% 
+				self$flatten_1()
+
+			y
+				
 		}
 	})
 }

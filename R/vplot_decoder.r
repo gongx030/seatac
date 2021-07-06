@@ -1,6 +1,6 @@
 #' VplotDecoder
 #'
-#' A Vplot decoder network
+#' A Vplot decoder network.  A DCGAN-like generator was used here.
 #'
 #' @param vplot_width V-plot width (genomic position-wise)
 #' @param vplot_height V-plot height (fragment size wise)
@@ -16,11 +16,11 @@ VplotDecoder <- function(
 	vplot_width,	# width of the image
 	vplot_height, # height of the image
 	filters0 = 64L,
-	filters = c(32L, 32L, 1L),
-	kernel_size = c(3L, 3L, 3L),
-	interval_strides = c(2L, 2L, 1L),
-	window_strides = c(2L, 2L, 2L),
-	rate = 0.1,
+	filters = 32L,
+	kernel_size = 3L,
+	upsample_layers = 4L,
+	strides = c(2L, 2L),
+	momentum = 0.8,
 	name = NULL
 ){
 
@@ -28,17 +28,13 @@ VplotDecoder <- function(
 
 		self$vplot_width <- vplot_width
 		self$vplot_height <- vplot_height
-		self$filters <- filters
-		self$n_layers <- length(filters)
+		self$upsample_layers <- upsample_layers
 
-		stopifnot(vplot_width %% prod(window_strides) == 0)
-		stopifnot(vplot_height %% prod(interval_strides) == 0)
-		stopifnot(self$n_layers == length(kernel_size))
-		stopifnot(self$n_layers == length(window_strides))
-		stopifnot(self$n_layers == length(interval_strides))
+		stopifnot(vplot_height %% strides[1]^upsample_layers == 0)
+		stopifnot(vplot_width %% strides[2]^upsample_layers == 0)
 
-		window_dim0 <- as.integer(vplot_width / prod(window_strides))
-		interval_dim0 <- as.integer(vplot_height / prod(interval_strides))
+		interval_dim0 <- as.integer(vplot_height / strides[1]^upsample_layers)
+		window_dim0 <- as.integer(vplot_width / strides[2]^upsample_layers)
 		output_dim0 <- as.integer(window_dim0 * interval_dim0 * filters0)
 
 		self$dense_1 <- tf$keras$layers$Dense(
@@ -46,43 +42,39 @@ VplotDecoder <- function(
 			activation = 'relu'
 		)
 
-		self$dropout_1 <- tf$keras$layers$Dropout(rate)
-
 		self$reshape_1 <- tf$keras$layers$Reshape(target_shape = c(interval_dim0, window_dim0, filters0))
 
-		self$deconv <- lapply(1:self$n_layers, function(i) 
-			if (i == self$n_layers){													
-				tf$keras$layers$Conv2DTranspose(
-					filters = filters[i],
-					kernel_size = kernel_size[i],
-					strides = shape(interval_strides[i], window_strides[i]),
-					padding = 'same'
-				)
-			}else{
-				tf$keras$layers$Conv2DTranspose(
-					filters = filters[i],
-					kernel_size = kernel_size[i],
-					strides = shape(interval_strides[i], window_strides[i]),
-					padding = 'same',
-					activation = 'relu'
-				)
-			}
-		)
+		self$deconv <- lapply(1:self$upsample_layers, function(i) tf$keras$Sequential(list(
+			tf$keras$layers$Conv2DTranspose(
+				filters = filters,
+				kernel_size = kernel_size,
+				strides = shape(strides[1], strides[2]),
+				padding = 'same'
+			),
+			tf$keras$layers$Activation('relu'),
+			tf$keras$layers$BatchNormalization(momentum = momentum)
+		)))
 
-		self$bn <- lapply(1:self$n_layers, function(i) tf$keras$layers$BatchNormalization())
+		self$conv_final <- tf$keras$layers$Conv2D(
+			filters = 1L,
+			kernel_size = 1L,
+			padding = 'same'
+		)
 
 		function(x, ..., training = TRUE){
 
 			x <- x %>%
 				self$dense_1() %>%
-				self$dropout_1(training = training) %>%
 				self$reshape_1() 
 
-			for (i in 1:self$n_layers){
+			for (i in 1:self$upsample_layers){
 				x <- x %>% 
-					self$deconv[[i - 1]]() %>% # zero-based
-					self$bn[[i - 1]]()	# zero-based
+					self$deconv[[i - 1]]() 
 			}
+
+			x <- x %>% 
+				self$conv_final()
+
 			x	
 		}
 	})

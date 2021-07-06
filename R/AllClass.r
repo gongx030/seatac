@@ -37,6 +37,22 @@ setClass('Model', slot = c(model = 'kerastools.model.RModel'))
 #'
 setClass('VaeModel', contains = 'Model')
 
+#' tfVaeModel
+#'
+setClass('tfVaeModel', contains = 'VaeModel')
+
+#' FourierVaeModel
+#'
+setClass('FourierVaeModel', contains = 'VaeModel')
+
+#' TransformerEncoderModel
+#'
+setClass('TransformerEncoderModel', contains = 'Model')
+
+#' FnetEncoderModel
+#'
+setClass('FnetEncoderModel', contains = 'TransformerEncoderModel')
+
 #' NucleosomeModel
 #'
 setClass('NucleosomeModel', contains = 'Model')

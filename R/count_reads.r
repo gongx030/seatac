@@ -22,7 +22,7 @@ setMethod(
 		x, 
 		filename, 
 		genome,
-		fragment_size_range = c(80, 320)
+		fragment_size_range = c(0L, 320)
 	){
 
 		window_size <- width(x)
@@ -48,7 +48,8 @@ setMethod(
 		)
 		g <- g[g$isize >= fragment_size_range[1] & g$isize <= fragment_size_range[2]]
 
-		counts <- coverage(g)[x] %>% sum()
+		x$counts <- coverage(g)[x] %>% sum()
+		x
 	}
 ) # count_reads
 	

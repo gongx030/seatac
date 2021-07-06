@@ -198,3 +198,28 @@ cluster_fragment_size <- function(x, n = 32L, k = 2L){
 	is_nucleosome
 
 } # cluster_fragment_size
+
+#' @export
+#'
+kernel_smoothing_1d <- function(x, size, sigma){
+
+	d <- tfp$distributions$Normal(0, sigma)
+	kernel <- d$prob(tf$range(start = -size, limit = size + 1L, dtype = tf$float32))
+	kernel <- kernel / tf$reduce_sum(kernel)
+	kernel <- kernel %>% tf$reshape(shape(-1L, 1L, 1L))
+	x <- x %>%
+		tf$expand_dims(2L) %>%
+		tf$nn$conv1d(kernel, stride = 1L, padding = "SAME") %>%
+		tf$squeeze(2L)
+	x
+
+}
+
+#' @export
+#'
+standarize_1d <- function(x){
+	x_mean <- x %>% tf$reduce_mean(1L, keepdims = TRUE)
+	x_sd <- x %>% tf$math$reduce_std(1L, keepdims = TRUE)
+	x <- (x - x_mean) / x_sd
+	x
+}
