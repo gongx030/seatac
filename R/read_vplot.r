@@ -146,9 +146,9 @@ read_vplot_core <- function(
 	peaks <- reduce(resize(x, fix = 'center', width = window_size + 2000))
 	g <- read_bam(filename, peaks = peaks, genome = genome)
 
-	cov <- coverage(g)[x] %>% 
-		as.matrix()
-	cov <- log(cov + 1)
+#	cov <- coverage(g)[x] %>% 
+#		as.matrix()
+#	cov <- log(cov + 1)
 
 	g <- g[strand(g) == '+']
 	g <- GRanges(
@@ -185,7 +185,7 @@ read_vplot_core <- function(
 		rowRanges = x
 	)
 	rowData(se)$id <- 1:length(x)
-	rowData(se)$coverage <- cov
+#	rowData(se)$coverage <- cov
 
 	new(
 		'Vplots', 

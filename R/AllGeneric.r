@@ -143,3 +143,12 @@ setGeneric('read_fragment_size_profile', function(x, filename, genome, ...) stan
 #'
 setGeneric('load_model', function(model, filename, ...) standardGeneric('load_model'))
 
+#' predict_fragment_size
+#'
+#' The generic function of predict_fragment_size
+#'
+#' @param model a model object
+#' @param x a data object that include the Vplot information
+#' @param ... Other arguments
+#'
+setGeneric('predict_fragment_size', function(model, x, ...) standardGeneric('predict_fragment_size'))

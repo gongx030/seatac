@@ -25,6 +25,7 @@ VaeModel <- function(
 	 upsample_layers = 4L,
 	 fragment_size_range  = c(0L, 320L),
 	 fragment_size_interval = 10L,
+	 n_samples = 1L,
 	 rate = 0.1,
 	 name = NULL
 ){
@@ -34,6 +35,7 @@ VaeModel <- function(
 		if (block_size %% bin_size != 0)
 			stop('block_size must be a multiple of bin_size')
 
+		self$latent_dim <- latent_dim
 		self$block_size <- block_size
 		self$bin_size <- bin_size
 		self$n_bins_per_block <- as.integer(block_size / bin_size)
@@ -45,15 +47,19 @@ VaeModel <- function(
 		self$breaks <- tf$constant(br)
 		self$centers <- tf$constant((br[-1] + br[-length(br)]) / 2)
 		self$positions <- tf$cast(seq(0 + bin_size / 2, block_size - bin_size / 2, by = bin_size) - (block_size / 2), tf$float32)
+		self$n_samples <- n_samples
 		
 		self$encoder <- VplotEncoder(
-			latent_dim = latent_dim,
 			downsample_layers = downsample_layers,
 			filters = filters,
 			kernel_size = kernel_size,
-			distribution = 'MultivariateNormalDiag',
 			rate = rate
 		)
+
+
+		self$dense_1 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
+
+		self$dense_fragment_size <- tf$keras$layers$Embedding(n_samples,  self$n_intervals)
 
 		self$decoder <- VplotDecoder(
 			vplot_width = self$n_bins_per_block,
@@ -71,14 +77,35 @@ VaeModel <- function(
 
 		function(x, ..., training = TRUE){
 
-			posterior <- x$vplots %>% self$encoder()
+			fragment_size <- x$batch %>% 
+				self$dense_fragment_size() %>%
+				tf$expand_dims(2L) %>%
+				tf$expand_dims(3L)
+
+			y <- (x$vplots + fragment_size) %>% 
+				self$encoder()
+			y <- y %>% self$dense_1()
+
+			q_m <- y[, 1:self$latent_dim]
+			q_v <- tf$nn$softplus(y[, (self$latent_dim + 1):(2 * self$latent_dim)] + 1e-3)
+
+			posterior <- tfp$distributions$MultivariateNormalDiag(
+				loc = q_m,
+				scale_diag = q_v
+			)
 
 			if (training){
 				z <- posterior$sample()
+				b <- x$batch %>% tf$one_hot(self$n_samples)
 			}else{
 				z <- posterior$mean()
+				b <- tf$zeros(shape(z$shape[[1]]), dtype = tf$int64) %>% tf$one_hot(self$n_samples)
 			}
-			x_pred <- z %>% self$decoder(training = training)
+
+			x_pred <- list(z, b) %>% 
+				tf$concat(1L) %>% 
+				self$decoder(training = training)
+
 			x_pred <- x_pred %>% tf$keras$activations$softmax(1L)
 
 			list(
@@ -124,11 +151,13 @@ setMethod(
 			tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window, 1L)) %>%
 			scale_vplot()
 
-		w <- tf$reduce_sum(vplots, 1L, keepdims = TRUE) > 0
-		w <- w %>% tf$squeeze(3L)
-		w <- w %>% tf$cast(tf$float32)
+		batch <- rowData(x)$batch %>%
+			factor(x@samples) %>%
+			as.numeric() %>%
+			tf$cast(tf$int64) 
+		batch <- batch - 1L
 
-		list(vplots = vplots, weight = w)	
+		list(vplots = vplots, batch = batch)
 	}
 )
 
@@ -176,7 +205,7 @@ setMethod(
 		train_step <- function(x, b){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
 				res <- model@model(x, training = TRUE)
-				loss_reconstruction <- (reconstrution_loss(x$vplots, res$vplots)) %>%
+				loss_reconstruction <- reconstrution_loss(x$vplots, res$vplots) %>%
 					tf$reduce_sum(shape(1L, 2L)) %>%
 					tf$reduce_mean()
 				loss_kl <- (res$posterior$log_prob(res$z) - model@model$prior$log_prob(res$z)) %>%
@@ -194,7 +223,6 @@ setMethod(
 				loss_kl = loss_kl
 			)
 		}
-
 
 		if (compile){
 			train_step <- tf_function(train_step) # convert to graph mode
@@ -247,8 +275,7 @@ setMethod(
 		batch_size = 256L, # v-plot per batch
 		reduction = 'vae_z_mean',
 		reduction_stddev = 'vae_z_stddev',
-		vplots = FALSE,
-		nucleosome = TRUE,
+		vplots = TRUE,
 		...
 	){
 
@@ -265,11 +292,6 @@ setMethod(
 			predicted_vplots <- NULL
 		}
 
-		if (nucleosome){
-			nucleosome_signal <- NULL
-			is_nfr <- x@centers <= 100
-		}
-
 		res <- until_out_of_range({
 			batch <- iterator_get_next(iter)
 			res <- model@model(batch, training = FALSE)
@@ -277,10 +299,6 @@ setMethod(
 			latent_stddev <- c(latent_stddev, res$posterior$stddev())
 			if (vplots){
 				predicted_vplots <- c(predicted_vplots, res$vplots)
-			}
-			if (nucleosome){
-				nfr <- res$vplots %>% tf$boolean_mask(is_nfr, 1L) %>% tf$reduce_sum(1L) %>% tf$squeeze(2L)
-				nucleosome_signal <- c(nucleosome_signal, log((1 - nfr + 1e-3) / (nfr + 1e-3)))
 			}
 		})
 
@@ -296,11 +314,6 @@ setMethod(
 				as.matrix()
 			dimnames(predicted_vplots) <- dimnames(x)
 			assays(x)$predicted_counts <- predicted_vplots
-		}
-
-		if (nucleosome){
-			nucleosome_signal <- nucleosome_signal %>% tf$concat(axis = 0L)
-			rowData(x)[['nucleosome_signal']] <- as.matrix(nucleosome_signal)
 		}
 
 		x
@@ -434,9 +447,9 @@ setMethod(
 ) # test_accessibility
 
 
-#' predict_nucleosome
+#' predicted_fragment_size
 #'
-#' Predict counts
+#' Predict fragment size at the center of the Vplot
 #'
 #' @param model a trained VaeModel object
 #' @param x a Vplots object
@@ -449,7 +462,7 @@ setMethod(
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
-	'predict_nucleosome',
+	'predict_fragment_size',
 	signature(
 		model = 'VaeModel',
 		x = 'Vplots'
@@ -458,32 +471,37 @@ setMethod(
 		model,
 		x,
 		batch_size = 256L, # v-plot per batch
-		step_size = 80L,
-		min_reads = 5L,
+		width = 100L,
 		...
 	){
 
-		x <- slidingWindows(x, width = model@model$block_size, step = step_size) 
-		x <- x[rowSums(assays(x)$counts) >= min_reads, ]
-		x <- model %>% predict(x, batch_size = batch_size, vplots = FALSE, nucleosome = TRUE)
+		d <- model %>%
+			prepare_data(x, ...) %>%
+			tensor_slices_dataset() %>%
+			dataset_batch(batch_size)
 
-		gr <- granges(x) %>% 
-			slidingWindows(width = 1L, step = 1L) %>%
-			unlist()
+		iter <- d %>% make_iterator_one_shot()
 
-		mcols(gr)$nucleosome_signal <- c(t(rowData(x)$nucleosome_signal))
+		is_center <- x@positions >= -width / 2 & x@positions <= width /2
 
-		y <- coverage(gr) %>% as('GRanges')
-		y <- y[y$score > 0]
-		d <- rep(y$score, width(y))
-		y <- y %>%
-			slidingWindows(width = 1L, step = 1L)  %>%
-			unlist()
+		fragment_size <- NULL
+		predicted_fragment_size <- NULL
 
-		score <- coverage(gr, weight = 'nucleosome_signal')[y] %>% mean() 
-		mcols(y)$nucleosome_signal <- score / d
+		res <- until_out_of_range({
+			batch <- iterator_get_next(iter)
+			res <- model@model(batch, training = FALSE)
+			fs <- batch$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_sum(2L) %>% tf$squeeze(2L)
+			w <- fs %>% tf$reduce_sum(1L, keepdims = TRUE)
+			fs <- fs / tf$where(w > 0, w, tf$ones_like(w))
+			fs_pred <- res$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_mean(2L) %>% tf$squeeze(2L)
+			fragment_size <- c(fragment_size, fs)
+			predicted_fragment_size <- c(predicted_fragment_size, fs_pred)
+		})
 
-		y
-
+		fragment_size <- fragment_size %>% tf$concat(axis = 0L)
+		predicted_fragment_size <- predicted_fragment_size %>% tf$concat(axis = 0L)
+		rowData(x)[['fragment_size']] <- as.matrix(fragment_size)
+		rowData(x)[['predicted_fragment_size']] <- as.matrix(predicted_fragment_size)
+		x
 	}
 )

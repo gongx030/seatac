@@ -48,8 +48,7 @@ setMethod(
 		)
 		g <- g[g$isize >= fragment_size_range[1] & g$isize <= fragment_size_range[2]]
 
-		x$counts <- coverage(g)[x] %>% sum()
-		x
+		coverage(g)[x] %>% sum()
 	}
 ) # count_reads
 	
