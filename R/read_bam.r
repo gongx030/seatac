@@ -1,11 +1,11 @@
 #' Read BAM file
 #'
 #' Read the aligned paired-end reads over the given peaks. 
+#'
 #' @param filename BAM file names 
 #' @param peaks a GRange object that define a set of genomic regions.
 #' @param genome a BSgenome for genome information
 #'
-#' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'  
 setMethod(
@@ -15,7 +15,7 @@ setMethod(
 		peaks = 'GRanges',
 		genome = 'BSgenome'
 	), 
-	function(filename, peaks, genome, ...){
+	function(filename, peaks, genome){
 
 		validate_bam(filename)
 
@@ -56,7 +56,6 @@ setMethod(
 #' @param peaks missing
 #' @param genome a BSgenome for genome information
 #'
-#' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'  
 setMethod(
@@ -66,7 +65,7 @@ setMethod(
 		peaks = 'missing',
 		genome = 'BSgenome'
 	), 
-	function(filename, peaks, genome, ...){
+	function(filename, peaks, genome){
 
 		validate_bam(filename)
 

@@ -4,8 +4,7 @@
 #'
 #' @param x a GRanges object defining the peaks; the width must be the same for all peaks.
 #' @param filename BAM file name.
-#' @param genome either a character such as 'mm10' or 'hg19', or a BS genome object such as 
-#' 				BSgenome.Mmusculus.UCSC.mm10
+#' @param genome a BS genome object such as BSgenome.Mmusculus.UCSC.mm10
 #' @param fragment_size_range fragment size ranges (default:  c(80, 320))
 #' @return 
 #' 
@@ -23,7 +22,7 @@ setMethod(
 		x, 
 		filename, 
 		genome,
-		fragment_size_range = c(80, 320)
+		fragment_size_range = c(0L, 320)
 	){
 
 		window_size <- width(x)
@@ -49,35 +48,8 @@ setMethod(
 		)
 		g <- g[g$isize >= fragment_size_range[1] & g$isize <= fragment_size_range[2]]
 
-		counts <- coverage(g)[x] %>% sum()
+		coverage(g)[x] %>% sum()
 	}
 ) # count_reads
 	
 
-#' Count reads
-#'
-#' Count how many reads fall into a specific fragment size range
-#'
-#' @param x a GRanges object defining the peaks; the width must be the same for all peaks.
-#' 
-#' @export
-#' @author Wuming Gong (gongx030@umn.edu)
-#'
-setMethod(
-	'count_reads',
-	signature(
-		x = 'GRanges',
-		filename = 'character',
-		genome = 'character'
-	), 
-	function(
-		x, 
-		filename, 
-		genome,
-		...
-	){
-		genome <- get_bsgenome(genome)
-		count_reads(x, filename, genome, ...)
-	}
-) # count_reads
-	

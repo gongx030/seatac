@@ -1,4 +1,8 @@
-#'
+#' scale01
+#' 
+#' Scale the column a matrix to [0, 1]
+#' @param x a dgCMatrix object
+#' @return a scaled dgCMatrix object
 #' @export
 #'
 setMethod(
@@ -17,7 +21,11 @@ setMethod(
 	}
 )
 
-#'
+#' scale01
+#' 
+#' Scale the column a matrix to [0, 1]
+#' @param x matrix object
+#' @return a scaled matrix object
 #' @export
 #'
 setMethod(
@@ -40,7 +48,11 @@ setMethod(
 	}
 )
 
-#'
+#' scale01
+#' 
+#' Scale the column a matrix to [0, 1]
+#' @param x a tensorflow.tensor object
+#' @return a scaled tensorflow.tensor object
 #' @export
 #'
 setMethod(
@@ -59,7 +71,11 @@ setMethod(
 	}
 )
 
-#'
+#' scale01
+#' 
+#' Scale the column a matrix to [0, 1]
+#' @param x a numeric vector
+#' @return a scaled numeric vector
 #' @export
 #'
 setMethod(

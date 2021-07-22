@@ -6,6 +6,7 @@
 #' @param width Width of the sub-window
 #' @param fix A character vector containing the values "start", "end", or "center" denoting what to use as an anchor for each element in x.
 #' @return a new Vplots object
+#' @export
 #'
 setMethod(
 	'resize',
@@ -19,6 +20,8 @@ setMethod(
 		if (width > x@window_size)
 			return(x)
 
+		n_bins_per_block <- as.integer(width / x@bin_size)
+
 		if (fix == 'center'){
 			center <- round(x@n_bins_per_window / 2)
 			start <- round((x@window_size / x@bin_size - width / x@bin_size) / 2)
@@ -26,7 +29,6 @@ setMethod(
 		}else
 			stop(sprintf('unknown fix: %s', fix))
 
-		n_bins_per_block <- as.integer(width / x@bin_size)
 
 		d <- assays(x)$counts %>%
 			summary() %>%

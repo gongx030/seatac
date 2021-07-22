@@ -1,6 +1,11 @@
 #' show-Vplots
+#' 
+#' Print a Vplots object
+#
+#' @param object a Vplots object
 #'
 #' @export
+#'
 setMethod(
 	'show',
 	signature(

@@ -1,71 +1,12 @@
-#' extract_blocks_from_vplot
-#'
-extract_blocks_from_vplot <- function(x, n_bins_per_block){
-
-	n_intervals <- x$shape[[2]]
-
-	y <- x %>%
-		tf$image$extract_patches(
-			sizes = c(1L, n_intervals, n_bins_per_block, 1L),
-			strides = c(1L, 1L, 1L, 1L),
-			rates = c(1L, 1L, 1L, 1L),
-			padding = 'VALID'
-		) %>%
-		tf$squeeze(axis = 1L)
-
-	y <- y %>%
-		tf$reshape(c(y$shape[[1]], y$shape[[2]], n_intervals, n_bins_per_block)) %>%
-		tf$expand_dims(-1L)
-
-	y
-}
-
-#' reconstruct_vplot_from_blocks
-#'
-#' https://stackoverflow.com/questions/50706431/please-how-to-do-this-basic-thing-with-tensorflow
-#'
-reconstruct_vplot_from_blocks <- function(x){
-
-	batch <- x$shape[[1]]
-	n_blocks_per_window <- x$shape[[2]]
-	n_intervals <- x$shape[[3]]
-	n_bins_per_block <- x$shape[[4]]
-	window_size <- as.integer(n_blocks_per_window + n_bins_per_block - 1)
-
-	padding <- matrix(as.integer(c(0, 0, 0, 0, 0, n_blocks_per_window * n_intervals)), 3, 2, byrow = TRUE)
-	zeros <- tf$zeros(c(batch, n_blocks_per_window, n_intervals))
-
-	w <- rep(n_bins_per_block, window_size)
-	w[1:n_bins_per_block] <- w[1:n_bins_per_block] - n_bins_per_block:1 + 1
-	w[(window_size - n_bins_per_block + 1):window_size] <- w[(window_size - n_bins_per_block + 1):window_size] - 1:n_bins_per_block + 1
-
-	w <- tf$constant(w, dtype = tf$float32) %>%
-		tf$reshape(c(1L, 1L, window_size, 1L))
-
-	y <- x %>% 
-		tf$transpose(perm = c(0L, 1L, 3L, 2L, 4L)) %>%
-		tf$reshape(c(batch, n_blocks_per_window, n_bins_per_block * n_intervals)) %>%
-		tf$pad(padding, 'CONSTANT')
-
-	y <- tf$concat(list(y, zeros), axis = 2L)
-	y <- y %>% tf$reshape(c(batch, -1L))
-	y <- y[, 1:(y$shape[[2]] - n_blocks_per_window * n_intervals)]
-	y <- y %>% tf$reshape(c(batch, n_blocks_per_window, window_size + 1L, n_intervals))
-	y <- y %>% tf$transpose(perm = c(0L, 1L, 3L, 2L))
-
-	y <- y[, , , 1:window_size]
-
-	y <- y %>% 
-		tf$reduce_sum(axis = 1L) %>%
-		tf$expand_dims(-1L)  %>%
-		tf$multiply(1 / w)
-
-	y
-
-}
-
-
 #' split_dataset
+#' 
+#' Split a tfdataset object into training and testing sets
+#'
+#' @param x a tfdataset object
+#' @param test_size The ratio of the testing set (default 0.15)
+#' @param batch_size Batch size (default: 64L)
+#' @return a list that include a training and a testing dataset, where both of them are 
+#'					tfdataset object
 #'
 split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 
@@ -85,50 +26,10 @@ split_dataset <- function(x, test_size = 0.15, batch_size = 64L){
 } # split_dataset
 
 
-#' load_pretrained_vae_model
-#'
-#' Load pretrained sequence agnostic VAE model for V-plot
-#'
-#' @export
-#' @author Wuming Gong (gongx030@umn.edu)
-#'
-load_pretrained_vplot_vae_model <- function(block_size = 240L, latent_dim = 10L, filters0 = 128L, min_reads = 15L, training = 'mix15'){
-
-	n_intervals <- 48L
-
-	message(sprintf('load_pretrained_vplot_vae_model | %s | block_size=%d', training, block_size))
-
-	model_id <- sprintf('https://s3.msi.umn.edu/gongx030/projects/seatac/models/training=%s_block_size=%d_latent_dim=%d_filters0=%d_min_reads=%d', training, block_size, latent_dim, filters0, min_reads)
-	model_index_file <- sprintf('%s.index', model_id)
-	model_data_file <- sprintf('%s.data-00000-of-00001', model_id)
-
-	local_model_id <- tempfile()
-	local_model_index_file <- sprintf('%s.index', local_model_id)
-	local_model_data_file <- sprintf('%s.data-00000-of-00001', local_model_id)
-
-	tryCatch({
-		download.file(model_index_file, local_model_index_file)
-	}, error = function(e){
-		stop(sprintf('failed downloading %s', model_index_file))
-	})
-
-	tryCatch({
-		download.file(model_data_file, local_model_data_file)
-	}, error = function(e){
-		stop(sprintf('failed downloading %s', model_data_file))
-	})
-
-	model <- VaeModel(block_size = block_size, n_intervals = n_intervals)
-	res <- model(tf$random$uniform(shape(1L, n_intervals, model$n_bins_per_block, 1L)), tf$random$uniform(shape(1L, n_intervals)))
-	load_model_weights_tf(model, local_model_id)
-	new('VaeModel', model = model)
-
-} # load_pretrained_vplot_vae_model
-
-
 #' cut data
 #' 
 #' Cut a sequence into small batches
+#'
 #' @param n Length of the sequence
 #' @param batch_size Batch size
 #' @return a list of sequence indices, where the length of the list is the number of batches.
@@ -144,8 +45,12 @@ cut_data <- function(n, batch_size){
 
 
 #' scale_vplot 
+#' 
+#' Scale the Vplot so that the sum of reads at each position is one. 
+#' 
+#' @param x Vplots in tensorflow.tensor object ([batch, height, width, 1])
+#' @return scaled Vplots in tensorflow.tensor object ([batch, height, width, 1])
 #'
-#' @export
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
 scale_vplot <- function(x){
@@ -155,58 +60,33 @@ scale_vplot <- function(x){
 }
 
 
+#' get_nucleosome_score
 #' 
-#' @export
+#' Calcualting the nucleosome score (eta) from Vplots
 #'
-vplot2nucleosome <- function(x, is_nucleosome, is_nfr, scale = -10, offset = -0.95){
-	di <- x %>%
-		tf$boolean_mask(is_nucleosome, axis = 1L) %>%
-		tf$reduce_sum(1L) %>%
-		tf$squeeze(2L)
-
-	nfr <- x %>%
-		tf$boolean_mask(is_nfr, axis = 1L) %>%
-		tf$reduce_sum(1L) %>%
-		tf$squeeze(2L)
-
-	1 / (1 + tf$math$exp(scale * (di / (di + nfr)  + offset)))
-
-} # vplot2nucleosome
-
+#' @param x a tensorflow.tensor object 
+#' @param beta0 Scale factor for calculating the nucleosome score 
+#' @param beta1 Offset factor for calculating the nucleosome score 
+#' 
+#' @return a tensorflow.tensor object of the calculated nucleosome score 
 #'
+#' @author Wuming Gong (gongx030@umn.edu)
 #'
-#'
-get_bsgenome <- function(x){
-	if (x == 'hg19'){
-		require(BSgenome.Hsapiens.UCSC.hg19)
-		BSgenome.Hsapiens.UCSC.hg19
-	}else if (x == 'mm10'){
-		require(BSgenome.Mmusculus.UCSC.mm10)
-		BSgenome.Mmusculus.UCSC.mm10
-	}else
-		spritnf('unknown genome:%s', x) %>% stop()
-} # get_bsgenome
+get_nucleosome_score <- function(x, beta0 = -8.23990, beta1 = 13.19315){
+
+	1 / (1 + 1 / exp(beta0 + beta1 * x))
+
+} # get_nucleosome_score
 
 
-#'
-#' @export
-#'
-VplotsList <- function(...){
-	x <- list(...)
-	new('VplotsList', x)
-}
 
-#'
-#' @export
-#'
-setAs('ANY', 'VplotsList', function(from) {
-	as(from, 'SimpleList')
-})
-
-
-#' Downsample V-plot
+#' downsample_vplot
 #'
 #' Downsample a dense V-plot to a saprse V-plot, where the remaining number of reads is specified as `num_reads`.
+#'
+#' @param x a tensorflow.tensor object of Vplots
+#' @param num_reads The target number of reads (default: 1L)
+#' @return down-sampled Vplots in tensorflow.tensor object
 #'
 downsample_vplot <- function(x, num_reads = 1L){
 
@@ -236,17 +116,110 @@ downsample_vplot <- function(x, num_reads = 1L){
 } # downsample_vplot
 
 
-#' get_fragment_size
+#' block_center
 #'
-get_fragment_size <- function(x){
-	fragment_size <- x %>%
-		tf$reduce_sum(shape(0L, 2L, 3L))
+#' Label the center of a x-length sequence
+#' @param x length of the sequence
+#' @return a binary vector indicating the center of the sequence with length x
+#' @export
+#'
+block_center <- function(x){
+	y <- rep(FALSE, x)
+	if (x %% 2 == 0){
+		y[(x / 2):(x / 2 + 1)] <- TRUE
+	}else
+		y[(x + 1) / 2] <- TRUE
+	y
+}
 
-	fragment_size  <- (fragment_size / tf$reduce_sum(fragment_size)) %>%
-		tf$expand_dims(0L) %>%
-		tf$`repeat`(repeats = x$shape[[1]], axis = 0L)
-
-	fragment_size	
-} # get_fragment_size
 
 
+#' get_fragment_size_per_batch
+#'
+#' Get the aggregated fragment size distribution per batch
+#' @param x a Vplot object
+#'
+get_fragment_size_per_batch <- function(x){
+
+	batch <- rowData(x)$batch %>%
+		factor(x@samples) %>%
+		as.numeric() %>%
+		matrix(length(x), 1L) %>%
+		tf$cast(tf$int32) %>%
+		tf$math$subtract(1L) %>%
+		tf$one_hot(x@n_samples) %>%
+		tf$squeeze(1L)
+
+	fragment_size <- assays(x)$counts %>%
+		as.matrix() %>%
+		tf$cast(tf$float32) %>%
+		tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window)) %>%
+		tf$reduce_sum(2L) # fragment size per sample
+
+	fragment_size <- batch %>%
+		tf$matmul(fragment_size, transpose_a = TRUE) %>%
+		scale01()  # average fragment size per batch
+
+	fragment_size
+}
+
+
+#' cluster_fragment_size
+#'
+#' Identify the NFR and mono nucleosome proportion of the fragment size distribution
+#' by fitting a Gamma-Gaussian mixture model
+#'
+#' @param x a numeric vector of the fragment_size distribution
+#' @param n maximum value in x
+#' @param k number of clusters
+#'
+cluster_fragment_size <- function(x, n = 32L, k = 2L){
+
+	stopifnot(all(x <= n))
+	
+	mo1 <- FLXMRglm(family = "Gamma")
+	mo2 <- FLXMRglm(family = "gaussian")
+	flexfit <- flexmix(fragment_size ~ 1, data = data.frame(fragment_size = x), k = k, model = list(mo1, mo2))
+	cls <- clusters(flexfit)
+
+	sprintf('cluster_fragment_size | num samples=%d | k=%d', length(x), k) %>% message()
+
+	stopifnot(length(unique(cls)) == 2L)
+
+	is_nucleosome <- rep(FALSE, n)
+
+	if (mean(x[cls == 1]) < mean(x[cls == 2]))
+		mono_nucleosome <- unique(x[cls == 2])
+	else
+		mono_nucleosome <- unique(x[cls == 1])
+
+	is_nucleosome[mono_nucleosome] <- TRUE
+
+	is_nucleosome
+
+} # cluster_fragment_size
+
+#' @export
+#'
+kernel_smoothing_1d <- function(x, size, sigma){
+
+	d <- tfp$distributions$Normal(0, sigma)
+	kernel <- d$prob(tf$range(start = -size, limit = size + 1L, dtype = tf$float32))
+	kernel <- kernel / tf$reduce_sum(kernel)
+	kernel <- kernel %>% tf$reshape(shape(-1L, 1L, 1L))
+	x <- x %>%
+		tf$expand_dims(2L) %>%
+		tf$nn$conv1d(kernel, stride = 1L, padding = "SAME") %>%
+		tf$squeeze(2L)
+	x
+
+}
+
+#' @export
+#'
+standarize_1d <- function(x){
+	x_mean <- x %>% tf$reduce_mean(1L, keepdims = TRUE)
+	x_sd <- x %>% tf$math$reduce_std(1L, keepdims = TRUE)
+	x <- (x - x_mean) / x_sd
+	x
+}

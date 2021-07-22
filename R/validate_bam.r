@@ -1,7 +1,8 @@
 #' validate_bam
 #'
 #' Validate BAM files
-#' @param filenames file names
+#'
+#' @param filenames BAM file names
 #'
 validate_bam <- function(filenames){
 
@@ -16,7 +17,7 @@ validate_bam <- function(filenames){
 	index_files <- sprintf('%s.bai', filenames)
   existed <- file.exists(index_files)
   if (any(!existed)){
-		message(sprintf('indexing bam files: %s', paste(filenames[!existed], collapse = ',')))
+		message(sprintf('validate_bam | indexing bam files: %s', paste(filenames[!existed], collapse = ',')))
 		indexBam(filenames[!existed])
 	}
 

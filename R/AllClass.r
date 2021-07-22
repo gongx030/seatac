@@ -9,6 +9,7 @@ setOldClass('tensorflow.python.framework.sparse_tensor.SparseTensor')
 #' Vplots
 #'
 #' @export
+#'
 setClass(
 	'Vplots', 
 	slot = c(
@@ -28,29 +29,33 @@ setClass(
 )
 
 
-#' SummarizedVplots
+#' Model
 #'
-#' @export
-setClass(
-	'SummarizedVplots',
-	slot = c(
-		fragment_size_range  = 'integer',
-		fragment_size_interval = 'integer',
-		bin_size = 'integer',
-		window_size = 'integer',
-		n_intervals = 'integer',
-		n_bins_per_window = 'integer',
-		breaks = 'numeric',
-		centers = 'numeric',
-		positions = 'numeric'
-	),
-	contains = 'SummarizedExperiment'
-)
-
-
 setClass('Model', slot = c(model = 'kerastools.model.RModel'))
+
+#' VaeModel
+#'
 setClass('VaeModel', contains = 'Model')
-setClass('SummarizedVaeModel', contains = 'Model')
+
+#' tfVaeModel
+#'
+setClass('tfVaeModel', contains = 'VaeModel')
+
+#' FourierVaeModel
+#'
+setClass('FourierVaeModel', contains = 'VaeModel')
+
+#' TransformerEncoderModel
+#'
+setClass('TransformerEncoderModel', contains = 'Model')
+
+#' FnetEncoderModel
+#'
+setClass('FnetEncoderModel', contains = 'TransformerEncoderModel')
+
+#' NucleosomeModel
+#'
+setClass('NucleosomeModel', contains = 'Model')
 
 #' VplotsList
 #'
@@ -61,11 +66,3 @@ setClass(
 	contains = 'SimpleList'
 )
 
-#' SummarizedVplotsList
-#'
-#' @export
-#'
-setClass(
-	'SummarizedVplotsList',
-	contains = 'SimpleList'
-)

@@ -3,8 +3,8 @@
 #' Get the sliding V-plots
 #'
 #' @param x a Vplots object
-#' @param width The width of the sliding window
-#' @param step The step for each sliding window
+#' @param width The width of the sliding window (default: 640L)
+#' @param step The step for each sliding window (default: 20L)
 #' @param batch_size The batch size of extraction operation (default: 4096L)
 #' 
 #' @return a new Vplot object which window_size is the specified width. The rowData and colData 
@@ -17,7 +17,12 @@ setMethod(
   signature(
 		x = 'Vplots'
 	),
-	function(x, width, step, batch_size = 4096L){
+	function(
+		x, 
+		width = 640L, 
+		step = 20L, 
+		batch_size = 4096L
+	){
 
 		stopifnot(width %% x@bin_size == 0)
 
@@ -85,12 +90,12 @@ setMethod(
 			fragment_size_range  = x@fragment_size_range,
 			fragment_size_interval = x@fragment_size_interval,
 			bin_size = x@bin_size,
-			window_size = block_size,
+			window_size = width,
 			n_intervals = as.integer(x@n_intervals),
 			n_bins_per_window = n_bins_per_block,
 			breaks = x@breaks,
 			centers = x@centers,
-			positions = seq(x@bin_size, block_size, by = x@bin_size) - (block_size / 2),
+			positions = seq(x@bin_size, width, by = x@bin_size) - (width / 2),
 			n_samples = x@n_samples,
 			samples = x@samples
 		)
