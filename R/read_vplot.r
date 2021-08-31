@@ -146,10 +146,6 @@ read_vplot_core <- function(
 	peaks <- reduce(resize(x, fix = 'center', width = window_size + 2000))
 	g <- read_bam(filename, peaks = peaks, genome = genome)
 
-#	cov <- coverage(g)[x] %>% 
-#		as.matrix()
-#	cov <- log(cov + 1)
-
 	g <- g[strand(g) == '+']
 	g <- GRanges(
 		seqnames = seqnames(g), 
@@ -178,14 +174,14 @@ read_vplot_core <- function(
 
 	seqlevels(x) <- seqlevels(genome)
 	seqlengths(seqinfo(x)) <- seqlengths(genome)
-	genome(seqinfo(x)) <- providerVersion(genome)
+	genome(seqinfo(x)) <- metadata(genome)$genome
 
 	se <- SummarizedExperiment(
 		assays = list(counts = counts),
 		rowRanges = x
 	)
 	rowData(se)$id <- 1:length(x)
-#	rowData(se)$coverage <- cov
+	rowData(se)$sequence <- getSeq(genome, x)
 
 	new(
 		'Vplots', 

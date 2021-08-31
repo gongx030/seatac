@@ -66,3 +66,6 @@ setClass(
 	contains = 'SimpleList'
 )
 
+#' VplotPredModel
+#'
+setClass('VplotPredModel', contains = 'Model')

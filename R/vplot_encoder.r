@@ -1,5 +1,5 @@
 #' VplotEncoder
-#'
+#a
 #' A Vplot encoder network
 #' 
 #' @param filters filters

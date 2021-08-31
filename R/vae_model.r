@@ -26,6 +26,8 @@ VaeModel <- function(
 	 fragment_size_range  = c(0L, 320L),
 	 fragment_size_interval = 10L,
 	 n_samples = 1L,
+	 strides = c(2L, 2L),
+	 momentum = 0.8,
 	 rate = 0.1,
 	 name = NULL
 ){
@@ -48,27 +50,57 @@ VaeModel <- function(
 		self$centers <- tf$constant((br[-1] + br[-length(br)]) / 2)
 		self$positions <- tf$cast(seq(0 + bin_size / 2, block_size - bin_size / 2, by = bin_size) - (block_size / 2), tf$float32)
 		self$n_samples <- n_samples
-		
-		self$encoder <- VplotEncoder(
-			downsample_layers = downsample_layers,
-			filters = filters,
-			kernel_size = kernel_size,
-			rate = rate
-		)
 
+		stopifnot(self$n_intervals %% strides[1]^upsample_layers == 0)
+		stopifnot(self$n_bins_per_block %% strides[2]^upsample_layers == 0)
+
+		self$conv <- lapply(1:downsample_layers, function(i) tf$keras$Sequential(list(
+			tf$keras$layers$Conv2D(
+				filters = filters,
+				kernel_size = kernel_size,
+				strides = strides
+			),
+			tf$keras$layers$BatchNormalization(momentum = momentum),
+			tf$keras$layers$Activation('relu')
+		))) %>%
+			tf$keras$Sequential()
+
+		self$encoder <- tf$keras$Sequential(list(
+			self$conv,
+			tf$keras$layers$Flatten()
+		))
 
 		self$dense_1 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
 
 		self$dense_fragment_size <- tf$keras$layers$Embedding(n_samples,  self$n_intervals)
 
-		self$decoder <- VplotDecoder(
-			vplot_width = self$n_bins_per_block,
-			vplot_height = self$n_intervals,
-			filters0 = filters0,
-			upsample_layers = upsample_layers,
-			filters = filters,
-			kernel_size = kernel_size
-		)
+
+		interval_dim0 <- as.integer(self$n_intervals / strides[1]^upsample_layers)
+		window_dim0 <- as.integer(self$n_bins_per_block / strides[2]^upsample_layers)
+		output_dim0 <- as.integer(window_dim0 * interval_dim0 * filters0)
+
+		self$deconv <- lapply(1:upsample_layers, function(i) tf$keras$Sequential(list(
+			tf$keras$layers$Conv2DTranspose(
+				filters = filters,
+				kernel_size = kernel_size,
+				strides = strides,
+				padding = 'same'
+			),
+			tf$keras$layers$Activation('relu'),
+			tf$keras$layers$BatchNormalization(momentum = momentum)
+		))) %>%
+			tf$keras$Sequential()
+
+		self$decoder <- tf$keras$Sequential(list(
+			tf$keras$layers$Dense(units = output_dim0,activation = 'relu'),
+			tf$keras$layers$Reshape(target_shape = c(interval_dim0, window_dim0, filters0)),
+			self$deconv,
+			tf$keras$layers$Conv2D(
+				filters = 1L,
+				kernel_size = 1L,
+				padding = 'same'
+			)
+		))
 
 		self$prior <- tfp$distributions$MultivariateNormalDiag(
 			loc  = tf$zeros(shape(latent_dim)),
@@ -83,8 +115,8 @@ VaeModel <- function(
 				tf$expand_dims(3L)
 
 			y <- (x$vplots + fragment_size) %>% 
-				self$encoder()
-			y <- y %>% self$dense_1()
+				self$encoder() %>%
+				self$dense_1()
 
 			q_m <- y[, 1:self$latent_dim]
 			q_v <- tf$nn$softplus(y[, (self$latent_dim + 1):(2 * self$latent_dim)] + 1e-3)
@@ -104,9 +136,8 @@ VaeModel <- function(
 
 			x_pred <- list(z, b) %>% 
 				tf$concat(1L) %>% 
-				self$decoder(training = training)
-
-			x_pred <- x_pred %>% tf$keras$activations$softmax(1L)
+				self$decoder(training = training) %>%
+				tf$keras$activations$softmax(1L)
 
 			list(
 				posterior = posterior, 

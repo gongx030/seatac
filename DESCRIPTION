@@ -28,4 +28,4 @@ Imports:
 	GenomicAlignments,
 	gplots,
 	BSgenome,
-	flexmix
+	S4Vectors

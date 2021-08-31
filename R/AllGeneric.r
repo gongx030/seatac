@@ -152,3 +152,4 @@ setGeneric('load_model', function(model, filename, ...) standardGeneric('load_mo
 #' @param ... Other arguments
 #'
 setGeneric('predict_fragment_size', function(model, x, ...) standardGeneric('predict_fragment_size'))
+
