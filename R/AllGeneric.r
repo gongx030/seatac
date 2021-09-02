@@ -36,11 +36,11 @@ setGeneric('read_aggregated_vplot', function(x, filenames, genome, ...) standard
 #' The generic function of count_reads
 #'
 #' @param x a genomic object
-#' @param filename BAM file name
+#' @param filenames BAM file names
 #' @param genome a genome object
 #' @param ... Other arguments
 #'
-setGeneric('count_reads', function(x, filename, genome, ...) standardGeneric('count_reads'))
+setGeneric('count_reads', function(x, filenames, genome, ...) standardGeneric('count_reads'))
 
 #' vplot
 #'

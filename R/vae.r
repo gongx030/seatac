@@ -6,8 +6,14 @@
 #' @param block_size Block size in base pairs (default: 640L)
 #' @param bin_size Bin size in base pairs(default: 5L) 
 #' @param filters0 Filter size after the latent layer (default: 128L)
+#' @param filters Initial filter size of convolution layer (default: 32L)
+#' @param kernel_size Kernel size in convolution and deconvolution  layers (default: 3L)
+#' @param downsample_layers Downsample layers (default: 4L)
+#' @param upsample_layers Upsample layers (default: 4L)
 #' @param fragment_size_range  Fragment size ranges (default: c(0L, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 10L)
+#' @param n_batches Number of batches (default: 1L)
+#' @param momentum Momentum in BatchNormalization layer (default: 0.8)
 #' @param rate Dropout rate (default: 0.1)
 #' @param name Model name
 #'
@@ -25,7 +31,7 @@ VaeModel <- function(
 	 upsample_layers = 4L,
 	 fragment_size_range  = c(0L, 320L),
 	 fragment_size_interval = 10L,
-	 n_samples = 1L,
+	 n_batches = 1L,
 	 strides = c(2L, 2L),
 	 momentum = 0.8,
 	 rate = 0.1,
@@ -49,14 +55,14 @@ VaeModel <- function(
 		self$breaks <- tf$constant(br)
 		self$centers <- tf$constant((br[-1] + br[-length(br)]) / 2)
 		self$positions <- tf$cast(seq(0 + bin_size / 2, block_size - bin_size / 2, by = bin_size) - (block_size / 2), tf$float32)
-		self$n_samples <- n_samples
+		self$n_batches <- n_batches
 
 		stopifnot(self$n_intervals %% strides[1]^upsample_layers == 0)
 		stopifnot(self$n_bins_per_block %% strides[2]^upsample_layers == 0)
 
 		self$conv <- lapply(1:downsample_layers, function(i) tf$keras$Sequential(list(
 			tf$keras$layers$Conv2D(
-				filters = filters,
+				filters = filters * i,
 				kernel_size = kernel_size,
 				strides = strides
 			),
@@ -72,8 +78,7 @@ VaeModel <- function(
 
 		self$dense_1 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
 
-		self$dense_fragment_size <- tf$keras$layers$Embedding(n_samples,  self$n_intervals)
-
+		self$dense_fragment_size <- tf$keras$layers$Embedding(n_batches,  self$n_intervals)
 
 		interval_dim0 <- as.integer(self$n_intervals / strides[1]^upsample_layers)
 		window_dim0 <- as.integer(self$n_bins_per_block / strides[2]^upsample_layers)
@@ -81,7 +86,7 @@ VaeModel <- function(
 
 		self$deconv <- lapply(1:upsample_layers, function(i) tf$keras$Sequential(list(
 			tf$keras$layers$Conv2DTranspose(
-				filters = filters,
+				filters = filters * (upsample_layers - i + 1),
 				kernel_size = kernel_size,
 				strides = strides,
 				padding = 'same'
@@ -128,10 +133,10 @@ VaeModel <- function(
 
 			if (training){
 				z <- posterior$sample()
-				b <- x$batch %>% tf$one_hot(self$n_samples)
+				b <- x$batch %>% tf$one_hot(self$n_batches)
 			}else{
 				z <- posterior$mean()
-				b <- tf$zeros(shape(z$shape[[1]]), dtype = tf$int64) %>% tf$one_hot(self$n_samples)
+				b <- tf$zeros(shape(z$shape[[1]]), dtype = tf$int64) %>% tf$one_hot(self$n_batches)
 			}
 
 			x_pred <- list(z, b) %>% 
@@ -155,9 +160,9 @@ VaeModel <- function(
 #' 
 #' @param model a VaeModel object, initialized by `new('VaeModel', model = VaeModel(...))`
 #' @param x a Vplots object
-#' @param weight Whether or not include positional weight
+#' @param ... Other arguments
 #'
-#' @return a list that include `vplots`, `weight` and `batch`
+#' @return a list that include `vplots` and `batch`
 #' 
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -199,12 +204,12 @@ setMethod(
 #'
 #' @param model a VaeModel object, initialized by `new('VaeModel', model = VaeModel(...))`
 #' @param x a tf_dataset object
-#' @param batch_size Batch size (default: 256L)
-#' @param epochs Number of training epochs (default: 500L)
-#' @param learning_rate Learning rate (default: 1e-4)
-#' @param warmup Warmup epochs (default: 50L)
+#' @param batch_size Batch size (default: 128L)
+#' @param epochs Number of training epochs (default: 100L)
+#' @param learning_rate Learning rate (default: 1e-3)
 #' @param compile Whether or not compile the tensorflow model (default: TRUE)
 #'
+#' @export
 #' @return a VaeModel
 #'
 setMethod(
@@ -246,8 +251,8 @@ setMethod(
 	 		})
 			gradients <- tape$gradient(loss, model@model$trainable_variables)
 			list(gradients, model@model$trainable_variables) %>%
-			purrr::transpose() %>%
-			optimizer$apply_gradients()
+				purrr::transpose() %>%
+				optimizer$apply_gradients()
 			list(
 				loss = loss,
 				loss_reconstruction = loss_reconstruction,
@@ -287,9 +292,10 @@ setMethod(
 #' @param model a trained VaeModel object
 #' @param x a Vplots object
 #' @param batch_size Batch size (default: 256L)
+#' @param reduction rowData field for storing learned Vplot representation
+#' @param vplots Whether or not return predicted Vplots as assays(x)$predicted_counts
 #'
-#' @return a Vplots object with the mean and stddev of the latent representation
-#'  (reducedDim(x, 'vae_z_mean') and reducedDim(x, 'vae_z_stddev'))
+#' @return a Vplots object 
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -305,7 +311,6 @@ setMethod(
 		x,
 		batch_size = 256L, # v-plot per batch
 		reduction = 'vae_z_mean',
-		reduction_stddev = 'vae_z_stddev',
 		vplots = TRUE,
 		...
 	){
@@ -317,7 +322,6 @@ setMethod(
 
 		iter <- d %>% make_iterator_one_shot()
 		latent <- NULL
-		latent_stddev <- NULL
 
 		if (vplots){
 			predicted_vplots <- NULL
@@ -327,16 +331,13 @@ setMethod(
 			batch <- iterator_get_next(iter)
 			res <- model@model(batch, training = FALSE)
 			latent <- c(latent, res$z)
-			latent_stddev <- c(latent_stddev, res$posterior$stddev())
 			if (vplots){
 				predicted_vplots <- c(predicted_vplots, res$vplots)
 			}
 		})
 
 		latent <- latent %>% tf$concat(axis = 0L)
-		latent_stddev <- latent_stddev %>% tf$concat(axis = 0L)
 		rowData(x)[[reduction]] <- as.matrix(latent)
-		rowData(x)[[reduction_stddev]] <- as.matrix(latent_stddev)
 
 		if (vplots){
 			predicted_vplots <- predicted_vplots %>% 
@@ -360,9 +361,10 @@ setMethod(
 #' @param model a trained VaeModel object
 #' @param x a Vplots object
 #' @param batch_size Batch size (default: 256L)
+#' @param width Central width (in bp) for computing fragment size disstribution (default: 100L)
+#' @param ... Other arguments passed to prepare_data. 
 #'
-#' @return a Vplots object with the mean and stddev of the latent representation
-#'  (reducedDim(x, 'vae_z_mean') and reducedDim(x, 'vae_z_stddev'))
+#' @return a Vplots object 
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)

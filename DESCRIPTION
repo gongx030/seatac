@@ -1,7 +1,7 @@
 Package: seatac
 Title: Predicting nucleosomes from ATAC-seq by variational autoencoder
-Version: 0.3.28
-Date: 2021-02-15
+Version: 0.3.29
+Date: 2021-09-02
 Author: Wuming Gong <gongx030@umn.edu>
 Maintainer: Wuming Gong <gongx030@umn.edu>
 Description: What the package does (one paragraph).
@@ -11,7 +11,7 @@ LazyData: true
 RoxygenNote: 7.2.0
 Depends: 
   R (>= 4.0.0),
-	tensorflow(>= 2.2.0),
+	tensorflow(>= 2.5.0),
 	tfprobability(>= 0.11.0.0),
 	tfdatasets(>= 2.2.0),
 	GenomicRanges,
