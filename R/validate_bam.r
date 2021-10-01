@@ -3,6 +3,7 @@
 #' Validate BAM files
 #'
 #' @param filenames BAM file names
+#' @export
 #'
 validate_bam <- function(filenames){
 
