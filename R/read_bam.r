@@ -57,6 +57,8 @@ setMethod(
 #' @param filename BAM file names 
 #' @param peaks missing
 #' @param genome a BSgenome for genome information
+#' 
+#' @export
 #'
 #' @author Wuming Gong (gongx030@umn.edu)
 #'  
