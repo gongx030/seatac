@@ -9,17 +9,19 @@
 #' @import tfdatasets
 #' @import tfprobability
 #' @importFrom keras keras_model_custom save_model_weights_tf load_model_weights_tf
-#' @importFrom tensorflow shape
-#' @importFrom SummarizedExperiment SummarizedExperiment rowRanges rowData colData assays rbind
-#' @importFrom GenomicRanges resize reduce granges GRangesList slidingWindows
-#' @importFrom GenomeInfoDb seqlengths
+#' @importFrom tensorflow shape tf_function
+#' @importFrom SummarizedExperiment SummarizedExperiment rowRanges rowData colData assays rbind rowData<- assays<-
+#' @importFrom GenomicRanges resize reduce granges GRangesList slidingWindows width GRanges seqnames start coverage findOverlaps strand
+#' @importFrom GenomeInfoDb seqlengths seqlevels seqinfo seqlevels<- seqlengths<- seqinfo<- genome genome<-
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam indexBam
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments GAlignmentsList
 #' @importFrom gplots colorpanel
-#' @importFrom BSgenome BSgenome 
-#' @importFrom S4Vectors metadata
+#' @importFrom BSgenome BSgenome getSeq
+#' @importFrom S4Vectors metadata mcols mcols<-
 #' @importFrom abind abind
 #' @importFrom stats pchisq p.adjust
+#' @importFrom IRanges IRanges %over%
+#' @importFrom graphics abline axis
 #' @docType package
 #' @name seatac
 #'

@@ -23,7 +23,7 @@ validate_bam <- function(filenames){
 
   is_pe <- sapply(filenames, testPairedEndBam)
   if(any(!is_pe)){
-    stop(paste(filenames[!s_pe], collapse = ', '),"are not paired-end files.")
+    stop(paste(filenames[!is_pe], collapse = ', '),"are not paired-end files.")
   }
 
 } # validate_bam

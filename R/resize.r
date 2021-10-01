@@ -4,7 +4,7 @@
 #'
 #' @param x an input Vplots object
 #' @param width Width of the sub-window
-#' @param fix A character vector containing the values "start", "end", or "center" denoting what to use as an anchor for each element in x.
+#' @param fix a character vector containing the values "start", "end", or "center" denoting what to use as an anchor for each element in x.
 #' @return a new Vplots object
 #' @export
 #'
@@ -64,12 +64,12 @@ setMethod(
 			fragment_size_range  = x@fragment_size_range,
 			fragment_size_interval = x@fragment_size_interval,
 			bin_size = x@bin_size,
-			window_size = block_size,
+			window_size = x@block_size,
 			n_intervals = as.integer(x@n_intervals),
 			n_bins_per_window = n_bins_per_block,
 			breaks = x@breaks,
 			centers = x@centers,
-			positions = seq(x@bin_size, block_size, by = x@bin_size) - (block_size / 2),
+			positions = seq(x@bin_size, x@block_size, by = x@bin_size) - (x@block_size / 2),
 			n_samples = x@n_samples,
 			samples = x@samples
 		)

@@ -158,6 +158,7 @@ setGeneric('predict_fragment_size', function(model, x, ...) standardGeneric('pre
 #' The generic function of add_genomic_features
 #'
 #' @param x a data object that include the Vplot information
+#' @param y a data object 
 #' @param ... Other arguments
 #'
 setGeneric('add_genomic_features', function(x, y, ...) standardGeneric('add_genomic_features'))

@@ -33,9 +33,6 @@ setClass(
 #'
 setClass('Model', slot = c(model = 'kerastools.model.RModel'))
 
-#' VaeModel
-#'
-setClass('VaeModel', contains = 'Model')
 
 #' VplotsList
 #'
@@ -46,6 +43,7 @@ setClass(
 	contains = 'SimpleList'
 )
 
-#' NucFnetModel
+#' VaeModel
 #'
-setClass('NucFnetModel', contains = 'Model')
+setClass('VaeModel', contains = 'Model')
+

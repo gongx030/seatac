@@ -1,7 +1,7 @@
 Package: seatac
-Title: Predicting nucleosomes from ATAC-seq by variational autoencoder
-Version: 0.3.29
-Date: 2021-09-02
+Title: ATAC-seq V-plot analysis
+Version: 0.3.30
+Date: 2021-10-01
 Author: Wuming Gong <gongx030@umn.edu>
 Maintainer: Wuming Gong <gongx030@umn.edu>
 Description: What the package does (one paragraph).
@@ -30,4 +30,5 @@ Imports:
 	BSgenome,
 	S4Vectors,
 	abind,
-	stats
+	stats,
+	IRanges

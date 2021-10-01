@@ -21,7 +21,7 @@ setMethod(
 
 	  # genomic ranges covered by the BAM files
     x <- idxstatsBam(filename)
-		gr <- GRanges(seqnames = x[, 'seqnames'], range = IRanges(1, x[, 'seqlength']))
+		gr <- GRanges(seqnames = x[, 'seqnames'], ranges = IRanges(1, x[, 'seqlength']))
 		seqlengths(seqinfo(gr)) <- width(gr)
 	  genome(seqinfo(gr)) <- metadata(genome)$genome
 
@@ -71,7 +71,7 @@ setMethod(
 
 	  # genomic ranges covered by the BAM files
     x <- idxstatsBam(filename)
-		gr <- GRanges(seqnames = x[, 'seqnames'], range = IRanges(1, x[, 'seqlength']))
+		gr <- GRanges(seqnames = x[, 'seqnames'], ranges = IRanges(1, x[, 'seqlength']))
 		seqlengths(seqinfo(gr)) <- width(gr)
 	  genome(seqinfo(gr)) <- metadata(genome)$genome
 

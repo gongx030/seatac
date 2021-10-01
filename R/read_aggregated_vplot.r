@@ -61,7 +61,7 @@ setMethod(
 		g <- g[strand(g) == '+']
 		g <- GRanges(
 			seqnames = seqnames(g), 
-			range = IRanges(start(g) + round(mcols(g)$isize / 2), width = 1), 
+			ranges = IRanges(start(g) + round(mcols(g)$isize / 2), width = 1), 
 			isize = mcols(g)$isize
 		)
 		g$fragment_size <- as.numeric(cut(g$isize, breaks))	# discretize the fragment size

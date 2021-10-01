@@ -3,10 +3,10 @@
 #' Count how many reads fall into a specific fragment size range
 #'
 #' @param x a GRanges object defining the peaks; the width must be the same for all peaks.
-#' @param filename BAM file name.
+#' @param filenames BAM file names.
 #' @param genome a BS genome object such as BSgenome.Mmusculus.UCSC.mm10
 #' @param fragment_size_range fragment size ranges (default:  c(80, 320))
-#' @return 
+#' @return read counts
 #' 
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -36,6 +36,20 @@ setMethod(
 	}
 ) # count_reads
 	
+
+#' count_reads_core
+#'
+#' Count how many reads fall into a specific fragment size range
+#'
+#' @param x a GRanges object defining the peaks; the width must be the same for all peaks.
+#' @param filename BAM file name.
+#' @param genome a BS genome object such as BSgenome.Mmusculus.UCSC.mm10
+#' @param fragment_size_range fragment size ranges (default:  c(80, 320))
+#'
+#' @return read counts
+#' 
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
 count_reads_core <- function(
 	x, 
 	filename, 
@@ -59,7 +73,7 @@ count_reads_core <- function(
 	g <- g[strand(g) == '+']
 	g <- GRanges(
 		seqnames = seqnames(g), 
-		range = IRanges(start(g) + round(mcols(g)$isize / 2), width = 1), 
+		ranges = IRanges(start(g) + round(mcols(g)$isize / 2), width = 1), 
 		isize = mcols(g)$isize,
 		seqinfo = seqinfo(g),
 		seqlengths = seqlengths(g)

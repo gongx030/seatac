@@ -7,6 +7,7 @@
 #' @param genome a BSgenome object
 #' @param fragment_size_range The range of the PE reads fragment sizes that are used for 
 #'				constructing Vplot (default: c(0L, 320L))
+#' @param fragment_size_interval Fragment size interval (default: 10L)
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)

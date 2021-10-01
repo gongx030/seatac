@@ -13,6 +13,7 @@
 #' @param fragment_size_range  Fragment size ranges (default: c(0L, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 10L)
 #' @param n_batches Number of batches (default: 1L)
+#' @param strides Convolution strides 
 #' @param momentum Momentum in BatchNormalization layer (default: 0.8)
 #' @param rate Dropout rate (default: 0.1)
 #' @param name Model name
@@ -208,6 +209,7 @@ setMethod(
 #' @param epochs Number of training epochs (default: 100L)
 #' @param learning_rate Learning rate (default: 1e-3)
 #' @param compile Whether or not compile the tensorflow model (default: TRUE)
+#' @param beta Beta sequences (default: 5e-5)
 #'
 #' @export
 #' @return a VaeModel
@@ -294,6 +296,7 @@ setMethod(
 #' @param batch_size Batch size (default: 256L)
 #' @param reduction rowData field for storing learned Vplot representation
 #' @param vplots Whether or not return predicted Vplots as assays(x)$predicted_counts
+#' @param ... Additional arguments
 #'
 #' @return a Vplots object 
 #'
@@ -417,5 +420,4 @@ setMethod(
 		x
 	}
 )
-
 

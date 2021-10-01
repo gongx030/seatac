@@ -164,42 +164,6 @@ get_fragment_size_per_batch <- function(x){
 }
 
 
-#' cluster_fragment_size
-#'
-#' Identify the NFR and mono nucleosome proportion of the fragment size distribution
-#' by fitting a Gamma-Gaussian mixture model
-#'
-#' @param x a numeric vector of the fragment_size distribution
-#' @param n maximum value in x
-#' @param k number of clusters
-#'
-cluster_fragment_size <- function(x, n = 32L, k = 2L){
-
-	stopifnot(all(x <= n))
-	
-	mo1 <- FLXMRglm(family = "Gamma")
-	mo2 <- FLXMRglm(family = "gaussian")
-	flexfit <- flexmix(fragment_size ~ 1, data = data.frame(fragment_size = x), k = k, model = list(mo1, mo2))
-	cls <- clusters(flexfit)
-
-	sprintf('cluster_fragment_size | num samples=%d | k=%d', length(x), k) %>% message()
-
-	stopifnot(length(unique(cls)) == 2L)
-
-	is_nucleosome <- rep(FALSE, n)
-
-	if (mean(x[cls == 1]) < mean(x[cls == 2]))
-		mono_nucleosome <- unique(x[cls == 2])
-	else
-		mono_nucleosome <- unique(x[cls == 1])
-
-	is_nucleosome[mono_nucleosome] <- TRUE
-
-	is_nucleosome
-
-} # cluster_fragment_size
-
-
 #' kernel_smoothing_1d
 #' 
 #' 1D kernel smoothing

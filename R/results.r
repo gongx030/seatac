@@ -142,7 +142,6 @@ results_phase <- function(model, x, contrast, width = 100L, repeats = 100L, batc
 #' @param model a trained VaeModel object
 #' @param x a Vplots object
 #' @param contrast this argument species a character vector with exactly three elements: the name of a factor in the design formula, the name of the numerator level for the fold change, and the name of the denominator level for the fold change (simplest case)
-#' @param width Width of the centeral regions to be considered (default: 100L)
 #' @param batch_size Batch size (default: 128L)
 #'
 #' @return a GRanges object
