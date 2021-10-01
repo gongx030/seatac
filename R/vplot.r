@@ -32,6 +32,7 @@ setMethod(
 #' @param ... Arguments passed to image()
 #'
 vplot_core <- function(x, field, ...){
+
 	z <- assays(x)[[field]]
 	w <- 1 / rowSums(z)
 	w[is.infinite(w)] <- 0

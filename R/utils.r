@@ -199,7 +199,16 @@ cluster_fragment_size <- function(x, n = 32L, k = 2L){
 
 } # cluster_fragment_size
 
-#' @export
+
+#' kernel_smoothing_1d
+#' 
+#' 1D kernel smoothing
+#'
+#' @param x a 2D tensor
+#' @param size kernel size
+#' @param sigma standard deviation of smoothing kernel
+#'
+#' @return a smoothed 2D tensor
 #'
 kernel_smoothing_1d <- function(x, size, sigma){
 
@@ -215,7 +224,13 @@ kernel_smoothing_1d <- function(x, size, sigma){
 
 }
 
-#' @export
+#' standarize_1d
+#' 
+#' Standarize a 2D tensor
+#'
+#' @param x a 2D tensor
+#'
+#' @return a standarized 2D tensor
 #'
 standarize_1d <- function(x){
 	x_mean <- x %>% tf$reduce_mean(1L, keepdims = TRUE)

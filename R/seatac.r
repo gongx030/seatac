@@ -18,6 +18,8 @@
 #' @importFrom gplots colorpanel
 #' @importFrom BSgenome BSgenome 
 #' @importFrom S4Vectors metadata
+#' @importFrom abind abind
+#' @importFrom stats pchisq p.adjust
 #' @docType package
 #' @name seatac
 #'

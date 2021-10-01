@@ -1,4 +1,12 @@
+#' beta_schedule
+#' 
 #' Schedule for beta during the VAE training
+#' 
+#' @param method Scheduling method: 'constant', 'monotonic' or 'cyclical_annealing'
+#' @param beta0 initial beta value
+#' @param epochs Number of total epochs
+#' @param ... Additional arguments
+#'
 #' @export
 #'
 beta_schedule <- function(method = 'constant', beta0 = 5e-5, epochs, ...){

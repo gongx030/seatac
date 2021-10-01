@@ -153,3 +153,32 @@ setGeneric('load_model', function(model, filename, ...) standardGeneric('load_mo
 #'
 setGeneric('predict_fragment_size', function(model, x, ...) standardGeneric('predict_fragment_size'))
 
+#' add_genomic_features
+#'
+#' The generic function of add_genomic_features
+#'
+#' @param x a data object that include the Vplot information
+#' @param ... Other arguments
+#'
+setGeneric('add_genomic_features', function(x, y, ...) standardGeneric('add_genomic_features'))
+
+#' results
+#'
+#' The generic function of results
+#'
+#' @param model a model object
+#' @param x a data object that include the Vplot information
+#' @param ... Other arguments
+#'
+setGeneric('results', function(model, x, ...) standardGeneric('results'))
+
+#' call_nucleosomes
+#'
+#' The generic function of call_nucleosomes
+#'
+#' @param model a Model
+#' @param x a data object that include the Vplot information
+#' @param ... Other arguments
+#'
+setGeneric('call_nucleosomes', function(model, x, ...) standardGeneric('call_nucleosomes'))
+

@@ -11,7 +11,7 @@ LazyData: true
 RoxygenNote: 7.2.0
 Depends: 
   R (>= 4.0.0),
-	tensorflow(>= 2.5.0),
+	tensorflow(>= 2.4.0),
 	tfprobability(>= 0.11.0.0),
 	tfdatasets(>= 2.2.0),
 	GenomicRanges,
@@ -28,4 +28,6 @@ Imports:
 	GenomicAlignments,
 	gplots,
 	BSgenome,
-	S4Vectors
+	S4Vectors,
+	abind,
+	stats

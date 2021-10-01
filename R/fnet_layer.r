@@ -2,12 +2,7 @@
 #'
 #' A FNet encoder layer
 #' 
-#' @param latent_dim Latent dimension (default: 10L)
-#' @param filters filters
-#' @param kernel_size kernel size
-#' @param window_strides Position level strides
-#' @param interval_strides Fragment size level strides
-#' @param distribution Output distributions (MultivariateNormalDiag, LogNormal, or None)
+#' @param embedding_dim Embedding dimension (default: 256L)
 #' @param rate Dropout rate (default: 0.1)
 #' @param name model name
 #'

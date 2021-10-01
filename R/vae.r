@@ -62,7 +62,7 @@ VaeModel <- function(
 
 		self$conv <- lapply(1:downsample_layers, function(i) tf$keras$Sequential(list(
 			tf$keras$layers$Conv2D(
-				filters = filters * i,
+				filters = filters,
 				kernel_size = kernel_size,
 				strides = strides
 			),
@@ -86,7 +86,7 @@ VaeModel <- function(
 
 		self$deconv <- lapply(1:upsample_layers, function(i) tf$keras$Sequential(list(
 			tf$keras$layers$Conv2DTranspose(
-				filters = filters * (upsample_layers - i + 1),
+				filters = filters, 
 				kernel_size = kernel_size,
 				strides = strides,
 				padding = 'same'
@@ -310,7 +310,6 @@ setMethod(
 		model,
 		x,
 		batch_size = 256L, # v-plot per batch
-		reduction = 'vae_z_mean',
 		vplots = TRUE,
 		...
 	){
@@ -321,7 +320,8 @@ setMethod(
 			dataset_batch(batch_size)
 
 		iter <- d %>% make_iterator_one_shot()
-		latent <- NULL
+		z <- NULL
+		z_stddev <- NULL
 
 		if (vplots){
 			predicted_vplots <- NULL
@@ -330,14 +330,18 @@ setMethod(
 		res <- until_out_of_range({
 			batch <- iterator_get_next(iter)
 			res <- model@model(batch, training = FALSE)
-			latent <- c(latent, res$z)
+			z <- c(z, res$posterior$mean())
+			z_stddev <- c(z_stddev, res$posterior$stddev())
 			if (vplots){
 				predicted_vplots <- c(predicted_vplots, res$vplots)
 			}
 		})
 
-		latent <- latent %>% tf$concat(axis = 0L)
-		rowData(x)[[reduction]] <- as.matrix(latent)
+		z <- z %>% tf$concat(axis = 0L)
+		z_stddev <- z_stddev %>% tf$concat(axis = 0L)
+
+		rowData(x)[['vae_z_mean']] <- as.matrix(z)
+		rowData(x)[['vae_z_stddev']] <- as.matrix(z_stddev)
 
 		if (vplots){
 			predicted_vplots <- predicted_vplots %>% 
@@ -413,3 +417,5 @@ setMethod(
 		x
 	}
 )
+
+
