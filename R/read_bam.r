@@ -35,15 +35,23 @@ setMethod(
 	  )
 
 		# set the seqlevels and seqlengths from BAM files to "which"
- 		seqlevels(peaks, pruning.mode = 'coarse') <- seqlevels(gr)
-	  seqlevels(gr, pruning.mode = 'coarse') <- seqlevels(peaks)
-	  seqlengths(seqinfo(peaks)) <-  seqlengths(seqinfo(gr))
-	  genome(seqinfo(peaks)) <-  genome(seqinfo(gr))
+		# this block will cause error on R4.1.1. with GenomicAlignments_1.28.0: 
+		# Error in .io_bam(.scan_bamfile, file, reverseComplement, yieldSize(file), : seqlevels(param) not in BAM header:
+
+ 		# seqlevels(peaks, pruning.mode = 'coarse') <- seqlevels(gr)
+	  # seqlengths(seqinfo(peaks)) <-  seqlengths(seqinfo(gr))
+	  # genome(seqinfo(peaks)) <-  genome(seqinfo(gr))
+
  		param <- ScanBamParam(which = reduce(peaks), flag = flag, what = 'isize')
 
 		# Read the PE reads 
 		message(sprintf('read_bam | reading %s', filename))
 		x <- readGAlignments(filename, param = param)
+
+ 		seqlevels(x, pruning.mode = 'coarse') <- seqlevels(gr)
+	  seqlengths(seqinfo(x)) <-  seqlengths(seqinfo(gr))
+	  genome(seqinfo(x)) <-  genome(seqinfo(gr))
+
 		x
 	}
 ) # read_bam
@@ -91,6 +99,11 @@ setMethod(
 		# Read the PE reads 
 		message(sprintf('read_bam | reading %s', filename))
 		x <- readGAlignments(filename, param = param)
+
+ 		seqlevels(x, pruning.mode = 'coarse') <- seqlevels(gr)
+	  seqlengths(seqinfo(x)) <-  seqlengths(seqinfo(gr))
+	  genome(seqinfo(x)) <-  genome(seqinfo(gr))
+
 		x
 	}
 ) # read_bam

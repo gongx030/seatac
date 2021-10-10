@@ -11,8 +11,8 @@
 #' @importFrom keras keras_model_custom save_model_weights_tf load_model_weights_tf
 #' @importFrom tensorflow shape tf_function
 #' @importFrom SummarizedExperiment SummarizedExperiment rowRanges rowData colData assays rbind rowData<- assays<-
-#' @import GenomicRanges 
-#' @import GenomeInfoDb 
+#' @importFrom GenomicRanges resize reduce granges GRangesList slidingWindows width GRanges seqnames start coverage findOverlaps strand
+#' @importFrom GenomeInfoDb seqlengths seqlevels seqinfo seqlevels<- seqlengths<- seqinfo<- genome genome<-
 #' @importFrom Rsamtools testPairedEndBam ScanBamParam scanBamFlag idxstatsBam indexBam
 #' @importFrom GenomicAlignments readGAlignmentPairs readGAlignments GAlignmentsList
 #' @importFrom gplots colorpanel
