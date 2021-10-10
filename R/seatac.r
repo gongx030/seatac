@@ -8,7 +8,7 @@
 #' @import dplyr
 #' @import tfdatasets
 #' @import tfprobability
-#' @importFrom keras keras_model_custom save_model_weights_tf load_model_weights_tf
+#' @import keras 
 #' @importFrom tensorflow shape tf_function
 #' @importFrom SummarizedExperiment SummarizedExperiment rowRanges rowData colData assays rbind rowData<- assays<-
 #' @importFrom GenomicRanges resize reduce granges GRangesList slidingWindows width GRanges seqnames start coverage findOverlaps strand
