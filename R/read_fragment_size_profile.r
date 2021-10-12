@@ -39,7 +39,7 @@ setMethod(
 		y <- y[!is.na(y)] # remove the read pairs where the fragment size is outside of "fragment_size_range"
 		z <- factor(y,  1:length(centers)) %>% table() %>% c()
 		class(z) <- 'numeric'
-		z <- scale01(z)
+		z <- z / sum(z)
 		data.frame(
 			fragment_size = centers,
 			prob = z
