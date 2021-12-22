@@ -185,7 +185,7 @@ setMethod(
 		vplots <- assays(x)$counts %>%
 			as.matrix() %>%
 			tf$cast(tf$float32) %>%
-			tf$reshape(shape(-1L, x@n_intervals, x@n_bins_per_window, 1L)) %>%
+			tf$reshape(shape(nrow(x), x@n_intervals, x@n_bins_per_window, 1L)) %>%
 			scale_vplot()
 
 		batch <- rowData(x)$batch %>%
