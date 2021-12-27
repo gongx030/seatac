@@ -349,7 +349,7 @@ setMethod(
 		if (vplots){
 			predicted_vplots <- predicted_vplots %>% 
 				tf$concat(axis = 0L) %>%
-				tf$reshape(shape(nrow(x), -1L)) %>% 
+				tf$reshape(shape(nrow(x), ncol(x))) %>% 
 				as.matrix()
 			dimnames(predicted_vplots) <- dimnames(x)
 			assays(x)$predicted_counts <- predicted_vplots
