@@ -183,10 +183,15 @@ setMethod(
 		d <- list()
 
 		vplots <- assays(x)$counts %>%
-			as.matrix() %>%
-			tf$cast(tf$float32) %>%
-			tf$reshape(shape(nrow(x), x@n_intervals, x@n_bins_per_window, 1L)) %>%
-			scale_vplot()
+			summary()
+
+		vplots <- tf$sparse$SparseTensor(
+			 indices = vplots[, 1:2] %>% as.matrix() %>% tf$cast(tf$int64) - 1L,
+			 values = vplots[, 3] %>% tf$cast(tf$float32),
+			 dense_shape = shape(nrow(x), ncol(x))
+		) %>%
+			tf$sparse$reshape(shape(nrow(x), x@n_intervals, x@n_bins_per_window, 1L)) %>%
+			tf$sparse$reorder()
 
 		batch <- rowData(x)$batch %>%
 			factor(x@samples) %>%
@@ -240,10 +245,12 @@ setMethod(
 		optimizer <- tf$keras$optimizers$Adam(learning_rate)
 		reconstrution_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')	# loss for the V-plot
 
-		train_step <- function(x, b){
+		train_step <- function(batch, b){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
-				res <- model@model(x, training = TRUE)
-				loss_reconstruction <- reconstrution_loss(x$vplots, res$vplots) %>%
+				batch$vplots <- batch$vplots %>% 
+					tf$sparse$to_dense()
+				res <- model@model(batch, training = TRUE)
+				loss_reconstruction <- reconstrution_loss(batch$vplots, res$vplots) %>%
 					tf$reduce_sum(shape(1L, 2L)) %>%
 					tf$reduce_mean()
 				loss_kl <- (res$posterior$log_prob(res$z) - model@model$prior$log_prob(res$z)) %>%
@@ -294,7 +301,6 @@ setMethod(
 #' @param model a trained VaeModel object
 #' @param x a Vplots object
 #' @param batch_size Batch size (default: 256L)
-#' @param reduction rowData field for storing learned Vplot representation
 #' @param vplots Whether or not return predicted Vplots as assays(x)$predicted_counts
 #' @param ... Additional arguments
 #'
@@ -317,6 +323,7 @@ setMethod(
 		...
 	){
 
+
 		d <- model %>%
 			prepare_data(x, ...) %>%
 			tensor_slices_dataset() %>%
@@ -332,6 +339,8 @@ setMethod(
 
 		res <- until_out_of_range({
 			batch <- iterator_get_next(iter)
+			batch$vplots <- batch$vplots %>% 
+				tf$sparse$to_dense()
 			res <- model@model(batch, training = FALSE)
 			z <- c(z, res$posterior$mean())
 			z_stddev <- c(z_stddev, res$posterior$stddev())
@@ -404,6 +413,8 @@ setMethod(
 
 		res <- until_out_of_range({
 			batch <- iterator_get_next(iter)
+			batch$vplots <- batch$vplots %>% 
+				tf$sparse$to_dense()
 			res <- model@model(batch, training = FALSE)
 			fs <- batch$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_sum(2L) %>% tf$squeeze(2L)
 			w <- fs %>% tf$reduce_sum(1L, keepdims = TRUE)

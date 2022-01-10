@@ -26,5 +26,6 @@ validate_bam <- function(filenames){
   if(any(!is_pe)){
     stop(paste(filenames[!is_pe], collapse = ', '),"are not paired-end files.")
   }
+	TRUE
 
 } # validate_bam
