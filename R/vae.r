@@ -115,6 +115,14 @@ VaeModel <- function(
 
 		function(x, ..., training = TRUE){
 
+			batch_size <- x$batch$shape[[1]]
+
+			# when x$vplots was originally sparse, it appears we need to specify the dimensions here
+			# otherwise it will complain about unknown channel dimensions. 
+			# this will only happen in compiled function (e.g. after the tf_function call)
+			x$vplots <- x$vplots %>% 
+				tf$reshape(shape(batch_size, self$n_intervals, self$n_bins_per_block, 1L))
+
 			fragment_size <- x$batch %>% 
 				self$dense_fragment_size() %>%
 				tf$expand_dims(2L) %>%
@@ -248,7 +256,8 @@ setMethod(
 		train_step <- function(batch, b){
 			with(tf$GradientTape(persistent = TRUE) %as% tape, {
 				batch$vplots <- batch$vplots %>% 
-					tf$sparse$to_dense()
+					tf$sparse$to_dense() %>%
+					scale01()
 				res <- model@model(batch, training = TRUE)
 				loss_reconstruction <- reconstrution_loss(batch$vplots, res$vplots) %>%
 					tf$reduce_sum(shape(1L, 2L)) %>%
@@ -284,11 +293,9 @@ setMethod(
 				loss <- rbind(loss, sapply(res, as.numeric))
 			})
 
-			if (epoch == 1 || epoch %% 10 == 0){
-				loss <- colMeans(loss)
-				sprintf('epoch=%6.d/%6.d | beta=%.3e | %s', epoch, epochs, beta[epoch], paste(sapply(1:length(loss), function(i) sprintf('%s=%13.7f', names(loss)[i], loss[i])), collapse = ' | ')) %>%
-					message()
-			}
+			loss <- colMeans(loss)
+			sprintf('epoch=%6.d/%6.d | beta=%.3e | %s', epoch, epochs, beta[epoch], paste(sapply(1:length(loss), function(i) sprintf('%s=%13.7f', names(loss)[i], loss[i])), collapse = ' | ')) %>%
+				message()
 		}
 		model
 	}
@@ -340,7 +347,8 @@ setMethod(
 		res <- until_out_of_range({
 			batch <- iterator_get_next(iter)
 			batch$vplots <- batch$vplots %>% 
-				tf$sparse$to_dense()
+				tf$sparse$to_dense() %>%
+				scale01()
 			res <- model@model(batch, training = FALSE)
 			z <- c(z, res$posterior$mean())
 			z_stddev <- c(z_stddev, res$posterior$stddev())
@@ -414,7 +422,8 @@ setMethod(
 		res <- until_out_of_range({
 			batch <- iterator_get_next(iter)
 			batch$vplots <- batch$vplots %>% 
-				tf$sparse$to_dense()
+				tf$sparse$to_dense() %>%
+				scale01()
 			res <- model@model(batch, training = FALSE)
 			fs <- batch$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_sum(2L) %>% tf$squeeze(2L)
 			w <- fs %>% tf$reduce_sum(1L, keepdims = TRUE)

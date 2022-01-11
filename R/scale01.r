@@ -91,4 +91,3 @@ setMethod(
 			as.numeric()
 	}
 )
-

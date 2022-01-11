@@ -91,7 +91,8 @@ results_phase <- function(model, x, contrast, width = 100L, repeats = 100L, batc
 	res <- until_out_of_range({
 		batch <- iterator_get_next(iter)
 		batch$vplots <- batch$vplots %>%
-			tf$sparse$to_dense()
+			tf$sparse$to_dense() %>%
+			scale01()
 		res <- model@model(batch, training = FALSE)
 		z <- res$posterior$sample(repeats) %>%
 			tf$reshape(shape(repeats * res$z$shape[[1]], -1L)) 
@@ -171,7 +172,8 @@ results_vplots <- function(model, x, contrast, batch_size = 128L){
 	res <- until_out_of_range({
 		batch <- iterator_get_next(iter)
 		batch$vplots <- batch$vplots %>%
-			tf$sparse$to_dense()
+			tf$sparse$to_dense() %>%
+			scale01()
 		res <- model@model(batch, training = FALSE)
 		z_mean <- c(z_mean, res$posterior$mean())
 		z_stddev <- c(z_stddev, res$posterior$stddev())
@@ -239,8 +241,8 @@ results_nucleosome <- function(model, x, contrast, fragment_size_threshold = 150
 
 		batch <- iterator_get_next(iter)
 		batch$vplots <- batch$vplots %>%
-			tf$sparse$to_dense()
-
+			tf$sparse$to_dense() %>%
+			scale01()
 		res <- model@model(batch, training = FALSE)
 
 		z <- res$posterior$mean()
