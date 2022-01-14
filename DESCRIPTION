@@ -24,7 +24,7 @@ Imports:
 	Matrix,
 	dplyr,
 	GenomeInfoDb,
-	Rsamtools(== 2.8.0),
+	Rsamtools,
 	GenomicAlignments,
 	gplots,
 	BSgenome,
