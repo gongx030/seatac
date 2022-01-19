@@ -69,6 +69,7 @@ count_reads_core <- function(
 	seqlevels(x, pruning.mode = 'coarse') <- seqlevels(g)
   seqlengths(seqinfo(x)) <-  seqlengths(seqinfo(g))
  	genome(seqinfo(x)) <-  genome(seqinfo(g))
+	x <- trim(x)
 
 	g <- g[strand(g) == '+']
 	g <- GRanges(
