@@ -45,6 +45,7 @@ setMethod(
 #' @param filename BAM file name.
 #' @param genome a BS genome object such as BSgenome.Mmusculus.UCSC.mm10
 #' @param fragment_size_range fragment size ranges (default:  c(80, 320))
+#' @importFrom GenomicRanges trim
 #'
 #' @return read counts
 #' 
