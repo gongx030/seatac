@@ -117,7 +117,7 @@ setMethod(
 #'				constructing Vplot (default: c(0L, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 10L)
 #' @param ignore_strand whether ignore the strand of the V-plot (default: TRUE)
-#' @importFrom GenomicRanges start end
+#' @importFrom GenomicRanges start end strand strand<-
 #'
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
@@ -162,6 +162,8 @@ read_vplot_core <- function(
 			starts[, is_minus] <- matrix(end(x)[is_minus], nrow = n_bins_per_window, ncol = sum(is_minus) , byrow = TRUE)
 			starts[, is_minus] <- starts[, is_minus] - cumsum(rep(bin_size, n_bins_per_window)) + 1L
 		}
+	}else{
+		strand(x) <- '*'
 	}
 
 	bins <- GRanges(seqnames = rep(seqnames(x), each = n_bins_per_window), ranges = IRanges(start = c(starts), width = bin_size))
