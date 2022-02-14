@@ -10,7 +10,8 @@
   genome,
   bin_size = 5L,
   fragment_size_range = c(0, 320L),
-  fragment_size_interval = 10L
+  fragment_size_interval = 10L,
+  ignore_strand = TRUE
 )
 }
 \arguments{
@@ -26,6 +27,8 @@
 constructing Vplot (default: c(0, 320L))}
 
 \item{fragment_size_interval}{Fragment size interval (default: 10L)}
+
+\item{ignore_strand}{whether ignore the strand of the V-plot (default: TRUE)}
 }
 \description{
 Read the V-plot from BAM files within a set of genomic regions

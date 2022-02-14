@@ -9,6 +9,7 @@
 #' @param fragment_size_range The range of the PE reads fragment sizes that are used for 
 #'				constructing Vplot (default: c(0, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 10L)
+#' @param ignore_strand whether ignore the strand of the V-plot (default: TRUE)
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -26,14 +27,15 @@ setMethod(
 		genome,
 		bin_size = 5L,
 		fragment_size_range = c(0, 320L),
-		fragment_size_interval = 10L
+		fragment_size_interval = 10L,
+		ignore_strand = TRUE
 	){
 
 		if (is.null(names(filenames)))
 			names(filenames) <- 1:length(filenames)
 
 		se <- lapply(1:length(filenames), function(i){
-			xi <- read_vplot_core(x, filenames[i], genome, bin_size, fragment_size_range, fragment_size_interval)
+			xi <- read_vplot_core(x, filenames[i], genome, bin_size, fragment_size_range, fragment_size_interval, ignore_strand = ignore_strand)
 			rowData(xi)$batch <- names(filenames)[i]
 			xi@samples <- names(filenames)[i]
 			xi
@@ -58,6 +60,7 @@ setMethod(
 #' @param fragment_size_range The range of the PE reads fragment sizes that are used for 
 #'				constructing Vplot (default: c(0, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 10L)
+#' @param ignore_strand whether ignore the strand of the V-plot (default: TRUE)
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -75,7 +78,8 @@ setMethod(
 		genome,
 		bin_size = 5L,
 		fragment_size_range = c(0, 320L),
-		fragment_size_interval = 10L
+		fragment_size_interval = 10L,
+		ignore_strand = TRUE
 	){
 
 		if (is.null(names(filenames)))
@@ -86,7 +90,7 @@ setMethod(
 		stopifnot(length(x) == length(filenames))
 
 		se <- lapply(1:length(filenames), function(i){
-			xi <- read_vplot_core(x[[i]], filenames[i], genome, bin_size, fragment_size_range, fragment_size_interval)
+			xi <- read_vplot_core(x[[i]], filenames[i], genome, bin_size, fragment_size_range, fragment_size_interval, ignore_strand = ignore_strand)
 			rowData(xi)$batch <- names(filenames)[i]
 			xi@samples <- names(filenames)[i]
 			xi
@@ -112,6 +116,8 @@ setMethod(
 #' @param fragment_size_range The range of the PE reads fragment sizes that are used for 
 #'				constructing Vplot (default: c(0L, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 10L)
+#' @param ignore_strand whether ignore the strand of the V-plot (default: TRUE)
+#' @importFrom GenomicRanges start end
 #'
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
@@ -121,7 +127,8 @@ read_vplot_core <- function(
 	genome, 
 	bin_size = 5L, 
 	fragment_size_range = c(0L, 320L), 
-	fragment_size_interval = 10L
+	fragment_size_interval = 10L,
+	ignore_strand = TRUE
 ){
 	window_size <- width(x)
 
@@ -139,10 +146,26 @@ read_vplot_core <- function(
 	breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
 	centers <- (breaks[-1] + breaks[-length(breaks)]) / 2
 	n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval
-	bins <- x %>%
-		slidingWindows(width = bin_size, step = bin_size) %>%
-		unlist()
 	n_bins_per_window <- window_size / bin_size
+
+	starts <- matrix(start(x), nrow = n_bins_per_window, ncol = length(x), byrow = TRUE)
+	starts <- starts + cumsum(rep(bin_size, n_bins_per_window)) - bin_size
+
+	if (!ignore_strand){
+
+		if (any(as.character(strand(x)) %in% '*'))
+			stop('when ignore_strand=TRUE, strand(x) must be either "+" or "-"')
+
+		is_minus <- as.character(strand(x)) == '-'
+
+		if (any(is_minus)){
+			starts[, is_minus] <- matrix(end(x)[is_minus], nrow = n_bins_per_window, ncol = sum(is_minus) , byrow = TRUE)
+			starts[, is_minus] <- starts[, is_minus] - cumsum(rep(bin_size, n_bins_per_window)) + 1L
+		}
+	}
+
+	bins <- GRanges(seqnames = rep(seqnames(x), each = n_bins_per_window), ranges = IRanges(start = c(starts), width = bin_size))
+
 	peaks <- reduce(resize(x, fix = 'center', width = window_size + 2000))
 	g <- read_bam(filename, peaks = peaks, genome = genome)
 
