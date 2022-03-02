@@ -375,14 +375,20 @@ setMethod(
 
 		z <- z %>% 
 			tf$reshape(shape(x@n_samples, nrow(x), model@model$latent_dim)) %>%
-			tf$transpose(shape(1L, 0L, 2L))
+			tf$transpose(shape(1L, 0L, 2L)) %>%
+			as.array()
 
 		z_stddev  <- z_stddev  %>% 
 			tf$reshape(shape(x@n_samples, nrow(x), model@model$latent_dim)) %>%
-			tf$transpose(shape(1L, 0L, 2L))
+			tf$transpose(shape(1L, 0L, 2L)) %>%
+			as.array()
+
+		dimnames(z)[1:2] <- list(rownames(x), x@samples)
+		dimnames(z_stddev)[1:2] <- list(rownames(x), x@samples)
 
 		rowData(x)[['vae_z_mean']] <- as.array(z)
 		rowData(x)[['vae_z_stddev']] <- as.array(z_stddev)
+
 
 		if (vplots){
 
