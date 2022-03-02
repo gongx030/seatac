@@ -1,6 +1,7 @@
 #' cbind of multiple Vplots object
 #'
 #' @importFrom BiocGenerics cbind
+#' @importFrom MatrixGenerics rowRanges
 #' @export
 #'
 setMethod(  
@@ -12,7 +13,12 @@ setMethod(
 		...,
 		deparse.level = 1
 	){
+
+		args <- list(...)
+
+		x <- callNextMethod(...)
 		browser()
+
 	}
 )
 
