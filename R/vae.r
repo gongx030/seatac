@@ -344,12 +344,12 @@ setMethod(
 	){
 
 
-		d <- model %>%
+		iter <- model %>%
 			prepare_data(x, ...) %>%
 			tensor_slices_dataset() %>%
-			dataset_batch(batch_size)
+			dataset_batch(batch_size) %>%
+			make_iterator_one_shot()
 
-		iter <- d %>% make_iterator_one_shot()
 		z <- NULL
 		z_stddev <- NULL
 
@@ -373,14 +373,26 @@ setMethod(
 		z <- z %>% tf$concat(axis = 0L)
 		z_stddev <- z_stddev %>% tf$concat(axis = 0L)
 
-		rowData(x)[['vae_z_mean']] <- as.matrix(z)
-		rowData(x)[['vae_z_stddev']] <- as.matrix(z_stddev)
+		z <- z %>% 
+			tf$reshape(shape(x@n_samples, nrow(x), model@model$latent_dim)) %>%
+			tf$transpose(shape(1L, 0L, 2L))
+
+		z_stddev  <- z_stddev  %>% 
+			tf$reshape(shape(x@n_samples, nrow(x), model@model$latent_dim)) %>%
+			tf$transpose(shape(1L, 0L, 2L))
+
+		rowData(x)[['vae_z_mean']] <- as.array(z)
+		rowData(x)[['vae_z_stddev']] <- as.array(z_stddev)
 
 		if (vplots){
+
 			predicted_vplots <- predicted_vplots %>% 
 				tf$concat(axis = 0L) %>%
-				tf$reshape(shape(nrow(x), ncol(x))) %>% 
+				tf$reshape(shape(x@n_samples, nrow(x), x@n_intervals * x@n_bins_per_window)) %>%
+				tf$transpose(shape(1L, 0L, 2L)) %>%
+				tf$reshape(shape(nrow(x), x@n_samples * x@n_intervals * x@n_bins_per_window)) %>%
 				as.matrix()
+
 			dimnames(predicted_vplots) <- dimnames(x)
 			assays(x)$predicted_counts <- predicted_vplots
 		}
