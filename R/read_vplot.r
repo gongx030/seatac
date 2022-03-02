@@ -10,6 +10,7 @@
 #'				constructing Vplot (default: c(0, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 10L)
 #' @param ignore_strand whether ignore the strand of the V-plot (default: TRUE)
+#' @importFrom BiocGenerics cbind
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -35,14 +36,13 @@ setMethod(
 			names(filenames) <- 1:length(filenames)
 
 		se <- lapply(1:length(filenames), function(i){
-			xi <- read_vplot_core(x, filenames[i], genome, bin_size, fragment_size_range, fragment_size_interval, ignore_strand = ignore_strand)
-			rowData(xi)$batch <- names(filenames)[i]
-			xi@samples <- names(filenames)[i]
-			xi
+			read_vplot_core(x, filenames[i], genome, bin_size, fragment_size_range, fragment_size_interval, ignore_strand = ignore_strand)
 		})
-		se <- do.call('rbind', se)
-		se@samples <- unique(rowData(se)$batch)
+		names(se) <- filenames
+		se <- Reduce('cbind', se)
+		se@samples <- names(filenames)
 		se@n_samples <- length(se@samples)
+		colData(se)$batch <- factor(rep(names(filenames), each = se@n_bins_per_window * se@n_intervals), names(filenames))
 		se
 	}
 
@@ -118,6 +118,7 @@ setMethod(
 #' @param fragment_size_interval Fragment size interval (default: 10L)
 #' @param ignore_strand whether ignore the strand of the V-plot (default: TRUE)
 #' @importFrom GenomicRanges start end strand strand<-
+#' @importFrom SummarizedExperiment colData<-
 #'
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
@@ -208,6 +209,9 @@ read_vplot_core <- function(
 	rowData(se)$id <- 1:length(x)
 	rowData(se)$sequence <- getSeq(genome, x)
 
+	colData(se)$bin <- rep(1:n_bins_per_window, n_intervals)
+	colData(se)$interval <- rep(1:n_intervals, each = n_bins_per_window)
+
 	new(
 		'Vplots', 
 		se, 
@@ -219,8 +223,7 @@ read_vplot_core <- function(
 		n_bins_per_window = as.integer(n_bins_per_window ),
 		breaks = breaks,
 		centers = centers,
-		positions = seq(bin_size, window_size, by = bin_size) - (window_size / 2),
-		n_samples = 1L
+		positions = seq(bin_size, window_size, by = bin_size) - (window_size / 2)
 	)
 } # read_vplot_core
 
