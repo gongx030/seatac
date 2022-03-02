@@ -12,7 +12,7 @@ setOldClass('tensorflow.python.framework.sparse_tensor.SparseTensor')
 #'
 setClass(
 	'Vplots', 
-	slot = c(
+	representation(
 		fragment_size_range  = 'integer',
 		fragment_size_interval = 'integer',
 		bin_size = 'integer',
@@ -25,7 +25,10 @@ setClass(
 		n_samples = 'integer',
 		samples = 'character'
 	),
-	contains = 'RangedSummarizedExperiment'
+	contains = 'RangedSummarizedExperiment',
+	prototype(
+		n_samples = 1L
+	)
 )
 
 
