@@ -190,22 +190,35 @@ setMethod(
 
 		d <- list()
 
-		vplots <- assays(x)$counts %>%
-			summary()
+		vplots <- NULL
+		batch <- NULL
 
-		vplots <- tf$sparse$SparseTensor(
-			 indices = vplots[, 1:2] %>% as.matrix() %>% tf$cast(tf$int64) - 1L,
-			 values = vplots[, 3] %>% tf$cast(tf$float32),
-			 dense_shape = shape(nrow(x), ncol(x))
-		) %>%
-			tf$sparse$reshape(shape(nrow(x), x@n_intervals, x@n_bins_per_window, 1L)) %>%
-			tf$sparse$reorder()
+		for (i in 1:x@n_samples){
 
-		batch <- rowData(x)$batch %>%
-			factor(x@samples) %>%
-			as.numeric() %>%
-			tf$cast(tf$int64) 
-		batch <- batch - 1L
+			j <- colData(x)$batch == x@samples[i]
+			v <- assays(x)$counts[, j, drop = FALSE] %>%
+				summary()
+
+			v <- tf$sparse$SparseTensor(
+				 indices = v[, 1:2] %>% as.matrix() %>% tf$cast(tf$int64) - 1L,
+				 values = v[, 3] %>% tf$cast(tf$float32),
+				 dense_shape = shape(nrow(x), x@n_intervals * x@n_bins_per_window)
+			) %>%
+				tf$sparse$reshape(shape(nrow(x), x@n_intervals, x@n_bins_per_window, 1L)) %>%
+				tf$sparse$reorder()
+
+			b <- rep(x@samples[i], nrow(x)) %>%
+				factor(x@samples) %>%
+				as.numeric() %>%
+				tf$cast(tf$int64) 
+			b <- b - 1L
+
+			vplots <- c(vplots, v)
+			batch <- c(batch, b)
+		}
+
+		vplots <- tf$sparse$concat(0L, vplots)
+		batch <- batch %>% tf$concat(axis = 0L)
 
 		list(vplots = vplots, batch = batch)
 	}
