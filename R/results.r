@@ -35,9 +35,9 @@ setMethod(
 		control <- contrast[2]
 		treatment <- contrast[3]
 
-		stopifnot(!is.null(rowData(x)[[field]]))
-		stopifnot(control %in% rowData(x)[[field]])
-		stopifnot(treatment %in% rowData(x)[[field]])
+		stopifnot(!is.null(colData(x)[[field]]))
+		stopifnot(control %in% x@samples)
+		stopifnot(treatment %in% x@samples)
 
 		if (type == 'phase'){
 			res <- results_phase(model, x, contrast, ...)
@@ -157,48 +157,17 @@ results_vplots <- function(model, x, contrast, batch_size = 128L){
 	control <- contrast[2]
 	treatment <- contrast[3]
 
-	x <- x[rowData(x)[[field]] %in% c(treatment, control)]
-
-  d <- model %>%
-	  prepare_data(x) %>%
-		tensor_slices_dataset() %>%
-		dataset_batch(batch_size)
-	iter <- d %>% make_iterator_one_shot()
-
-	z_mean <- NULL
-	z_stddev <- NULL
-
-	i <- 1
-	res <- until_out_of_range({
-		batch <- iterator_get_next(iter)
-		batch$vplots <- batch$vplots %>%
-			tf$sparse$to_dense() %>%
-			scale01()
-		res <- model@model(batch, training = FALSE)
-		z_mean <- c(z_mean, res$posterior$mean())
-		z_stddev <- c(z_stddev, res$posterior$stddev())
-		if (i %% 10 == 0)
-			sprintf('results_vplots | batch=%6.d/%6.d', i, ceiling(nrow(x) / batch_size)) %>% message()
-		i <- i + 1
-	})
-
-	z_mean <- z_mean %>% tf$concat(axis = 0L)
-	z_stddev <- z_stddev %>% tf$concat(axis = 0L)
-
-	rowData(x)[['z_mean']] <- as.matrix(z_mean)
-	rowData(x)[['z_stddev']] <- as.matrix(z_stddev)
-
-	z_control <- rowData(x[rowData(x)[[field]] == control])[['z_mean']] 
-	z_control_stddev <- rowData(x[rowData(x)[[field]] == control])[['z_stddev']] 
-	z_treatment <- rowData(x[rowData(x)[[field]] == treatment])[['z_mean']] 
-	z_treatment_stddev <- rowData(x[rowData(x)[[field]] == treatment])[['z_stddev']] 
+	z_control <- rowData(x)[['vae_z_mean']][, control, ]
+	z_control_stddev <- rowData(x)[['vae_z_stddev']][, control, ]
+	z_treatment <- rowData(x)[['vae_z_mean']][, treatment, ]
+	z_treatment_stddev <- rowData(x)[['vae_z_stddev']][, treatment, ]
 
 	h <- ((z_treatment - z_control)^2 / (z_control_stddev^2 + z_treatment_stddev^2)) %>%
 		rowSums()
 	pvalue_z <- 1 - pchisq(h, df = model@model$latent_dim)
 
-	res <- granges(x[rowData(x)[[field]] == control])
-	mcols(res) <- mcols(res)[c('id')]
+	res <- granges(x)
+	mcols(res) <- NULL
 	res$pvalue_z <- pvalue_z
 	res
 
