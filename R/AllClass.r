@@ -19,11 +19,7 @@ setClass(
 		window_size = 'integer',
 		n_intervals = 'integer',
 		n_bins_per_window = 'integer',
-		breaks = 'numeric',
-		centers = 'numeric',
-		positions = 'numeric',
-		n_samples = 'integer',
-		samples = 'character'
+		dimdata = 'list'
 	),
 	contains = 'RangedSummarizedExperiment',
 	prototype(
@@ -46,7 +42,11 @@ setClass(
 	contains = 'SimpleList'
 )
 
+
 #' VaeModel
 #'
 setClass('VaeModel', contains = 'Model')
 
+#' mVaeModel
+#'
+setClass('mVaeModel', contains = 'Model')
