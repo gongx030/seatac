@@ -28,7 +28,7 @@ setMethod(
 #' Plot a Vplot object
 #' 
 #' @param x a Vplots object
-#' @param field  The assays field that is used for Vplots (default: 'counts')
+#' @param field The assays field that is used for Vplots (default: 'counts')
 #' @param ncol number of columns (default: 2L)
 #' @import ggplot2
 #'
@@ -45,14 +45,14 @@ vplot_core <- function(x, field, ncol = 2){
 		zi <- Diagonal(x = w) %*% zi
 		zi <- colSums(zi)
 		zi <- zi / sum(zi)
-		data.frame(value = zi, bin = x@positions[colData(x)$bin], interval = x@centers[colData(x)$interval], batch = x@samples[i])
+		data.frame(value = zi, bin = x@positions[colData(x)$bin], interval = x@centers[colData(x)$interval], sample = x@samples[i])
 	}))	%>%
-		mutate(batch = factor(batch, x@samples))
+		mutate(sample = factor(sample, x@samples)) 
 
 	df %>%
 		ggplot(aes(x = bin, y = interval, fill = value)) +
 			geom_raster() +
-			facet_wrap( ~ batch, ncol = ncol) +
+			facet_wrap(vars(sample), ncol = ncol) +
 			theme(panel.spacing = unit(2, 'lines')) +
 			geom_vline(xintercept = 0, linetype = 'dotted', color = 'yellow') +
 			scale_fill_gradientn(colors = colorpanel(100, low = 'blue', mid = 'white', high = 'red')) +
@@ -66,6 +66,6 @@ vplot_core <- function(x, field, ncol = 2){
 				limits = c(0, max(x@centers)),  
 				expand = c(0, 0)
 			) + 
-			xlab('') + ylab('fragment size')
+				xlab('') + ylab('fragment size') + ggtitle(field)
 
 } # vplot_core
