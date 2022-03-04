@@ -41,7 +41,7 @@ setMethod(
 
 		se <- Reduce('cbind', se)
 		se@dimdata[['sample']] <- DataFrame(id = 1:length(filenames), filename = filenames, name = names(filenames))
-		colData(se)$sample<- factor(rep(names(filenames), each = se@n_bins_per_window * se@n_intervals), names(filenames))
+		colData(se)$sample <- factor(rep(names(filenames), each = nrow(x@dimdata)[['bin']]* nrow(x@dimdata[['interval']])), names(filenames))
 		se
 	}
 
@@ -234,8 +234,6 @@ read_vplot_core <- function(
 		fragment_size_interval = as.integer(fragment_size_interval),
 		bin_size = as.integer(bin_size),
 		window_size = as.integer(window_size),
-		n_intervals = as.integer(n_intervals),
-		n_bins_per_window = as.integer(n_bins_per_window ),
 		dimdata = dimdata
 	)
 } # read_vplot_core
