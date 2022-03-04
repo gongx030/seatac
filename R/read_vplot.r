@@ -38,11 +38,10 @@ setMethod(
 		se <- lapply(1:length(filenames), function(i){
 			read_vplot_core(x, filenames[i], genome, bin_size, fragment_size_range, fragment_size_interval, ignore_strand = ignore_strand)
 		})
-		names(se) <- filenames
+
 		se <- Reduce('cbind', se)
-		se@samples <- names(filenames)
-		se@n_samples <- length(se@samples)
-		colData(se)$batch <- factor(rep(names(filenames), each = se@n_bins_per_window * se@n_intervals), names(filenames))
+		se@dimdata[['sample']] <- DataFrame(id = 1:length(filenames), filename = filenames, name = names(filenames))
+		colData(se)$sample<- factor(rep(names(filenames), each = se@n_bins_per_window * se@n_intervals), names(filenames))
 		se
 	}
 
@@ -119,6 +118,7 @@ setMethod(
 #' @param ignore_strand whether ignore the strand of the V-plot (default: TRUE)
 #' @importFrom GenomicRanges start end strand strand<-
 #' @importFrom SummarizedExperiment colData<-
+#' @importFrom S4Vectors DataFrame
 #'
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
@@ -206,11 +206,26 @@ read_vplot_core <- function(
 		assays = list(counts = counts),
 		rowRanges = x
 	)
-	rowData(se)$id <- 1:length(x)
-	rowData(se)$sequence <- getSeq(genome, x)
-
 	colData(se)$bin <- rep(1:n_bins_per_window, n_intervals)
 	colData(se)$interval <- rep(1:n_intervals, each = n_bins_per_window)
+
+	dimdata <- list(
+		grange = DataFrame(
+			id = 1:length(x),
+			sequence = getSeq(genome, x)
+		),	# dim 1: GRanges dimension 
+		sample = DataFrame(
+		), # dim 2: samples
+		interval = DataFrame(
+			id = 1:n_intervals
+		), # dim 3: intervals (fragment size)
+		bin = DataFrame(
+			id = 1:n_bins_per_window,
+			center = centers,
+			position = seq(bin_size, window_size, by = bin_size) - (window_size / 2)
+		) # dim 4: bins (genome wise)
+	)
+
 
 	new(
 		'Vplots', 
@@ -221,9 +236,7 @@ read_vplot_core <- function(
 		window_size = as.integer(window_size),
 		n_intervals = as.integer(n_intervals),
 		n_bins_per_window = as.integer(n_bins_per_window ),
-		breaks = breaks,
-		centers = centers,
-		positions = seq(bin_size, window_size, by = bin_size) - (window_size / 2)
+		dimdata = dimdata
 	)
 } # read_vplot_core
 
