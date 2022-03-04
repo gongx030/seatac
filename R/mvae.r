@@ -2,7 +2,7 @@
 #' 
 #' A VAE model for V-plot of multiple ATAC-seq datasets
 #'
-#' @param n_samples Number of samples
+#' @param n_samples Number of samples (default: 1L)
 #' @param latent_dim Latent dimension (default: 10L)
 #' @param block_size Block size in base pairs (default: 640L)
 #' @param bin_size Bin size in base pairs(default: 5L) 
@@ -13,7 +13,6 @@
 #' @param upsample_layers Upsample layers (default: 4L)
 #' @param fragment_size_range  Fragment size ranges (default: c(0L, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 10L)
-#' @param n_batches Number of batches (default: 1L)
 #' @param strides Convolution strides 
 #' @param momentum Momentum in BatchNormalization layer (default: 0.8)
 #' @param rate Dropout rate (default: 0.1)
@@ -34,7 +33,6 @@ mVaeModel <- function(
 	upsample_layers = 4L,
 	fragment_size_range  = c(0L, 320L),
 	fragment_size_interval = 10L,
-	n_batches = 1L,
 	strides = c(2L, 2L),
 	momentum = 0.8,
 	rate = 0.1,
@@ -59,7 +57,6 @@ mVaeModel <- function(
 		self$breaks <- tf$constant(br)
 		self$centers <- tf$constant((br[-1] + br[-length(br)]) / 2)
 		self$positions <- tf$cast(seq(0 + bin_size / 2, block_size - bin_size / 2, by = bin_size) - (block_size / 2), tf$float32)
-		self$n_batches <- n_batches
 
 		stopifnot(self$n_intervals %% strides[1]^upsample_layers == 0)
 		stopifnot(self$n_bins_per_block %% strides[2]^upsample_layers == 0)
@@ -82,7 +79,7 @@ mVaeModel <- function(
 
 		self$dense_1 <- tf$keras$layers$Dense(units = (self$n_samples + 1L) * self$latent_dim)
 
-		self$dense_fragment_size <- tf$keras$layers$Embedding(n_batches,  self$n_intervals)
+		self$dense_fragment_size <- tf$keras$layers$Embedding(n_samples,  self$n_intervals)
 
 		interval_dim0 <- as.integer(self$n_intervals / strides[1]^upsample_layers)
 		window_dim0 <- as.integer(self$n_bins_per_block / strides[2]^upsample_layers)
@@ -147,15 +144,15 @@ mVaeModel <- function(
 
 			if (training){
 				z <- posterior$sample()
-				b <- x$batch %>% tf$one_hot(self$n_batches)
+				b <- x$batch %>% tf$one_hot(self$n_samples)
 			}else{
 				z <- posterior$mean()
-				b <- tf$zeros(shape(batch_size, self$n_samples), dtype = tf$int64) %>% tf$one_hot(self$n_batches)
+				b <- tf$zeros(shape(batch_size, self$n_samples), dtype = tf$int64) %>% tf$one_hot(self$n_samples)
 			}
 
 			x_pred <- list(z, b) %>% 
 				tf$concat(2L) %>% 
-				tf$reshape(shape(batch_size * self$n_samples, self$latent_dim + self$n_batches)) %>%
+				tf$reshape(shape(batch_size * self$n_samples, self$latent_dim + self$n_samples)) %>%
 				self$decoder(training = training) %>%
 				tf$reshape(shape(batch_size, self$n_samples, self$n_intervals, self$n_bins_per_block)) %>%
 				tf$transpose(shape(0L, 2L, 3L, 1L)) %>%
