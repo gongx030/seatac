@@ -19,24 +19,23 @@
 #' @param name Model name
 #'
 #' @export
-#' @author Wuming Gong (gongx030@umn.edu)
 #'
 VaeModel <- function(
-	 latent_dim = 10L,
-	 block_size = 640L,
-	 bin_size = 5L,
-	 filters0 = 128L,
-	 filters = 32L,
-	 kernel_size = 3L,
-	 downsample_layers = 4L,
-	 upsample_layers = 4L,
-	 fragment_size_range  = c(0L, 320L),
-	 fragment_size_interval = 10L,
-	 n_batches = 1L,
-	 strides = c(2L, 2L),
-	 momentum = 0.8,
-	 rate = 0.1,
-	 name = NULL
+	latent_dim = 10L,
+	block_size = 640L,
+	bin_size = 5L,
+	filters0 = 128L,
+	filters = 32L,
+	kernel_size = 3L,
+	downsample_layers = 4L,
+	upsample_layers = 4L,
+	fragment_size_range  = c(0L, 320L),
+	fragment_size_interval = 10L,
+	n_batches = 1L,
+	strides = c(2L, 2L),
+	momentum = 0.8,
+	rate = 0.1,
+	name = NULL
 ){
 
 	keras_model_custom(name = name, function(self){
@@ -188,39 +187,23 @@ setMethod(
 		...
 	){
 
-		d <- list()
+		v <- assays(x)$counts %>%
+			summary()
 
-		vplots <- NULL
-		batch <- NULL
+		v <- tf$sparse$SparseTensor(
+			indices = v[, 1:2] %>% as.matrix() %>% tf$cast(tf$int64) - 1L,
+			values = v[, 3] %>% tf$cast(tf$float32),
+			dense_shape = shape(dim(x)['grange'],  dim(x)['sample'] * dim(x)['interval'] * dim(x)['bin'])
+		) %>%
+			tf$sparse$reshape(shape(dim(x)['grange'] * dim(x)['sample'],  dim(x)['interval'], dim(x)['bin'], 1L)) %>%
+			tf$sparse$reorder() 
 
-		for (i in 1:x@n_samples){
+		batch <- tf$range(dim(x)['sample']) %>%
+			tf$reshape(shape(dim(x)['sample'], 1L)) %>%
+			tf$`repeat`(nrow(x), axis = 1L) %>%
+			tf$reshape(shape(dim(x)['grange'] * dim(x)['sample']))
 
-			j <- colData(x)$batch == x@samples[i]
-			v <- assays(x)$counts[, j, drop = FALSE] %>%
-				summary()
-
-			v <- tf$sparse$SparseTensor(
-				 indices = v[, 1:2] %>% as.matrix() %>% tf$cast(tf$int64) - 1L,
-				 values = v[, 3] %>% tf$cast(tf$float32),
-				 dense_shape = shape(nrow(x), x@n_intervals * x@n_bins_per_window)
-			) %>%
-				tf$sparse$reshape(shape(nrow(x), x@n_intervals, x@n_bins_per_window, 1L)) %>%
-				tf$sparse$reorder()
-
-			b <- rep(x@samples[i], nrow(x)) %>%
-				factor(x@samples) %>%
-				as.numeric() %>%
-				tf$cast(tf$int64) 
-			b <- b - 1L
-
-			vplots <- c(vplots, v)
-			batch <- c(batch, b)
-		}
-
-		vplots <- tf$sparse$concat(0L, vplots)
-		batch <- batch %>% tf$concat(axis = 0L)
-
-		list(vplots = vplots, batch = batch)
+		list(vplots = v, batch = batch)
 	}
 )
 
