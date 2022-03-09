@@ -27,51 +27,32 @@ setMethod(
 		...
 	){
 
-		stopifnot(!is.null(type))
-		stopifnot(is.character(contrast))
-		stopifnot(length(contrast) == 3)
+		validate(model, x)
 
 		stopifnot(!is.null(rowData(x)[['vae_z_mean']]))
 		stopifnot(!is.null(rowData(x)[['vae_z_stddev']]))
+
+		stopifnot(!is.null(type))
+		stopifnot(is.character(contrast))
+		stopifnot(length(contrast) == 3)
 
 		field <- contrast[1]
 		control <- contrast[2]
 		treatment <- contrast[3]
 
-		stopifnot(!is.null(colData(x)[[field]]))
-		stopifnot(control %in% x@samples)
-		stopifnot(treatment %in% x@samples)
+		stopifnot(!is.null(x@dimdata[['sample']][[field]]))
+		stopifnot(control %in% x@dimdata[['sample']][[field]])
+		stopifnot(treatment %in% x@dimdata[['sample']][[field]])
 
 		if (type == 'phase'){
 			res <- results_phase(model, x, contrast, ...)
 		}else if (type == 'nucleosome'){
 			res <- results_nucleosome(model, x, contrast, ...)
 		}else if (type == 'vplots'){
-			res <- results_vplots(model, x, contrast, ...)
+			stopifnot(!is.null(rowData(x)[['predicted_nucleosome']]))
+			res <- results_vplots(x, field, treatment, control, ...)
 		}else
 			stop(sprintf('unknown type: %s', type))
-
-#		stopifnot(!is.null(type))
-
-#		stopifnot(!is.null(rowData(x)[['vae_z_mean']]))
-#		stopifnot(!is.null(rowData(x)[['vae_z_stddev']]))
-
-#		stopifnot(!is.null(x@dimdata[['sample']][[field]]))
-
-#		if (is.null(group)){
-#			group <- unique(x@dimdata[['sample']][[field]])
-#		}else{
-#			stopifnot(is.character(group))
-#			stopifnot(!any(duplicated(group)))
-#			stopifnot(all(group %in% x@dimdata[['sample']][[field]]))
-#		}
-
-#		if (type == 'vplots'){
-#			res <- results_vplots(x, field, group)
-#		}else
-#			stop(sprintf('unknown type: %s', type))
-
-#		res
 
 		res
 
@@ -169,49 +150,56 @@ results_phase <- function(model, x, contrast, width = 100L, repeats = 100L, batc
 #'
 #' @param x a Vplots object
 #' @param field The field in x@dimdata[['sample']] that defines the sample groups
-#' @param group The group labels for testing the between-group difference
+#' @param treatment the name of the numerator level for the fold change
+#' @param control the name of the denominator level for the fold change
+#' @param width Width of the centeral regions to be considered (default: 100L)
 #' @importFrom abind abind
 #' @importFrom stats p.adjust
 #'
 #' @return a GRanges object
 #'
-results_vplots <- function(x, field, group){
+results_vplots <- function(x, field, treatment, control, width = 100L){
+
+	stopifnot(is.numeric(width) && width >= 0 && width <= x@window_size)
 
 	latent_dim <- dim(rowData(x)[['vae_z_mean']])[2]
 
-	z <- lapply(1:length(group), function(i){
-		j <- x@dimdata[['sample']][[field]] == group[i]
-		rowData(x)[['vae_z_mean']][, j, , drop = FALSE] 
-	}) %>% 
-		abind(along = 2L)
+	i <- x@dimdata[['sample']][[field]] == treatment
+	z_treatment <- rowData(x)[['vae_z_mean']][, i, , drop = FALSE] 
+	z_treatment <- aperm(z_treatment, c(2L, 1L, 3L))
+	z_treatment <- colMeans(z_treatment)
+	z_stddev_treatment <- rowData(x)[['vae_z_stddev']][, i, , drop = FALSE] 
+  z_stddev_treatment  <- aperm(z_stddev_treatment, c(2L, 1L, 3L))
+  z_stddev_treatment <- colSums(z_stddev_treatment^2) %>% sqrt()
+	nucleosome_treatment <- rowData(x)[['predicted_nucleosome']][, i, , drop = FALSE]
+	nucleosome_treatment <- aperm(nucleosome_treatment, c(2L, 1L, 3L))
+	nucleosome_treatment <- colMeans(nucleosome_treatment)
 
-	z_stddev <- lapply(1:length(group), function(i){
-		j <- x@dimdata[['sample']][[field]] == group[i]
-		s <- rowData(x)[['vae_z_stddev']][, j, , drop = FALSE]^2
-		s <- aperm(s, c(2L, 1L, 3L))
-		s <- colSums(s) %>% sqrt()
-		dim(s) <- c(nrow(s), 1L, ncol(s))
-		s
-	}) %>%
-		abind(along = 2L)
+	i <- x@dimdata[['sample']][[field]] == control
+	z_control <- rowData(x)[['vae_z_mean']][, i, , drop = FALSE] 
+	z_control <- aperm(z_control, c(2L, 1L, 3L))
+	z_control <- colMeans(z_control)
+	z_stddev_control <- rowData(x)[['vae_z_stddev']][, i, , drop = FALSE] 
+  z_stddev_control <- aperm(z_stddev_control, c(2L, 1L, 3L))
+  z_stddev_control <- colSums(z_stddev_control^2) %>% sqrt()
+	nucleosome_control <- rowData(x)[['predicted_nucleosome']][, i, , drop = FALSE]
+	nucleosome_control <- aperm(nucleosome_control, c(2L, 1L, 3L))
+	nucleosome_control <- colMeans(nucleosome_control)
 
-	params <- expand.grid(control = 1:length(group), treatment = 1:length(group)) %>%
-		filter(control  < treatment)
-
-	h <- sapply(1:nrow(params), function(i){
-		treatment <- params[i, 'control']
-		control <- params[i, 'treatment']
-		((z[, treatment, ] - z[, control, ])^2 / (z_stddev[, treatment, ]^2 + z_stddev[, control, ]^2))  %>%
-			rowSums()
-	}) %>%
+	h <- ((z_treatment - z_control)^2 / (z_stddev_treatment^2 + z_stddev_control^2)) %>% 
 		rowSums()
 
-	pvalue_z <- 1 - pchisq(h, df = latent_dim * nrow(params))
-
+	pvalue_z <- 1 - pchisq(h, df = latent_dim)
 	res <- granges(x)
 	mcols(res) <- NULL
 	res$pvalue_z <- pvalue_z
 	res$padj <- p.adjust(pvalue_z)
+
+	is_center <- x@dimdata$bin$position >= -width / 2 & x@dimdata$bin$position <= width / 2
+	res$nucleosome_treatment <- rowMeans(nucleosome_treatment[, is_center, drop = FALSE])
+	res$nucleosome_control <- rowMeans(nucleosome_control[, is_center, drop = FALSE])
+	res$log_ratio <- log(res$nucleosome_treatment + .Machine$double.eps) - log(res$nucleosome_control + .Machine$double.eps)
+
 	res
 
 }
