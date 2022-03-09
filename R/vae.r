@@ -190,7 +190,7 @@ setMethod(
 	){
 
 		stopifnot(model@model$n_samples == dim(x)[['sample']])
-		stopifnot(!is.null(assays(x)$counts))
+		stopifnot(!is.null(assays(x, withDimnames = FALSE)$counts))
 
 		return(TRUE)
 
@@ -224,7 +224,7 @@ setMethod(
 
 		validate(model, x)
 
-		v <- assays(x)$counts %>%
+		v <- assays(x, withDimnames = FALSE)$counts %>%
 			summary()
 
 		v <- tf$sparse$SparseTensor(
@@ -342,6 +342,8 @@ setMethod(
 #' @param x a Vplots object
 #' @param batch_size Batch size (default: 256L)
 #' @param vplots Whether or not return predicted Vplots as assays(x)$predicted_counts
+#' @param nucleosome Whether or not return predicted nucleosome as rowData(x)$predicted_nucleosome
+#' @param fragment_size_threshold Fragment size threshold for nucleosome reads (default: 150L)
 #' @param ... Additional arguments
 #' @importFrom SummarizedExperiment assays<-
 #'
@@ -360,9 +362,15 @@ setMethod(
 		model,
 		x,
 		batch_size = 256L, # v-plot per batch
-		vplots = TRUE,
+		vplots = FALSE,
+		nucleosome = TRUE,
+		fragment_size_threshold = 150L,
 		...
 	){
+
+		stopifnot(is.numeric(fragment_size_threshold) && fragment_size_threshold >= x@fragment_size_range[1] && fragment_size_threshold <= x@fragment_size_range[2])
+
+		validate(model, x)
 
 		iter <- model %>%
 			prepare_data(x, ...) %>%
@@ -377,6 +385,11 @@ setMethod(
 			predicted_vplots <- NULL
 		}
 
+		if (nucleosome){
+			is_nucleosome <- x@dimdata$interval$center >= fragment_size_threshold
+			predicted_nucleosome  <- NULL
+		}
+
 		res <- until_out_of_range({
 			batch <- iterator_get_next(iter)
 			batch$vplots <- batch$vplots %>% 
@@ -387,6 +400,14 @@ setMethod(
 			z_stddev <- c(z_stddev, res$posterior$stddev())
 			if (vplots){
 				predicted_vplots <- c(predicted_vplots, res$vplots)
+			}
+			if (nucleosome){
+				predicted_nucleosome <- c(
+					predicted_nucleosome, 
+					res$vplots %>%
+						tf$boolean_mask(is_nucleosome, 1L) %>%
+						tf$reduce_sum(1L)
+				)
 			}
 		})
 
@@ -411,7 +432,15 @@ setMethod(
 				as.matrix()
 
 			dimnames(predicted_vplots) <- dimnames(x)
-			assays(x)$predicted_counts <- predicted_vplots
+			assays(x, withDimnames = FALSE)$predicted_counts <- predicted_vplots
+		}
+
+		if (nucleosome){
+			predicted_nucleosome <- predicted_nucleosome %>%
+				tf$concat(axis = 0L) %>%
+				tf$transpose(shape(0L, 2L, 1L))  %>%
+				as.array()
+			rowData(x)[['predicted_nucleosome']] <- predicted_nucleosome
 		}
 
 		x
