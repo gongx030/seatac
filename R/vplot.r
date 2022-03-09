@@ -34,9 +34,9 @@ setMethod(
 #'
 vplot_core <- function(x, field, ncol = 2){
 
-	stopifnot(!is.null(assays(x)[[field]]))
+	stopifnot(!is.null(assays(x, withDimnames = FALSE)[[field]]))
 
-	z <- assays(x)[[field]]
+	z <- assays(x, withDimnames = FALSE)[[field]]
 
 	df <- do.call('rbind', lapply(1:dim(x)['sample'], function(i){
 		j <-  colData(x)$sample == i
