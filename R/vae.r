@@ -477,6 +477,9 @@ setMethod(
 		...
 	){
 
+		stopifnot(is.numeric(width) && width >= 0 && width <= x@window_size)
+		validate(model, x)
+
 		d <- model %>%
 			prepare_data(x, ...) %>%
 			tensor_slices_dataset() %>%
@@ -484,7 +487,7 @@ setMethod(
 
 		iter <- d %>% make_iterator_one_shot()
 
-		is_center <- x@positions >= -width / 2 & x@positions <= width /2
+		is_center <- x@dimdata$bin$position >= -width / 2 & x@dimdata$bin$position <= width / 2
 
 		fragment_size <- NULL
 		predicted_fragment_size <- NULL
@@ -495,18 +498,24 @@ setMethod(
 				tf$sparse$to_dense() %>%
 				scale01()
 			res <- model@model(batch, training = FALSE)
-			fs <- batch$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_sum(2L) %>% tf$squeeze(2L)
+			fs <- batch$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_sum(2L) 
 			w <- fs %>% tf$reduce_sum(1L, keepdims = TRUE)
 			fs <- fs / tf$where(w > 0, w, tf$ones_like(w))
-			fs_pred <- res$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_mean(2L) %>% tf$squeeze(2L)
+			fs_pred <- res$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_mean(2L) 
 			fragment_size <- c(fragment_size, fs)
 			predicted_fragment_size <- c(predicted_fragment_size, fs_pred)
 		})
 
-		fragment_size <- fragment_size %>% tf$concat(axis = 0L)
-		predicted_fragment_size <- predicted_fragment_size %>% tf$concat(axis = 0L)
-		rowData(x)[['fragment_size']] <- as.matrix(fragment_size)
-		rowData(x)[['predicted_fragment_size']] <- as.matrix(predicted_fragment_size)
+		fragment_size <- fragment_size %>% 
+			tf$concat(axis = 0L) %>%
+			tf$transpose(shape(0L, 2L, 1L)) %>%
+			as.array()
+		predicted_fragment_size <- predicted_fragment_size %>% 
+			tf$concat(axis = 0L) %>%
+			tf$transpose(shape(0L, 2L, 1L)) %>%
+			as.array()
+		rowData(x)[['fragment_size']] <- fragment_size
+		rowData(x)[['predicted_fragment_size']] <- predicted_fragment_size
 		x
 	}
 )
