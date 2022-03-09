@@ -112,9 +112,9 @@ setGeneric('predict_vplots', function(model, x, ...) standardGeneric('predict_vp
 #'
 setGeneric('read_fragment_size_profile', function(x, filename, genome, ...) standardGeneric('read_fragment_size_profile'))
 
-#' read_fragment_size_profile
+#' load_model
 #'
-#' The generic function of read_fragment_size_profile
+#' The generic function of load_model
 #'
 #' @param model a Model
 #' @param filename Filename of the pretrained model
