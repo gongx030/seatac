@@ -1,7 +1,8 @@
 #' VaeModel
 #' 
-#' A VAE model for V-plot
+#' A VAE model for V-plot of multiple ATAC-seq datasets. This model takes the stacked V-plots of the same genomic regions as the input. 
 #'
+#' @param n_samples Number of samples (default: 1L)
 #' @param latent_dim Latent dimension (default: 10L)
 #' @param block_size Block size in base pairs (default: 640L)
 #' @param bin_size Bin size in base pairs(default: 5L) 
@@ -12,7 +13,6 @@
 #' @param upsample_layers Upsample layers (default: 4L)
 #' @param fragment_size_range  Fragment size ranges (default: c(0L, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 10L)
-#' @param n_batches Number of batches (default: 1L)
 #' @param strides Convolution strides 
 #' @param momentum Momentum in BatchNormalization layer (default: 0.8)
 #' @param rate Dropout rate (default: 0.1)
@@ -21,6 +21,7 @@
 #' @export
 #'
 VaeModel <- function(
+	n_samples = 1L,
 	latent_dim = 10L,
 	block_size = 640L,
 	bin_size = 5L,
@@ -31,7 +32,6 @@ VaeModel <- function(
 	upsample_layers = 4L,
 	fragment_size_range  = c(0L, 320L),
 	fragment_size_interval = 10L,
-	n_batches = 1L,
 	strides = c(2L, 2L),
 	momentum = 0.8,
 	rate = 0.1,
@@ -43,6 +43,7 @@ VaeModel <- function(
 		if (block_size %% bin_size != 0)
 			stop('block_size must be a multiple of bin_size')
 
+		self$n_samples <- n_samples
 		self$latent_dim <- latent_dim
 		self$block_size <- block_size
 		self$bin_size <- bin_size
@@ -55,7 +56,6 @@ VaeModel <- function(
 		self$breaks <- tf$constant(br)
 		self$centers <- tf$constant((br[-1] + br[-length(br)]) / 2)
 		self$positions <- tf$cast(seq(0 + bin_size / 2, block_size - bin_size / 2, by = bin_size) - (block_size / 2), tf$float32)
-		self$n_batches <- n_batches
 
 		stopifnot(self$n_intervals %% strides[1]^upsample_layers == 0)
 		stopifnot(self$n_bins_per_block %% strides[2]^upsample_layers == 0)
@@ -76,9 +76,9 @@ VaeModel <- function(
 			tf$keras$layers$Flatten()
 		))
 
-		self$dense_1 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
+		self$dense_1 <- tf$keras$layers$Dense(units = (self$n_samples + 1L) * self$latent_dim)
 
-		self$dense_fragment_size <- tf$keras$layers$Embedding(n_batches,  self$n_intervals)
+		self$dense_fragment_size <- tf$keras$layers$Embedding(n_samples,  self$n_intervals)
 
 		interval_dim0 <- as.integer(self$n_intervals / strides[1]^upsample_layers)
 		window_dim0 <- as.integer(self$n_bins_per_block / strides[2]^upsample_layers)
@@ -108,7 +108,7 @@ VaeModel <- function(
 		))
 
 		self$prior <- tfp$distributions$MultivariateNormalDiag(
-			loc  = tf$zeros(shape(latent_dim)),
+			loc  = tf$zeros(shape(self$n_samples, latent_dim)),
 			scale_identity_multiplier = 1
 		)
 
@@ -120,19 +120,20 @@ VaeModel <- function(
 			# otherwise it will complain about unknown channel dimensions. 
 			# this will only happen in compiled function (e.g. after the tf_function call)
 			x$vplots <- x$vplots %>% 
-				tf$reshape(shape(batch_size, self$n_intervals, self$n_bins_per_block, 1L))
+				tf$reshape(shape(batch_size, self$n_intervals, self$n_bins_per_block, self$n_samples))
 
 			fragment_size <- x$batch %>% 
 				self$dense_fragment_size() %>%
-				tf$expand_dims(2L) %>%
-				tf$expand_dims(3L)
+				tf$transpose(shape(0L, 2L, 1L)) %>%
+				tf$expand_dims(2L) 
 
 			y <- (x$vplots + fragment_size) %>% 
 				self$encoder() %>%
-				self$dense_1()
+				self$dense_1() %>%
+				tf$reshape(shape(batch_size, self$n_samples + 1L, self$latent_dim))
 
-			q_m <- y[, 1:self$latent_dim]
-			q_v <- tf$nn$softplus(y[, (self$latent_dim + 1):(2 * self$latent_dim)] + 1e-3)
+			q_m <- y[, 1:self$n_samples, , drop = FALSE]
+			q_v <- tf$nn$softplus(y[, self$n_samples + 1L, , drop = FALSE] + 1e-3)
 
 			posterior <- tfp$distributions$MultivariateNormalDiag(
 				loc = q_m,
@@ -141,15 +142,18 @@ VaeModel <- function(
 
 			if (training){
 				z <- posterior$sample()
-				b <- x$batch %>% tf$one_hot(self$n_batches)
+				b <- x$batch %>% tf$one_hot(self$n_samples)
 			}else{
 				z <- posterior$mean()
-				b <- tf$zeros(shape(z$shape[[1]]), dtype = tf$int64) %>% tf$one_hot(self$n_batches)
+				b <- tf$zeros(shape(batch_size, self$n_samples), dtype = tf$int64) %>% tf$one_hot(self$n_samples)
 			}
 
 			x_pred <- list(z, b) %>% 
-				tf$concat(1L) %>% 
+				tf$concat(2L) %>% 
+				tf$reshape(shape(batch_size * self$n_samples, self$latent_dim + self$n_samples)) %>%
 				self$decoder(training = training) %>%
+				tf$reshape(shape(batch_size, self$n_samples, self$n_intervals, self$n_bins_per_block)) %>%
+				tf$transpose(shape(0L, 2L, 3L, 1L)) %>%
 				tf$keras$activations$softmax(1L)
 
 			list(
@@ -160,6 +164,38 @@ VaeModel <- function(
 		}
 	})
 }
+
+
+#' validate
+#'
+#' Validate the input data for current model
+#'
+#' @param model a VaeModel object
+#' @param x a Vplots object
+#' @param ... Other arguments passed to prepare_data. 
+#'
+#' @return a logical value of whether the data are valid.
+#'
+#' @export
+#'
+setMethod(
+	'validate',
+	signature(
+		model = 'VaeModel',
+		x = 'Vplots'
+	),
+	function(
+		model,
+		x
+	){
+
+		stopifnot(model@model$n_samples == dim(x)[['sample']])
+		stopifnot(!is.null(assays(x)$counts))
+
+		return(TRUE)
+
+	}
+)
 
 
 #' prepare_data
@@ -173,7 +209,6 @@ VaeModel <- function(
 #' @return a list that include `vplots` and `batch`
 #' 
 #' @export
-#' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
 	'prepare_data',
@@ -187,6 +222,8 @@ setMethod(
 		...
 	){
 
+		validate(model, x)
+
 		v <- assays(x)$counts %>%
 			summary()
 
@@ -196,14 +233,12 @@ setMethod(
 			dense_shape = shape(dim(x)['grange'],  dim(x)['sample'] * dim(x)['interval'] * dim(x)['bin'])
 		) %>%
 			tf$sparse$reshape(dim(x)) %>%
-			tf$sparse$transpose(shape(1L, 0L, 2L, 3L)) %>%
-			tf$sparse$reshape(shape(dim(x)['sample'] * dim(x)['grange'],  dim(x)['interval'], dim(x)['bin'], 1L)) %>%
+			tf$sparse$transpose(shape(0L, 2L, 3L, 1L)) %>%
 			tf$sparse$reorder() 
 
 		batch <- tf$range(dim(x)['sample']) %>%
-			tf$reshape(shape(dim(x)['sample'], 1L)) %>%
-			tf$`repeat`(nrow(x), axis = 1L) %>%
-			tf$reshape(shape(dim(x)['grange'] * dim(x)['sample']))
+			tf$reshape(shape(1L, dim(x)['sample'])) %>%
+			tf$`repeat`(nrow(x), axis = 0L)
 
 		list(vplots = v, batch = batch)
 	}
@@ -308,10 +343,12 @@ setMethod(
 #' @param batch_size Batch size (default: 256L)
 #' @param vplots Whether or not return predicted Vplots as assays(x)$predicted_counts
 #' @param ... Additional arguments
+#' @importFrom SummarizedExperiment assays<-
 #'
 #' @return a Vplots object 
 #'
 #' @export
+#' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
 	'predict',
@@ -326,7 +363,6 @@ setMethod(
 		vplots = TRUE,
 		...
 	){
-
 
 		iter <- model %>%
 			prepare_data(x, ...) %>%
@@ -357,35 +393,25 @@ setMethod(
 		z <- z %>% tf$concat(axis = 0L)
 		z_stddev <- z_stddev %>% tf$concat(axis = 0L)
 
-
-		z <- z %>% 
-			tf$reshape(shape(dim(x)[['sample']], dim(x)[['grange']], model@model$latent_dim)) %>%
-			tf$transpose(shape(1L, 0L, 2L)) %>%
-			as.array()
-
-		z_stddev  <- z_stddev  %>% 
-			tf$reshape(shape(dim(x)[['sample']], dim(x)[['grange']], model@model$latent_dim)) %>%
-			tf$transpose(shape(1L, 0L, 2L)) %>%
-			as.array()
+		z <- z %>%  as.array()
+		z_stddev  <- z_stddev  %>% as.array()
 
 		dimnames(z)[1:2] <- list(rownames(x), x@dimdata$sample$name)
 		dimnames(z_stddev)[1:2] <- list(rownames(x), x@dimdata$sample$name)
 
-		rowData(x)[['vae_z_mean']] <- as.array(z)
-		rowData(x)[['vae_z_stddev']] <- as.array(z_stddev)
+		rowData(x)[['vae_z_mean']] <- z
+		rowData(x)[['vae_z_stddev']] <- z_stddev
 
 		if (vplots){
 
 			predicted_vplots <- predicted_vplots %>% 
 				tf$concat(axis = 0L) %>%
-				tf$reshape(shape(dim(x)['sample'], dim(x)['grange'], dim(x)['interval'] * dim(x)['bin'])) %>%
-				tf$transpose(shape(1L, 0L, 2L)) %>%
+				tf$transpose(shape(0L, 3L, 1L, 2L)) %>%
 				tf$reshape(shape(dim(x)[1], prod(dim(x)[-1]))) %>%
 				as.matrix()
 
 			dimnames(predicted_vplots) <- dimnames(x)
-			assays(x, withDimnames = FALSE)$predicted_counts <- predicted_vplots
-
+			assays(x)$predicted_counts <- predicted_vplots
 		}
 
 		x
