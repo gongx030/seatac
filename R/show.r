@@ -16,6 +16,7 @@ setMethod(
 		sprintf('class: %s', class(object)) %>% message()
 		sprintf('dim: %s', paste(dim(object), collapse = ' ')) %>% message()
 		sprintf('assays(%d): %s', length(assays(object, withDimnames = FALSE)), paste0(names(assays(object, withDimnames = FALSE)), collapse = ' ')) %>% message()
+		sprintf('rowData(%d): %s', ncol(rowData(object)), paste0(colnames(rowData(object)), collapse = ' ')) %>% message()
 		sprintf('dimdata:') %>% message()
 		for (i in 1:length(object@dimdata)){
 			sprintf('%s: names(%d): %s', names(object@dimdata)[i], ncol(object@dimdata[[i]]), paste(colnames(object@dimdata[[i]]), collapse = ' ')) %>% message()
