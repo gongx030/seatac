@@ -90,16 +90,6 @@ setGeneric('predict', function(model, x, ...) standardGeneric('predict'))
 #'
 setGeneric('scale01', function(x, ...) standardGeneric('scale01'))
 
-#' test_accessibility
-#'
-#' The generic function of test_accessibility
-#'
-#' @param model a model object
-#' @param x a data object that include the Vplot information
-#' @param ... Other arguments
-#'
-setGeneric('test_accessibility', function(model, x, ...) standardGeneric('test_accessibility'))
-
 #' predict_vplots
 #'
 #' The generic function of predict_vplots
