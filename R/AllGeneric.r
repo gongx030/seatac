@@ -101,17 +101,6 @@ setGeneric('scale01', function(x, ...) standardGeneric('scale01'))
 setGeneric('predict_vplots', function(model, x, ...) standardGeneric('predict_vplots'))
 
 
-#' predict_nucleosome
-#'
-#' The generic function of predict_nucleosome
-#'
-#' @param model a model object
-#' @param x a data object that include the Vplot information
-#' @param ... Other arguments
-#'
-setGeneric('predict_nucleosome', function(model, x, ...) standardGeneric('predict_nucleosome'))
-
-
 #' read_fragment_size_profile
 #'
 #' The generic function of read_fragment_size_profile
