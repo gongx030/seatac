@@ -45,6 +45,3 @@ setClass(
 #'
 setClass('VaeModel', contains = 'Model')
 
-#' mVaeModel
-#'
-setClass('mVaeModel', contains = 'Model')
