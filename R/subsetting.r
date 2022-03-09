@@ -12,6 +12,7 @@ setMethod(
 
 		if (!missing(i)){
 			x@dimdata[['grange']] <- x@dimdata[['grange']][i, , drop = FALSE]
+			# need to update the id
 		}
 
 		callNextMethod(x, i, j, ..., drop = drop)
