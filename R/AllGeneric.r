@@ -183,3 +183,13 @@ setGeneric('results', function(model, x, ...) standardGeneric('results'))
 #'
 setGeneric('call_nucleosomes', function(model, x, ...) standardGeneric('call_nucleosomes'))
 
+
+#' validate
+#'
+#' The generic function of validate
+#'
+#' @param model a Model
+#' @param x a data object that include the Vplot information
+#'
+setGeneric('validate', function(model, x) standardGeneric('validate'))
+
