@@ -173,17 +173,6 @@ setGeneric('add_genomic_features', function(x, y, ...) standardGeneric('add_geno
 #'
 setGeneric('results', function(model, x, ...) standardGeneric('results'))
 
-#' call_nucleosomes
-#'
-#' The generic function of call_nucleosomes
-#'
-#' @param model a Model
-#' @param x a data object that include the Vplot information
-#' @param ... Other arguments
-#'
-setGeneric('call_nucleosomes', function(model, x, ...) standardGeneric('call_nucleosomes'))
-
-
 #' validate
 #'
 #' The generic function of validate
