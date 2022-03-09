@@ -393,7 +393,6 @@ setMethod(
 )
 
 
-
 #' predicted_fragment_size
 #'
 #' Predict fragment size at the center of the Vplot
