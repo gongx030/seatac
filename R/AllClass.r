@@ -17,8 +17,6 @@ setClass(
 		fragment_size_interval = 'integer',
 		bin_size = 'integer',
 		window_size = 'integer',
-		n_intervals = 'integer',
-		n_bins_per_window = 'integer',
 		dimdata = 'list'
 	),
 	contains = 'RangedSummarizedExperiment',

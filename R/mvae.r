@@ -1,6 +1,6 @@
 #' mVaeModel
 #' 
-#' A VAE model for V-plot of multiple ATAC-seq datasets
+#' A VAE model for V-plot of multiple ATAC-seq datasets. This model takes the stacked V-plots of the same genomic regions as the input. 
 #'
 #' @param n_samples Number of samples (default: 1L)
 #' @param latent_dim Latent dimension (default: 10L)
@@ -19,7 +19,6 @@
 #' @param name Model name
 #'
 #' @export
-#' @author Wuming Gong (gongx030@umn.edu)
 #'
 mVaeModel <- function(
 	n_samples = 1L,
@@ -120,7 +119,6 @@ mVaeModel <- function(
 			# when x$vplots was originally sparse, it appears we need to specify the dimensions here
 			# otherwise it will complain about unknown channel dimensions. 
 			# this will only happen in compiled function (e.g. after the tf_function call)
-
 			x$vplots <- x$vplots %>% 
 				tf$reshape(shape(batch_size, self$n_intervals, self$n_bins_per_block, self$n_samples))
 
@@ -179,7 +177,6 @@ mVaeModel <- function(
 #' @return a list that include `vplots` and `batch`
 #' 
 #' @export
-#' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
 	'prepare_data',
@@ -193,27 +190,20 @@ setMethod(
 		...
 	){
 
-		d <- list()
-
-		vplots <- NULL
-		batch <- NULL
-
 		v <- assays(x)$counts %>%
 			summary()
 
 		v <- tf$sparse$SparseTensor(
 			indices = v[, 1:2] %>% as.matrix() %>% tf$cast(tf$int64) - 1L,
 			values = v[, 3] %>% tf$cast(tf$float32),
-			dense_shape = shape(nrow(x), x@n_intervals * x@n_bins_per_window * x@n_samples)
+			dense_shape = shape(dim(x)['grange'],  dim(x)['sample'] * dim(x)['interval'] * dim(x)['bin'])
 		) %>%
-			tf$sparse$reshape(shape(nrow(x), x@n_samples, x@n_intervals, x@n_bins_per_window)) %>%
+			tf$sparse$reshape(dim(x)) %>%
 			tf$sparse$transpose(shape(0L, 2L, 3L, 1L)) %>%
 			tf$sparse$reorder() 
 
-		# The batch indicator is not really necessary if every channel represents a separate batch
-		# However, in the future, the batch indicator will allow us to analyze data with multiple replicates from the same batch
-		batch <- tf$range(x@n_samples) %>%
-			tf$reshape(shape(1L, x@n_samples)) %>%
+		batch <- tf$range(dim(x)['sample']) %>%
+			tf$reshape(shape(1L, dim(x)['sample'])) %>%
 			tf$`repeat`(nrow(x), axis = 0L)
 
 		list(vplots = v, batch = batch)
@@ -340,7 +330,6 @@ setMethod(
 		...
 	){
 
-
 		iter <- model %>%
 			prepare_data(x, ...) %>%
 			tensor_slices_dataset() %>%
@@ -370,12 +359,11 @@ setMethod(
 		z <- z %>% tf$concat(axis = 0L)
 		z_stddev <- z_stddev %>% tf$concat(axis = 0L)
 
-
 		z <- z %>%  as.array()
 		z_stddev  <- z_stddev  %>% as.array()
 
-		dimnames(z)[1:2] <- list(rownames(x), x@samples)
-		dimnames(z_stddev)[1:2] <- list(rownames(x), x@samples)
+		dimnames(z)[1:2] <- list(rownames(x), x@dimdata$sample$name)
+		dimnames(z_stddev)[1:2] <- list(rownames(x), x@dimdata$sample$name)
 
 		rowData(x)[['vae_z_mean']] <- z
 		rowData(x)[['vae_z_stddev']] <- z_stddev
@@ -385,7 +373,7 @@ setMethod(
 			predicted_vplots <- predicted_vplots %>% 
 				tf$concat(axis = 0L) %>%
 				tf$transpose(shape(0L, 3L, 1L, 2L)) %>%
-				tf$reshape(shape(nrow(x), x@n_samples * x@n_intervals * x@n_bins_per_window)) %>%
+				tf$reshape(shape(dim(x)[1], prod(dim(x)[-1]))) %>%
 				as.matrix()
 
 			dimnames(predicted_vplots) <- dimnames(x)

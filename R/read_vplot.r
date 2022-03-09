@@ -41,7 +41,8 @@ setMethod(
 
 		se <- Reduce('cbind', se)
 		se@dimdata[['sample']] <- DataFrame(id = 1:length(filenames), filename = filenames, name = names(filenames))
-		colData(se)$sample <- factor(rep(names(filenames), each = nrow(x@dimdata)[['bin']]* nrow(x@dimdata[['interval']])), names(filenames))
+		colData(se)$sample <- factor(rep(names(filenames), each = nrow(se@dimdata[['bin']])* nrow(se@dimdata[['interval']])), names(filenames)) %>% 
+			as.numeric()
 		se
 	}
 
@@ -217,11 +218,11 @@ read_vplot_core <- function(
 		sample = DataFrame(
 		), # dim 2: samples
 		interval = DataFrame(
-			id = 1:n_intervals
+			id = 1:n_intervals,
+			center = centers
 		), # dim 3: intervals (fragment size)
 		bin = DataFrame(
 			id = 1:n_bins_per_window,
-			center = centers,
 			position = seq(bin_size, window_size, by = bin_size) - (window_size / 2)
 		) # dim 4: bins (genome wise)
 	)

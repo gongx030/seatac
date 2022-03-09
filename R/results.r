@@ -31,6 +31,9 @@ setMethod(
 		stopifnot(is.character(contrast))
 		stopifnot(length(contrast) == 3)
 
+		stopifnot(!is.null(rowData(x)[['vae_z_mean']]))
+		stopifnot(!is.null(rowData(x)[['vae_z_stddev']]))
+
 		field <- contrast[1]
 		control <- contrast[2]
 		treatment <- contrast[3]
@@ -45,6 +48,62 @@ setMethod(
 			res <- results_nucleosome(model, x, contrast, ...)
 		}else if (type == 'vplots'){
 			res <- results_vplots(model, x, contrast, ...)
+		}else
+			stop(sprintf('unknown type: %s', type))
+
+		res
+
+	}
+)
+
+
+#' results
+#'
+#' Test the difference between multiple Vplots
+#'
+#' @param model a trained mVaeModel object
+#' @param x a Vplots object
+#' @param type Tesing type ('vplots')
+#' @param field The field in x@dimdata[['sample']] that defines the sample groups
+#' @param group The group labels for testing the between-group difference
+#' @param ... Other arguments
+#'
+#' @return a GRanges object
+#'
+#' @export
+#'
+setMethod(
+	'results',
+	signature(
+		model = 'mVaeModel',
+		x = 'Vplots'
+	),
+	function(
+		model, 
+		x,
+		type = 'vplots',
+		field = NULL,
+		group = NULL,
+		...
+	){
+
+		stopifnot(!is.null(type))
+
+		stopifnot(!is.null(rowData(x)[['vae_z_mean']]))
+		stopifnot(!is.null(rowData(x)[['vae_z_stddev']]))
+
+		stopifnot(!is.null(x@dimdata[['sample']][[field]]))
+
+		if (is.null(group)){
+			group <- unique(x@dimdata[['sample']][[field]])
+		}else{
+			stopifnot(is.character(group))
+			stopifnot(!any(duplicated(group)))
+			stopifnot(all(group %in% x@dimdata[['sample']][[field]]))
+		}
+
+		if (type == 'vplots'){
+			res <- results_vplots(x, field, group)
 		}else
 			stop(sprintf('unknown type: %s', type))
 
@@ -140,35 +199,53 @@ results_phase <- function(model, x, contrast, width = 100L, repeats = 100L, batc
 
 #' results_vplots
 #'
-#' Test the difference of between two Vplots
+#' Test the difference of Vplots by a Chi-squared test
 #'
-#' @param model a trained VaeModel object
 #' @param x a Vplots object
-#' @param contrast this argument species a character vector with exactly three elements: the name of a factor in the design formula, the name of the numerator level for the fold change, and the name of the denominator level for the fold change (simplest case)
-#' @param batch_size Batch size (default: 128L)
+#' @param field The field in x@dimdata[['sample']] that defines the sample groups
+#' @param group The group labels for testing the between-group difference
+#' @importFrom abind abind
+#' @importFrom stats p.adjust
 #'
 #' @return a GRanges object
 #'
-#' @author Wuming Gong (gongx030@umn.edu)
-#'
-results_vplots <- function(model, x, contrast, batch_size = 128L){
+results_vplots <- function(x, field, group){
 
-	field <- contrast[1]
-	control <- contrast[2]
-	treatment <- contrast[3]
+	latent_dim <- dim(rowData(x)[['vae_z_mean']])[2]
 
-	z_control <- rowData(x)[['vae_z_mean']][, control, ]
-	z_control_stddev <- rowData(x)[['vae_z_stddev']][, control, ]
-	z_treatment <- rowData(x)[['vae_z_mean']][, treatment, ]
-	z_treatment_stddev <- rowData(x)[['vae_z_stddev']][, treatment, ]
+	z <- lapply(1:length(group), function(i){
+		j <- x@dimdata[['sample']][[field]] == group[i]
+		rowData(x)[['vae_z_mean']][, j, , drop = FALSE] 
+	}) %>% 
+		abind(along = 2L)
 
-	h <- ((z_treatment - z_control)^2 / (z_control_stddev^2 + z_treatment_stddev^2)) %>%
+	z_stddev <- lapply(1:length(group), function(i){
+		j <- x@dimdata[['sample']][[field]] == group[i]
+		s <- rowData(x)[['vae_z_stddev']][, j, , drop = FALSE]^2
+		s <- aperm(s, c(2L, 1L, 3L))
+		s <- colSums(s) %>% sqrt()
+		dim(s) <- c(nrow(s), 1L, ncol(s))
+		s
+	}) %>%
+		abind(along = 2L)
+
+	params <- expand.grid(control = 1:length(group), treatment = 1:length(group)) %>%
+		filter(control  < treatment)
+
+	h <- sapply(1:nrow(params), function(i){
+		treatment <- params[i, 'control']
+		control <- params[i, 'treatment']
+		((z[, treatment, ] - z[, control, ])^2 / (z_stddev[, treatment, ]^2 + z_stddev[, control, ]^2))  %>%
+			rowSums()
+	}) %>%
 		rowSums()
-	pvalue_z <- 1 - pchisq(h, df = model@model$latent_dim)
+
+	pvalue_z <- 1 - pchisq(h, df = latent_dim * nrow(params))
 
 	res <- granges(x)
 	mcols(res) <- NULL
 	res$pvalue_z <- pvalue_z
+	res$padj <- p.adjust(pvalue_z)
 	res
 
 }

@@ -38,16 +38,22 @@ vplot_core <- function(x, field, ncol = 2){
 
 	z <- assays(x)[[field]]
 
-	df <- do.call('rbind', lapply(1:x@n_samples, function(i){
-		zi <- z[, colData(x)$batch == x@samples[i], drop = FALSE]
+	df <- do.call('rbind', lapply(1:dim(x)['sample'], function(i){
+		j <-  colData(x)$sample == i
+		zi <- z[, j, drop = FALSE]
 		w <- 1 / rowSums(zi)
 		w[is.infinite(w)] <- 0
 		zi <- Diagonal(x = w) %*% zi
 		zi <- colSums(zi)
 		zi <- zi / sum(zi)
-		data.frame(value = zi, bin = x@positions[colData(x)$bin], interval = x@centers[colData(x)$interval], sample = x@samples[i])
+		data.frame(
+			value = zi, 
+			bin = x@dimdata$bin$position[colData(x)$bin][j], 
+			interval = x@dimdata$interval$center[colData(x)$interval][j], 
+			sample = x@dimdata$sample$name[colData(x)$sample][j]
+		)
 	}))	%>%
-		mutate(sample = factor(sample, x@samples)) 
+		mutate(sample = factor(sample, x@dimdata$sample$name))
 
 	df %>%
 		ggplot(aes(x = bin, y = interval, fill = value)) +
@@ -62,8 +68,8 @@ vplot_core <- function(x, field, ncol = 2){
 				expand = c(0, 0)
 			) + 
 			scale_y_continuous(
-				breaks = seq(0,  x@fragment_size_range[2], by = 100L),
-				limits = c(0, max(x@centers)),  
+				breaks = seq(x@fragment_size_range[1],  x@fragment_size_range[2], by = 100L),
+				limits = range(x@fragment_size_range),
 				expand = c(0, 0)
 			) + 
 				xlab('') + ylab('fragment size') + ggtitle(field)

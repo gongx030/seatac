@@ -195,7 +195,9 @@ setMethod(
 			values = v[, 3] %>% tf$cast(tf$float32),
 			dense_shape = shape(dim(x)['grange'],  dim(x)['sample'] * dim(x)['interval'] * dim(x)['bin'])
 		) %>%
-			tf$sparse$reshape(shape(dim(x)['grange'] * dim(x)['sample'],  dim(x)['interval'], dim(x)['bin'], 1L)) %>%
+			tf$sparse$reshape(dim(x)) %>%
+			tf$sparse$transpose(shape(1L, 0L, 2L, 3L)) %>%
+			tf$sparse$reshape(shape(dim(x)['sample'] * dim(x)['grange'],  dim(x)['interval'], dim(x)['bin'], 1L)) %>%
 			tf$sparse$reorder() 
 
 		batch <- tf$range(dim(x)['sample']) %>%
@@ -310,7 +312,6 @@ setMethod(
 #' @return a Vplots object 
 #'
 #' @export
-#' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
 	'predict',
@@ -356,34 +357,35 @@ setMethod(
 		z <- z %>% tf$concat(axis = 0L)
 		z_stddev <- z_stddev %>% tf$concat(axis = 0L)
 
+
 		z <- z %>% 
-			tf$reshape(shape(x@n_samples, nrow(x), model@model$latent_dim)) %>%
+			tf$reshape(shape(dim(x)[['sample']], dim(x)[['grange']], model@model$latent_dim)) %>%
 			tf$transpose(shape(1L, 0L, 2L)) %>%
 			as.array()
 
 		z_stddev  <- z_stddev  %>% 
-			tf$reshape(shape(x@n_samples, nrow(x), model@model$latent_dim)) %>%
+			tf$reshape(shape(dim(x)[['sample']], dim(x)[['grange']], model@model$latent_dim)) %>%
 			tf$transpose(shape(1L, 0L, 2L)) %>%
 			as.array()
 
-		dimnames(z)[1:2] <- list(rownames(x), x@samples)
-		dimnames(z_stddev)[1:2] <- list(rownames(x), x@samples)
+		dimnames(z)[1:2] <- list(rownames(x), x@dimdata$sample$name)
+		dimnames(z_stddev)[1:2] <- list(rownames(x), x@dimdata$sample$name)
 
 		rowData(x)[['vae_z_mean']] <- as.array(z)
 		rowData(x)[['vae_z_stddev']] <- as.array(z_stddev)
-
 
 		if (vplots){
 
 			predicted_vplots <- predicted_vplots %>% 
 				tf$concat(axis = 0L) %>%
-				tf$reshape(shape(x@n_samples, nrow(x), x@n_intervals * x@n_bins_per_window)) %>%
+				tf$reshape(shape(dim(x)['sample'], dim(x)['grange'], dim(x)['interval'] * dim(x)['bin'])) %>%
 				tf$transpose(shape(1L, 0L, 2L)) %>%
-				tf$reshape(shape(nrow(x), x@n_samples * x@n_intervals * x@n_bins_per_window)) %>%
+				tf$reshape(shape(dim(x)[1], prod(dim(x)[-1]))) %>%
 				as.matrix()
 
 			dimnames(predicted_vplots) <- dimnames(x)
-			assays(x)$predicted_counts <- predicted_vplots
+			assays(x, withDimnames = FALSE)$predicted_counts <- predicted_vplots
+
 		}
 
 		x
