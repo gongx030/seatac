@@ -4,14 +4,14 @@
 \alias{vplot_core}
 \title{vplot_core}
 \usage{
-vplot_core(x, field, ...)
+vplot_core(x, field, ncol = 2)
 }
 \arguments{
 \item{x}{a Vplots object}
 
-\item{field}{The assays field that is used for Vplots (default: 'counts')}
+\item{field}{The assays field(s) that is used for Vplots (default: 'counts')}
 
-\item{...}{Arguments passed to image()}
+\item{ncol}{number of columns (default: 2L)}
 }
 \description{
 Plot a Vplot object

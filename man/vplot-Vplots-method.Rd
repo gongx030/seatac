@@ -4,14 +4,14 @@
 \alias{vplot,Vplots-method}
 \title{vplot}
 \usage{
-\S4method{vplot}{Vplots}(x, field = "counts", ...)
+\S4method{vplot}{Vplots}(x, field = "counts", ncol = 2L)
 }
 \arguments{
 \item{x}{a Vplots object}
 
 \item{field}{The assays field that is used for Vplots (default: 'counts')}
 
-\item{...}{Arguments passed to vplot_core()}
+\item{ncol}{number of columns (default: 2L)}
 }
 \description{
 Plot a Vplot object

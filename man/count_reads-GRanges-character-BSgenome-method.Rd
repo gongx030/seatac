@@ -9,7 +9,7 @@
 \arguments{
 \item{x}{a GRanges object defining the peaks; the width must be the same for all peaks.}
 
-\item{filenames}{BAM file names.}
+\item{filenames}{BAM file name(s).}
 
 \item{genome}{a BS genome object such as BSgenome.Mmusculus.UCSC.mm10}
 
