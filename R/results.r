@@ -51,61 +51,27 @@ setMethod(
 		}else
 			stop(sprintf('unknown type: %s', type))
 
-		res
+#		stopifnot(!is.null(type))
 
-	}
-)
+#		stopifnot(!is.null(rowData(x)[['vae_z_mean']]))
+#		stopifnot(!is.null(rowData(x)[['vae_z_stddev']]))
 
+#		stopifnot(!is.null(x@dimdata[['sample']][[field]]))
 
-#' results
-#'
-#' Test the difference between multiple Vplots
-#'
-#' @param model a trained mVaeModel object
-#' @param x a Vplots object
-#' @param type Tesing type ('vplots')
-#' @param field The field in x@dimdata[['sample']] that defines the sample groups
-#' @param group The group labels for testing the between-group difference
-#' @param ... Other arguments
-#'
-#' @return a GRanges object
-#'
-#' @export
-#'
-setMethod(
-	'results',
-	signature(
-		model = 'mVaeModel',
-		x = 'Vplots'
-	),
-	function(
-		model, 
-		x,
-		type = 'vplots',
-		field = NULL,
-		group = NULL,
-		...
-	){
+#		if (is.null(group)){
+#			group <- unique(x@dimdata[['sample']][[field]])
+#		}else{
+#			stopifnot(is.character(group))
+#			stopifnot(!any(duplicated(group)))
+#			stopifnot(all(group %in% x@dimdata[['sample']][[field]]))
+#		}
 
-		stopifnot(!is.null(type))
+#		if (type == 'vplots'){
+#			res <- results_vplots(x, field, group)
+#		}else
+#			stop(sprintf('unknown type: %s', type))
 
-		stopifnot(!is.null(rowData(x)[['vae_z_mean']]))
-		stopifnot(!is.null(rowData(x)[['vae_z_stddev']]))
-
-		stopifnot(!is.null(x@dimdata[['sample']][[field]]))
-
-		if (is.null(group)){
-			group <- unique(x@dimdata[['sample']][[field]])
-		}else{
-			stopifnot(is.character(group))
-			stopifnot(!any(duplicated(group)))
-			stopifnot(all(group %in% x@dimdata[['sample']][[field]]))
-		}
-
-		if (type == 'vplots'){
-			res <- results_vplots(x, field, group)
-		}else
-			stop(sprintf('unknown type: %s', type))
+#		res
 
 		res
 
