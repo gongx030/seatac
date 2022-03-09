@@ -19,6 +19,3 @@ a list that include `vplots` and `batch`
 \description{
 Prepare dataset for training and a V-plot model
 }
-\author{
-Wuming Gong (gongx030@umn.edu)
-}

@@ -4,7 +4,15 @@
 \alias{predict,VaeModel,Vplots-method}
 \title{predict}
 \usage{
-\S4method{predict}{VaeModel,Vplots}(model, x, batch_size = 256L, vplots = TRUE, ...)
+\S4method{predict}{VaeModel,Vplots}(
+  model,
+  x,
+  batch_size = 256L,
+  vplots = FALSE,
+  nucleosome = TRUE,
+  fragment_size_threshold = 150L,
+  ...
+)
 }
 \arguments{
 \item{model}{a trained VaeModel object}
@@ -14,6 +22,10 @@
 \item{batch_size}{Batch size (default: 256L)}
 
 \item{vplots}{Whether or not return predicted Vplots as assays(x)$predicted_counts}
+
+\item{nucleosome}{Whether or not return predicted nucleosome as rowData(x)$predicted_nucleosome}
+
+\item{fragment_size_threshold}{Fragment size threshold for nucleosome reads (default: 150L)}
 
 \item{...}{Additional arguments}
 }
