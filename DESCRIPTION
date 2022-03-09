@@ -1,7 +1,7 @@
 Package: seatac
 Title: ATAC-seq V-plot analysis
-Version: 0.3.3011
-Date: 2022-02-22
+Version: 0.3.4000
+Date: 2022-03-08
 Author: Wuming Gong <gongx030@umn.edu>
 Maintainer: Wuming Gong <gongx030@umn.edu>
 Description: What the package does (one paragraph).
