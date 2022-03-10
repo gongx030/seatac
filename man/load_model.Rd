@@ -2,7 +2,7 @@
 % Please edit documentation in R/AllGeneric.r
 \name{load_model}
 \alias{load_model}
-\title{read_fragment_size_profile}
+\title{load_model}
 \usage{
 load_model(model, filename, ...)
 }
@@ -14,5 +14,5 @@ load_model(model, filename, ...)
 \item{...}{Other arguments}
 }
 \description{
-The generic function of read_fragment_size_profile
+The generic function of load_model
 }

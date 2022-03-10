@@ -172,7 +172,6 @@ VaeModel <- function(
 #'
 #' @param model a VaeModel object
 #' @param x a Vplots object
-#' @param ... Other arguments passed to prepare_data. 
 #'
 #' @return a logical value of whether the data are valid.
 #'

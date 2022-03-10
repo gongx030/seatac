@@ -10,8 +10,6 @@
 \item{model}{a VaeModel object}
 
 \item{x}{a Vplots object}
-
-\item{...}{Other arguments passed to prepare_data.}
 }
 \value{
 a logical value of whether the data are valid.

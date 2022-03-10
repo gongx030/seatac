@@ -1,6 +1,18 @@
+#' Subsetting a Vplots object
+#'
+#' @param x a Vplots object
+#' @param i row-wise indexing
+#' @param j column-wise indexing
+#' @param ... Additional arguments
+#' @param drop Whether or not drop dimension
+#'
 setMethod(
 	'[', 
-	'Vplots',
+	signature(
+		x = 'Vplots', 
+		i = 'ANY', 
+		j = 'ANY'
+	),
 	function(x, i, j, ..., drop = FALSE){
 
 		if (missing(i) && missing(j))
@@ -20,9 +32,22 @@ setMethod(
 	}
 )
 
+#' Subsetting a Vplots object
+#'
+#' @param x a Vplots object
+#' @param i row-wise indexing
+#' @param j column-wise indexing
+#' @param ... Additional arguments
+#' @param value The replacement value
+#'
 setReplaceMethod(
 	'[',
-	'Vplots',
+	signature(
+		x = 'Vplots', 
+		i = 'ANY', 
+		j = 'ANY',
+		value = 'Vplots'
+	),
 	function(x, i, j, ..., value){
 		stop('not implemented yet')
 	}

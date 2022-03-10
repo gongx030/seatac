@@ -31,6 +31,7 @@ setMethod(
 #' @param field The assays field that is used for Vplots (default: 'counts')
 #' @param ncol number of columns (default: 2L)
 #' @import ggplot2
+#' @importFrom rlang .data
 #'
 vplot_core <- function(x, field, ncol = 2){
 
@@ -56,7 +57,7 @@ vplot_core <- function(x, field, ncol = 2){
 		mutate(sample = factor(sample, x@dimdata$sample$name))
 
 	df %>%
-		ggplot(aes(x = bin, y = interval, fill = value)) +
+		ggplot(aes(x = .data$bin, y = .data$interval, fill = .data$value)) +
 			geom_raster() +
 			facet_wrap(vars(sample), ncol = ncol) +
 			theme(panel.spacing = unit(2, 'lines')) +
