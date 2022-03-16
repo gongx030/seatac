@@ -525,7 +525,7 @@ setMethod(
 #' Load a pretrained VaeModel
 #'
 #' @param model a VaeModel object
-#' @param filename Model file name. The index file should be 'filename.index' and the data file should be 'filename.data-00000-of-00001'
+#' @param dir Model directory. The index file should be 'filename.index' and the data file should be 'filename.data-00000-of-00001'
 #'
 #' @return a VaeModel object
 #'
@@ -538,10 +538,12 @@ setMethod(
 	),
 	function(
 		model,
-		filename = 'character'
+		dir = 'character'
 	){
-		model_index_file <- sprintf('%s.index', filename)
-		model_data_file <- sprintf('%s.data-00000-of-00001', filename)
+
+
+		model_index_file <- sprintf('%s.index', dir)
+		model_data_file <- sprintf('%s.data-00000-of-00001', dir)
 
 		stopifnot(file.exists(model_index_file))
 		stopifnot(file.exists(model_data_file))
@@ -549,7 +551,7 @@ setMethod(
 		vplots <- tf$random$uniform(shape(1L, model@model$n_intervals, model@model$n_bins_per_block, model@model$n_samples))
 		batch <- tf$zeros(shape(1L, model@model$n_samples), dtype = tf$int64)
 		res <- model@model(list(vplots = vplots, batch = batch))
-		load_model_weights_tf(model@model, filename)
+		model@model$load_weights(dir)
 		model
 	}
 )
