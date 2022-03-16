@@ -4,12 +4,10 @@
 \alias{load_model}
 \title{load_model}
 \usage{
-load_model(model, filename, ...)
+load_model(model, ...)
 }
 \arguments{
 \item{model}{a Model}
-
-\item{filename}{Filename of the pretrained model}
 
 \item{...}{Other arguments}
 }

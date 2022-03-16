@@ -117,10 +117,9 @@ setGeneric('read_fragment_size_profile', function(x, filename, genome, ...) stan
 #' The generic function of load_model
 #'
 #' @param model a Model
-#' @param filename Filename of the pretrained model
 #' @param ... Other arguments
 #'
-setGeneric('load_model', function(model, filename, ...) standardGeneric('load_model'))
+setGeneric('load_model', function(model, ...) standardGeneric('load_model'))
 
 #' predict_fragment_size
 #'
