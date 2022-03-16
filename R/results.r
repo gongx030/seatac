@@ -167,7 +167,7 @@ results_vplots <- function(x, field, treatment, control, width = 100L){
 	i <- x@dimdata[['sample']][[field]] == treatment
 	z_treatment <- rowData(x)[['vae_z_mean']][, i, , drop = FALSE] 
 	z_treatment <- aperm(z_treatment, c(2L, 1L, 3L))
-	z_treatment <- colMeans(z_treatment)
+	z_treatment <- colSums(z_treatment)
 	z_stddev_treatment <- rowData(x)[['vae_z_stddev']][, i, , drop = FALSE] 
   z_stddev_treatment  <- aperm(z_stddev_treatment, c(2L, 1L, 3L))
   z_stddev_treatment <- colSums(z_stddev_treatment^2) %>% sqrt()
@@ -178,7 +178,7 @@ results_vplots <- function(x, field, treatment, control, width = 100L){
 	i <- x@dimdata[['sample']][[field]] == control
 	z_control <- rowData(x)[['vae_z_mean']][, i, , drop = FALSE] 
 	z_control <- aperm(z_control, c(2L, 1L, 3L))
-	z_control <- colMeans(z_control)
+	z_control <- colSums(z_control)
 	z_stddev_control <- rowData(x)[['vae_z_stddev']][, i, , drop = FALSE] 
   z_stddev_control <- aperm(z_stddev_control, c(2L, 1L, 3L))
   z_stddev_control <- colSums(z_stddev_control^2) %>% sqrt()
