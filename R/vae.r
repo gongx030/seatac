@@ -525,11 +525,11 @@ setMethod(
 #' Load a pretrained VaeModel
 #'
 #' @param model a VaeModel object
+#' @param filename Model file name. The index file should be 'filename.index' and the data file should be 'filename.data-00000-of-00001'
 #'
-#' @return a Vplots object 
+#' @return a VaeModel object
 #'
 #' @export
-#' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
 	'load_model',
@@ -538,8 +538,7 @@ setMethod(
 	),
 	function(
 		model,
-		filename = 'character',
-		...
+		filename = 'character'
 	){
 		model_index_file <- sprintf('%s.index', filename)
 		model_data_file <- sprintf('%s.data-00000-of-00001', filename)
