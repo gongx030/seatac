@@ -4,17 +4,16 @@
 \alias{load_model,VaeModel-method}
 \title{load_model}
 \usage{
-\S4method{load_model}{VaeModel}(model, filename = "character", ...)
+\S4method{load_model}{VaeModel}(model, dir = "character")
 }
 \arguments{
 \item{model}{a VaeModel object}
+
+\item{dir}{Model directory. The index file should be 'filename.index' and the data file should be 'filename.data-00000-of-00001'}
 }
 \value{
-a Vplots object
+a VaeModel object
 }
 \description{
 Load a pretrained VaeModel
-}
-\author{
-Wuming Gong (gongx030@umn.edu)
 }
