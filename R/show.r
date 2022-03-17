@@ -13,13 +13,13 @@ setMethod(
 	),
 	function(object){
 
-		sprintf('class: %s', class(object)) %>% cat()
-		sprintf('dim: %s', paste(dim(object), collapse = ' ')) %>% cat()
-		sprintf('assays(%d): %s', length(assays(object, withDimnames = FALSE)), paste0(names(assays(object, withDimnames = FALSE)), collapse = ' ')) %>% cat()
-		sprintf('rowData(%d): %s', ncol(rowData(object)), paste0(colnames(rowData(object)), collapse = ' ')) %>% cat()
-		sprintf('dimdata:') %>% cat()
+		sprintf('class: %s\n', class(object)) %>% cat()
+		sprintf('dim: %s\n', paste(dim(object), collapse = ' ')) %>% cat()
+		sprintf('assays(%d): %s\n', length(assays(object, withDimnames = FALSE)), paste0(names(assays(object, withDimnames = FALSE)), collapse = ' ')) %>% cat()
+		sprintf('rowData(%d): %s\n', ncol(rowData(object)), paste0(colnames(rowData(object)), collapse = ' ')) %>% cat()
+		sprintf('dimdata:\n') %>% cat()
 		for (i in 1:length(object@dimdata)){
-			sprintf('%s: names(%d): %s', names(object@dimdata)[i], ncol(object@dimdata[[i]]), paste(colnames(object@dimdata[[i]]), collapse = ' ')) %>% cat()
+			sprintf('%s: names(%d): %s\n', names(object@dimdata)[i], ncol(object@dimdata[[i]]), paste(colnames(object@dimdata[[i]]), collapse = ' ')) %>% cat()
 		}
 
 		cat(sprintf('## fragment_size_range:%d,%d\n', object@fragment_size_range[1], object@fragment_size_range[2]))
