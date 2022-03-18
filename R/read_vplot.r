@@ -153,6 +153,7 @@ read_vplot_core <- function(
 	)
 	colData(se)$bin <- rep(1:n_bins_per_window, n_intervals)
 	colData(se)$interval <- rep(1:n_intervals, each = n_bins_per_window)
+	colData(se)$sample <- rep(1, n_bins_per_window * n_intervals) 
 
 	dimdata <- list(
 		grange = DataFrame(
@@ -160,6 +161,7 @@ read_vplot_core <- function(
 			sequence = getSeq(genome, x)
 		),	# dim 1: GRanges dimension 
 		sample = DataFrame(
+			id = 1
 		), # dim 2: samples
 		interval = DataFrame(
 			id = 1:n_intervals,
