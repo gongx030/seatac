@@ -4,23 +4,22 @@
 \alias{results_vplots}
 \title{results_vplots}
 \usage{
-results_vplots(model, x, contrast, batch_size = 128L)
+results_vplots(x, field, treatment, control, width = 100L)
 }
 \arguments{
-\item{model}{a trained VaeModel object}
-
 \item{x}{a Vplots object}
 
-\item{contrast}{this argument species a character vector with exactly three elements: the name of a factor in the design formula, the name of the numerator level for the fold change, and the name of the denominator level for the fold change (simplest case)}
+\item{field}{The field in x@dimdata[['sample']] that defines the sample groups}
 
-\item{batch_size}{Batch size (default: 128L)}
+\item{treatment}{the name of the numerator level for the fold change}
+
+\item{control}{the name of the denominator level for the fold change}
+
+\item{width}{Width of the centeral regions to be considered (default: 100L)}
 }
 \value{
 a GRanges object
 }
 \description{
-Test the difference of between two Vplots
-}
-\author{
-Wuming Gong (gongx030@umn.edu)
+Test the difference of Vplots by a Chi-squared test
 }

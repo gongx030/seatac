@@ -10,6 +10,7 @@
 #'				constructing Vplot (default: c(0, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 10L)
 #' @param ignore_strand whether ignore the strand of the V-plot (default: TRUE)
+#' @importFrom BiocGenerics cbind
 #'
 #' @export
 #' @author Wuming Gong (gongx030@umn.edu)
@@ -35,74 +36,17 @@ setMethod(
 			names(filenames) <- 1:length(filenames)
 
 		se <- lapply(1:length(filenames), function(i){
-			xi <- read_vplot_core(x, filenames[i], genome, bin_size, fragment_size_range, fragment_size_interval, ignore_strand = ignore_strand)
-			rowData(xi)$batch <- names(filenames)[i]
-			xi@samples <- names(filenames)[i]
-			xi
+			read_vplot_core(x, filenames[i], genome, bin_size, fragment_size_range, fragment_size_interval, ignore_strand = ignore_strand)
 		})
-		se <- do.call('rbind', se)
-		se@samples <- unique(rowData(se)$batch)
-		se@n_samples <- length(se@samples)
+
+		se <- Reduce('cbind', se)
+		se@dimdata[['sample']] <- DataFrame(id = 1:length(filenames), filename = filenames, name = names(filenames))
+		colData(se)$sample <- factor(rep(names(filenames), each = nrow(se@dimdata[['bin']])* nrow(se@dimdata[['interval']])), names(filenames)) %>% 
+			as.numeric()
 		se
 	}
 
 ) # read_vplot
-
-
-#' Read the V-plot
-#' 
-#' Read the V-plot from BAM files within a set of genomic regions
-#'
-#' @param x a GRangesList object that define a set of genomic regions.
-#' @param filenames BAM file names
-#' @param genome a BSgenome object
-#' @param bin_size The bin size (default: 5L)
-#' @param fragment_size_range The range of the PE reads fragment sizes that are used for 
-#'				constructing Vplot (default: c(0, 320L))
-#' @param fragment_size_interval Fragment size interval (default: 10L)
-#' @param ignore_strand whether ignore the strand of the V-plot (default: TRUE)
-#'
-#' @export
-#' @author Wuming Gong (gongx030@umn.edu)
-#'
-setMethod(
-	'read_vplot',
-	signature(
-		x = 'GRangesList',
-		filenames = 'character',
-		genome = 'BSgenome'
-	), 
-	function(
-		x, 
-		filenames, 
-		genome,
-		bin_size = 5L,
-		fragment_size_range = c(0, 320L),
-		fragment_size_interval = 10L,
-		ignore_strand = TRUE
-	){
-
-		if (is.null(names(filenames)))
-			names(filenames) <- 1:length(filenames)
-
-		stopifnot(!any(duplicated(names(filenames))))
-
-		stopifnot(length(x) == length(filenames))
-
-		se <- lapply(1:length(filenames), function(i){
-			xi <- read_vplot_core(x[[i]], filenames[i], genome, bin_size, fragment_size_range, fragment_size_interval, ignore_strand = ignore_strand)
-			rowData(xi)$batch <- names(filenames)[i]
-			xi@samples <- names(filenames)[i]
-			xi
-		})
-		se <- do.call('rbind', se)
-		se@samples <- unique(rowData(se)$batch)
-		se@n_samples <- length(se@samples)
-		se
-	}
-
-) # read_vplot
-
 
 
 #' Read the V-plot
@@ -118,6 +62,8 @@ setMethod(
 #' @param fragment_size_interval Fragment size interval (default: 10L)
 #' @param ignore_strand whether ignore the strand of the V-plot (default: TRUE)
 #' @importFrom GenomicRanges start end strand strand<-
+#' @importFrom SummarizedExperiment colData<-
+#' @importFrom S4Vectors DataFrame
 #'
 #' @author Wuming Gong (gongx030@umn.edu)
 #'
@@ -205,8 +151,28 @@ read_vplot_core <- function(
 		assays = list(counts = counts),
 		rowRanges = x
 	)
-	rowData(se)$id <- 1:length(x)
-	rowData(se)$sequence <- getSeq(genome, x)
+	colData(se)$bin <- rep(1:n_bins_per_window, n_intervals)
+	colData(se)$interval <- rep(1:n_intervals, each = n_bins_per_window)
+	colData(se)$sample <- rep(1, n_bins_per_window * n_intervals) 
+
+	dimdata <- list(
+		grange = DataFrame(
+			id = 1:length(x),
+			sequence = getSeq(genome, x)
+		),	# dim 1: GRanges dimension 
+		sample = DataFrame(
+			id = 1
+		), # dim 2: samples
+		interval = DataFrame(
+			id = 1:n_intervals,
+			center = centers
+		), # dim 3: intervals (fragment size)
+		bin = DataFrame(
+			id = 1:n_bins_per_window,
+			position = seq(bin_size, window_size, by = bin_size) - (window_size / 2)
+		) # dim 4: bins (genome wise)
+	)
+
 
 	new(
 		'Vplots', 
@@ -215,12 +181,7 @@ read_vplot_core <- function(
 		fragment_size_interval = as.integer(fragment_size_interval),
 		bin_size = as.integer(bin_size),
 		window_size = as.integer(window_size),
-		n_intervals = as.integer(n_intervals),
-		n_bins_per_window = as.integer(n_bins_per_window ),
-		breaks = breaks,
-		centers = centers,
-		positions = seq(bin_size, window_size, by = bin_size) - (window_size / 2),
-		n_samples = 1L
+		dimdata = dimdata
 	)
 } # read_vplot_core
 

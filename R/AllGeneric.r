@@ -90,16 +90,6 @@ setGeneric('predict', function(model, x, ...) standardGeneric('predict'))
 #'
 setGeneric('scale01', function(x, ...) standardGeneric('scale01'))
 
-#' test_accessibility
-#'
-#' The generic function of test_accessibility
-#'
-#' @param model a model object
-#' @param x a data object that include the Vplot information
-#' @param ... Other arguments
-#'
-setGeneric('test_accessibility', function(model, x, ...) standardGeneric('test_accessibility'))
-
 #' predict_vplots
 #'
 #' The generic function of predict_vplots
@@ -109,17 +99,6 @@ setGeneric('test_accessibility', function(model, x, ...) standardGeneric('test_a
 #' @param ... Other arguments
 #'
 setGeneric('predict_vplots', function(model, x, ...) standardGeneric('predict_vplots'))
-
-
-#' predict_nucleosome
-#'
-#' The generic function of predict_nucleosome
-#'
-#' @param model a model object
-#' @param x a data object that include the Vplot information
-#' @param ... Other arguments
-#'
-setGeneric('predict_nucleosome', function(model, x, ...) standardGeneric('predict_nucleosome'))
 
 
 #' read_fragment_size_profile
@@ -133,15 +112,14 @@ setGeneric('predict_nucleosome', function(model, x, ...) standardGeneric('predic
 #'
 setGeneric('read_fragment_size_profile', function(x, filename, genome, ...) standardGeneric('read_fragment_size_profile'))
 
-#' read_fragment_size_profile
+#' load_model
 #'
-#' The generic function of read_fragment_size_profile
+#' The generic function of load_model
 #'
 #' @param model a Model
-#' @param filename Filename of the pretrained model
 #' @param ... Other arguments
 #'
-setGeneric('load_model', function(model, filename, ...) standardGeneric('load_model'))
+setGeneric('load_model', function(model, ...) standardGeneric('load_model'))
 
 #' predict_fragment_size
 #'
@@ -173,13 +151,12 @@ setGeneric('add_genomic_features', function(x, y, ...) standardGeneric('add_geno
 #'
 setGeneric('results', function(model, x, ...) standardGeneric('results'))
 
-#' call_nucleosomes
+#' validate
 #'
-#' The generic function of call_nucleosomes
+#' The generic function of validate
 #'
 #' @param model a Model
 #' @param x a data object that include the Vplot information
-#' @param ... Other arguments
 #'
-setGeneric('call_nucleosomes', function(model, x, ...) standardGeneric('call_nucleosomes'))
+setGeneric('validate', function(model, x) standardGeneric('validate'))
 

@@ -3,7 +3,7 @@
 #' Count how many reads fall into a specific fragment size range
 #'
 #' @param x a GRanges object defining the peaks; the width must be the same for all peaks.
-#' @param filenames BAM file names.
+#' @param filenames BAM file name(s).
 #' @param genome a BS genome object such as BSgenome.Mmusculus.UCSC.mm10
 #' @param fragment_size_range fragment size ranges (default:  c(80, 320))
 #' @return read counts
@@ -28,10 +28,9 @@ setMethod(
 		if (is.null(names(filenames)))
 			names(filenames) <- 1:length(filenames)
 
-		lapply(1:length(filenames), function(i){
+		do.call('cbind', lapply(1:length(filenames), function(i){
 			count_reads_core(x, filenames[i], genome, fragment_size_range)
-		}) %>%
-			unlist()
+		}))
 
 	}
 ) # count_reads

@@ -12,20 +12,17 @@ setOldClass('tensorflow.python.framework.sparse_tensor.SparseTensor')
 #'
 setClass(
 	'Vplots', 
-	slot = c(
+	representation(
 		fragment_size_range  = 'integer',
 		fragment_size_interval = 'integer',
 		bin_size = 'integer',
 		window_size = 'integer',
-		n_intervals = 'integer',
-		n_bins_per_window = 'integer',
-		breaks = 'numeric',
-		centers = 'numeric',
-		positions = 'numeric',
-		n_samples = 'integer',
-		samples = 'character'
+		dimdata = 'list'
 	),
-	contains = 'RangedSummarizedExperiment'
+	contains = 'RangedSummarizedExperiment',
+	prototype(
+		n_samples = 1L
+	)
 )
 
 
@@ -42,6 +39,7 @@ setClass(
 	'VplotsList',
 	contains = 'SimpleList'
 )
+
 
 #' VaeModel
 #'

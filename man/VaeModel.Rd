@@ -5,6 +5,7 @@
 \title{VaeModel}
 \usage{
 VaeModel(
+  n_samples = 1L,
   latent_dim = 10L,
   block_size = 640L,
   bin_size = 5L,
@@ -15,7 +16,6 @@ VaeModel(
   upsample_layers = 4L,
   fragment_size_range = c(0L, 320L),
   fragment_size_interval = 10L,
-  n_batches = 1L,
   strides = c(2L, 2L),
   momentum = 0.8,
   rate = 0.1,
@@ -23,6 +23,8 @@ VaeModel(
 )
 }
 \arguments{
+\item{n_samples}{Number of samples (default: 1L)}
+
 \item{latent_dim}{Latent dimension (default: 10L)}
 
 \item{block_size}{Block size in base pairs (default: 640L)}
@@ -43,8 +45,6 @@ VaeModel(
 
 \item{fragment_size_interval}{Fragment size interval (default: 10L)}
 
-\item{n_batches}{Number of batches (default: 1L)}
-
 \item{strides}{Convolution strides}
 
 \item{momentum}{Momentum in BatchNormalization layer (default: 0.8)}
@@ -54,8 +54,5 @@ VaeModel(
 \item{name}{Model name}
 }
 \description{
-A VAE model for V-plot
-}
-\author{
-Wuming Gong (gongx030@umn.edu)
+A VAE model for V-plot of multiple ATAC-seq datasets. This model takes the stacked V-plots of the same genomic regions as the input.
 }

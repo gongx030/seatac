@@ -1,7 +1,8 @@
 #' VaeModel
 #' 
-#' A VAE model for V-plot
+#' A VAE model for V-plot of multiple ATAC-seq datasets. This model takes the stacked V-plots of the same genomic regions as the input. 
 #'
+#' @param n_samples Number of samples (default: 1L)
 #' @param latent_dim Latent dimension (default: 10L)
 #' @param block_size Block size in base pairs (default: 640L)
 #' @param bin_size Bin size in base pairs(default: 5L) 
@@ -12,31 +13,29 @@
 #' @param upsample_layers Upsample layers (default: 4L)
 #' @param fragment_size_range  Fragment size ranges (default: c(0L, 320L))
 #' @param fragment_size_interval Fragment size interval (default: 10L)
-#' @param n_batches Number of batches (default: 1L)
 #' @param strides Convolution strides 
 #' @param momentum Momentum in BatchNormalization layer (default: 0.8)
 #' @param rate Dropout rate (default: 0.1)
 #' @param name Model name
 #'
 #' @export
-#' @author Wuming Gong (gongx030@umn.edu)
 #'
 VaeModel <- function(
-	 latent_dim = 10L,
-	 block_size = 640L,
-	 bin_size = 5L,
-	 filters0 = 128L,
-	 filters = 32L,
-	 kernel_size = 3L,
-	 downsample_layers = 4L,
-	 upsample_layers = 4L,
-	 fragment_size_range  = c(0L, 320L),
-	 fragment_size_interval = 10L,
-	 n_batches = 1L,
-	 strides = c(2L, 2L),
-	 momentum = 0.8,
-	 rate = 0.1,
-	 name = NULL
+	n_samples = 1L,
+	latent_dim = 10L,
+	block_size = 640L,
+	bin_size = 5L,
+	filters0 = 128L,
+	filters = 32L,
+	kernel_size = 3L,
+	downsample_layers = 4L,
+	upsample_layers = 4L,
+	fragment_size_range  = c(0L, 320L),
+	fragment_size_interval = 10L,
+	strides = c(2L, 2L),
+	momentum = 0.8,
+	rate = 0.1,
+	name = NULL
 ){
 
 	keras_model_custom(name = name, function(self){
@@ -44,6 +43,7 @@ VaeModel <- function(
 		if (block_size %% bin_size != 0)
 			stop('block_size must be a multiple of bin_size')
 
+		self$n_samples <- n_samples
 		self$latent_dim <- latent_dim
 		self$block_size <- block_size
 		self$bin_size <- bin_size
@@ -56,7 +56,6 @@ VaeModel <- function(
 		self$breaks <- tf$constant(br)
 		self$centers <- tf$constant((br[-1] + br[-length(br)]) / 2)
 		self$positions <- tf$cast(seq(0 + bin_size / 2, block_size - bin_size / 2, by = bin_size) - (block_size / 2), tf$float32)
-		self$n_batches <- n_batches
 
 		stopifnot(self$n_intervals %% strides[1]^upsample_layers == 0)
 		stopifnot(self$n_bins_per_block %% strides[2]^upsample_layers == 0)
@@ -77,9 +76,9 @@ VaeModel <- function(
 			tf$keras$layers$Flatten()
 		))
 
-		self$dense_1 <- tf$keras$layers$Dense(units = 2 * self$latent_dim)
+		self$dense_1 <- tf$keras$layers$Dense(units = (self$n_samples + 1L) * self$latent_dim)
 
-		self$dense_fragment_size <- tf$keras$layers$Embedding(n_batches,  self$n_intervals)
+		self$dense_fragment_size <- tf$keras$layers$Embedding(n_samples,  self$n_intervals)
 
 		interval_dim0 <- as.integer(self$n_intervals / strides[1]^upsample_layers)
 		window_dim0 <- as.integer(self$n_bins_per_block / strides[2]^upsample_layers)
@@ -109,7 +108,7 @@ VaeModel <- function(
 		))
 
 		self$prior <- tfp$distributions$MultivariateNormalDiag(
-			loc  = tf$zeros(shape(latent_dim)),
+			loc  = tf$zeros(shape(self$n_samples, latent_dim)),
 			scale_identity_multiplier = 1
 		)
 
@@ -121,19 +120,20 @@ VaeModel <- function(
 			# otherwise it will complain about unknown channel dimensions. 
 			# this will only happen in compiled function (e.g. after the tf_function call)
 			x$vplots <- x$vplots %>% 
-				tf$reshape(shape(batch_size, self$n_intervals, self$n_bins_per_block, 1L))
+				tf$reshape(shape(batch_size, self$n_intervals, self$n_bins_per_block, self$n_samples))
 
 			fragment_size <- x$batch %>% 
 				self$dense_fragment_size() %>%
-				tf$expand_dims(2L) %>%
-				tf$expand_dims(3L)
+				tf$transpose(shape(0L, 2L, 1L)) %>%
+				tf$expand_dims(2L) 
 
 			y <- (x$vplots + fragment_size) %>% 
 				self$encoder() %>%
-				self$dense_1()
+				self$dense_1() %>%
+				tf$reshape(shape(batch_size, self$n_samples + 1L, self$latent_dim))
 
-			q_m <- y[, 1:self$latent_dim]
-			q_v <- tf$nn$softplus(y[, (self$latent_dim + 1):(2 * self$latent_dim)] + 1e-3)
+			q_m <- y[, 1:self$n_samples, , drop = FALSE]
+			q_v <- tf$nn$softplus(y[, self$n_samples + 1L, , drop = FALSE] + 1e-3)
 
 			posterior <- tfp$distributions$MultivariateNormalDiag(
 				loc = q_m,
@@ -142,15 +142,18 @@ VaeModel <- function(
 
 			if (training){
 				z <- posterior$sample()
-				b <- x$batch %>% tf$one_hot(self$n_batches)
+				b <- x$batch %>% tf$one_hot(self$n_samples)
 			}else{
 				z <- posterior$mean()
-				b <- tf$zeros(shape(z$shape[[1]]), dtype = tf$int64) %>% tf$one_hot(self$n_batches)
+				b <- tf$zeros(shape(batch_size, self$n_samples), dtype = tf$int64) %>% tf$one_hot(self$n_samples)
 			}
 
 			x_pred <- list(z, b) %>% 
-				tf$concat(1L) %>% 
+				tf$concat(2L) %>% 
+				tf$reshape(shape(batch_size * self$n_samples, self$latent_dim + self$n_samples)) %>%
 				self$decoder(training = training) %>%
+				tf$reshape(shape(batch_size, self$n_samples, self$n_intervals, self$n_bins_per_block)) %>%
+				tf$transpose(shape(0L, 2L, 3L, 1L)) %>%
 				tf$keras$activations$softmax(1L)
 
 			list(
@@ -161,6 +164,37 @@ VaeModel <- function(
 		}
 	})
 }
+
+
+#' validate
+#'
+#' Validate the input data for current model
+#'
+#' @param model a VaeModel object
+#' @param x a Vplots object
+#'
+#' @return a logical value of whether the data are valid.
+#'
+#' @export
+#'
+setMethod(
+	'validate',
+	signature(
+		model = 'VaeModel',
+		x = 'Vplots'
+	),
+	function(
+		model,
+		x
+	){
+
+		stopifnot(model@model$n_samples == dim(x)[['sample']])
+		stopifnot(!is.null(assays(x, withDimnames = FALSE)$counts))
+
+		return(TRUE)
+
+	}
+)
 
 
 #' prepare_data
@@ -174,7 +208,6 @@ VaeModel <- function(
 #' @return a list that include `vplots` and `batch`
 #' 
 #' @export
-#' @author Wuming Gong (gongx030@umn.edu)
 #'
 setMethod(
 	'prepare_data',
@@ -188,26 +221,25 @@ setMethod(
 		...
 	){
 
-		d <- list()
+		validate(model, x)
 
-		vplots <- assays(x)$counts %>%
+		v <- assays(x, withDimnames = FALSE)$counts %>%
 			summary()
 
-		vplots <- tf$sparse$SparseTensor(
-			 indices = vplots[, 1:2] %>% as.matrix() %>% tf$cast(tf$int64) - 1L,
-			 values = vplots[, 3] %>% tf$cast(tf$float32),
-			 dense_shape = shape(nrow(x), ncol(x))
+		v <- tf$sparse$SparseTensor(
+			indices = v[, 1:2] %>% as.matrix() %>% tf$cast(tf$int64) - 1L,
+			values = v[, 3] %>% tf$cast(tf$float32),
+			dense_shape = shape(dim(x)['grange'],  dim(x)['sample'] * dim(x)['interval'] * dim(x)['bin'])
 		) %>%
-			tf$sparse$reshape(shape(nrow(x), x@n_intervals, x@n_bins_per_window, 1L)) %>%
-			tf$sparse$reorder()
+			tf$sparse$reshape(dim(x)) %>%
+			tf$sparse$transpose(shape(0L, 2L, 3L, 1L)) %>%
+			tf$sparse$reorder() 
 
-		batch <- rowData(x)$batch %>%
-			factor(x@samples) %>%
-			as.numeric() %>%
-			tf$cast(tf$int64) 
-		batch <- batch - 1L
+		batch <- tf$range(dim(x)['sample']) %>%
+			tf$reshape(shape(1L, dim(x)['sample'])) %>%
+			tf$`repeat`(nrow(x), axis = 0L)
 
-		list(vplots = vplots, batch = batch)
+		list(vplots = v, batch = batch)
 	}
 )
 
@@ -309,7 +341,10 @@ setMethod(
 #' @param x a Vplots object
 #' @param batch_size Batch size (default: 256L)
 #' @param vplots Whether or not return predicted Vplots as assays(x)$predicted_counts
+#' @param nucleosome Whether or not return predicted nucleosome as rowData(x)$predicted_nucleosome
+#' @param fragment_size_threshold Fragment size threshold for nucleosome reads (default: 150L)
 #' @param ... Additional arguments
+#' @importFrom SummarizedExperiment assays<-
 #'
 #' @return a Vplots object 
 #'
@@ -326,22 +361,32 @@ setMethod(
 		model,
 		x,
 		batch_size = 256L, # v-plot per batch
-		vplots = TRUE,
+		vplots = FALSE,
+		nucleosome = TRUE,
+		fragment_size_threshold = 150L,
 		...
 	){
 
+		stopifnot(is.numeric(fragment_size_threshold) && fragment_size_threshold >= x@fragment_size_range[1] && fragment_size_threshold <= x@fragment_size_range[2])
 
-		d <- model %>%
+		validate(model, x)
+
+		iter <- model %>%
 			prepare_data(x, ...) %>%
 			tensor_slices_dataset() %>%
-			dataset_batch(batch_size)
+			dataset_batch(batch_size) %>%
+			make_iterator_one_shot()
 
-		iter <- d %>% make_iterator_one_shot()
 		z <- NULL
 		z_stddev <- NULL
 
 		if (vplots){
 			predicted_vplots <- NULL
+		}
+
+		if (nucleosome){
+			is_nucleosome <- x@dimdata$interval$center >= fragment_size_threshold
+			predicted_nucleosome  <- NULL
 		}
 
 		res <- until_out_of_range({
@@ -355,27 +400,51 @@ setMethod(
 			if (vplots){
 				predicted_vplots <- c(predicted_vplots, res$vplots)
 			}
+			if (nucleosome){
+				predicted_nucleosome <- c(
+					predicted_nucleosome, 
+					res$vplots %>%
+						tf$boolean_mask(is_nucleosome, 1L) %>%
+						tf$reduce_sum(1L)
+				)
+			}
 		})
 
 		z <- z %>% tf$concat(axis = 0L)
 		z_stddev <- z_stddev %>% tf$concat(axis = 0L)
 
-		rowData(x)[['vae_z_mean']] <- as.matrix(z)
-		rowData(x)[['vae_z_stddev']] <- as.matrix(z_stddev)
+		z <- z %>%  as.array()
+		z_stddev  <- z_stddev  %>% as.array()
+
+		dimnames(z)[1:2] <- list(rownames(x), x@dimdata$sample$name)
+		dimnames(z_stddev)[1:2] <- list(rownames(x), x@dimdata$sample$name)
+
+		rowData(x)[['vae_z_mean']] <- z
+		rowData(x)[['vae_z_stddev']] <- z_stddev
 
 		if (vplots){
+
 			predicted_vplots <- predicted_vplots %>% 
 				tf$concat(axis = 0L) %>%
-				tf$reshape(shape(nrow(x), ncol(x))) %>% 
+				tf$transpose(shape(0L, 3L, 1L, 2L)) %>%
+				tf$reshape(shape(dim(x)[1], prod(dim(x)[-1]))) %>%
 				as.matrix()
+
 			dimnames(predicted_vplots) <- dimnames(x)
-			assays(x)$predicted_counts <- predicted_vplots
+			assays(x, withDimnames = FALSE)$predicted_counts <- predicted_vplots
+		}
+
+		if (nucleosome){
+			predicted_nucleosome <- predicted_nucleosome %>%
+				tf$concat(axis = 0L) %>%
+				tf$transpose(shape(0L, 2L, 1L))  %>%
+				as.array()
+			rowData(x)[['predicted_nucleosome']] <- predicted_nucleosome
 		}
 
 		x
 	}
 )
-
 
 
 #' predicted_fragment_size
@@ -407,6 +476,9 @@ setMethod(
 		...
 	){
 
+		stopifnot(is.numeric(width) && width >= 0 && width <= x@window_size)
+		validate(model, x)
+
 		d <- model %>%
 			prepare_data(x, ...) %>%
 			tensor_slices_dataset() %>%
@@ -414,7 +486,7 @@ setMethod(
 
 		iter <- d %>% make_iterator_one_shot()
 
-		is_center <- x@positions >= -width / 2 & x@positions <= width /2
+		is_center <- x@dimdata$bin$position >= -width / 2 & x@dimdata$bin$position <= width / 2
 
 		fragment_size <- NULL
 		predicted_fragment_size <- NULL
@@ -425,19 +497,62 @@ setMethod(
 				tf$sparse$to_dense() %>%
 				scale01()
 			res <- model@model(batch, training = FALSE)
-			fs <- batch$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_sum(2L) %>% tf$squeeze(2L)
+			fs <- batch$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_sum(2L) 
 			w <- fs %>% tf$reduce_sum(1L, keepdims = TRUE)
 			fs <- fs / tf$where(w > 0, w, tf$ones_like(w))
-			fs_pred <- res$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_mean(2L) %>% tf$squeeze(2L)
+			fs_pred <- res$vplots %>% tf$boolean_mask(is_center, 2L) %>% tf$reduce_mean(2L) 
 			fragment_size <- c(fragment_size, fs)
 			predicted_fragment_size <- c(predicted_fragment_size, fs_pred)
 		})
 
-		fragment_size <- fragment_size %>% tf$concat(axis = 0L)
-		predicted_fragment_size <- predicted_fragment_size %>% tf$concat(axis = 0L)
-		rowData(x)[['fragment_size']] <- as.matrix(fragment_size)
-		rowData(x)[['predicted_fragment_size']] <- as.matrix(predicted_fragment_size)
+		fragment_size <- fragment_size %>% 
+			tf$concat(axis = 0L) %>%
+			tf$transpose(shape(0L, 2L, 1L)) %>%
+			as.array()
+		predicted_fragment_size <- predicted_fragment_size %>% 
+			tf$concat(axis = 0L) %>%
+			tf$transpose(shape(0L, 2L, 1L)) %>%
+			as.array()
+		rowData(x)[['fragment_size']] <- fragment_size
+		rowData(x)[['predicted_fragment_size']] <- predicted_fragment_size
 		x
+	}
+)
+
+
+#' load_model
+#'
+#' Load a pretrained VaeModel
+#'
+#' @param model a VaeModel object
+#' @param dir Model directory. The index file should be 'filename.index' and the data file should be 'filename.data-00000-of-00001'
+#'
+#' @return a VaeModel object
+#'
+#' @export
+#'
+setMethod(
+	'load_model',
+	signature(
+		model = 'VaeModel'
+	),
+	function(
+		model,
+		dir = 'character'
+	){
+
+
+		model_index_file <- sprintf('%s.index', dir)
+		model_data_file <- sprintf('%s.data-00000-of-00001', dir)
+
+		stopifnot(file.exists(model_index_file))
+		stopifnot(file.exists(model_data_file))
+
+		vplots <- tf$random$uniform(shape(1L, model@model$n_intervals, model@model$n_bins_per_block, model@model$n_samples))
+		batch <- tf$zeros(shape(1L, model@model$n_samples), dtype = tf$int64)
+		res <- model@model(list(vplots = vplots, batch = batch))
+		model@model$load_weights(dir)
+		model
 	}
 )
 

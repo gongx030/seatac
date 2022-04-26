@@ -27,6 +27,11 @@ setMethod(
 		...
 	){
 
+		validate(model, x)
+
+		stopifnot(!is.null(rowData(x)[['vae_z_mean']]))
+		stopifnot(!is.null(rowData(x)[['vae_z_stddev']]))
+
 		stopifnot(!is.null(type))
 		stopifnot(is.character(contrast))
 		stopifnot(length(contrast) == 3)
@@ -35,16 +40,17 @@ setMethod(
 		control <- contrast[2]
 		treatment <- contrast[3]
 
-		stopifnot(!is.null(rowData(x)[[field]]))
-		stopifnot(control %in% rowData(x)[[field]])
-		stopifnot(treatment %in% rowData(x)[[field]])
+		stopifnot(!is.null(x@dimdata[['sample']][[field]]))
+		stopifnot(control %in% x@dimdata[['sample']][[field]])
+		stopifnot(treatment %in% x@dimdata[['sample']][[field]])
 
 		if (type == 'phase'){
 			res <- results_phase(model, x, contrast, ...)
 		}else if (type == 'nucleosome'){
 			res <- results_nucleosome(model, x, contrast, ...)
 		}else if (type == 'vplots'){
-			res <- results_vplots(model, x, contrast, ...)
+			stopifnot(!is.null(rowData(x)[['predicted_nucleosome']]))
+			res <- results_vplots(x, field, treatment, control, ...)
 		}else
 			stop(sprintf('unknown type: %s', type))
 
@@ -140,66 +146,60 @@ results_phase <- function(model, x, contrast, width = 100L, repeats = 100L, batc
 
 #' results_vplots
 #'
-#' Test the difference of between two Vplots
+#' Test the difference of Vplots by a Chi-squared test
 #'
-#' @param model a trained VaeModel object
 #' @param x a Vplots object
-#' @param contrast this argument species a character vector with exactly three elements: the name of a factor in the design formula, the name of the numerator level for the fold change, and the name of the denominator level for the fold change (simplest case)
-#' @param batch_size Batch size (default: 128L)
+#' @param field The field in x@dimdata[['sample']] that defines the sample groups
+#' @param treatment the name of the numerator level for the fold change
+#' @param control the name of the denominator level for the fold change
+#' @param width Width of the centeral regions to be considered (default: 100L)
+#' @importFrom abind abind
+#' @importFrom stats p.adjust
 #'
 #' @return a GRanges object
 #'
-#' @author Wuming Gong (gongx030@umn.edu)
-#'
-results_vplots <- function(model, x, contrast, batch_size = 128L){
+results_vplots <- function(x, field, treatment, control, width = 100L){
 
-	field <- contrast[1]
-	control <- contrast[2]
-	treatment <- contrast[3]
+	stopifnot(is.numeric(width) && width >= 0 && width <= x@window_size)
 
-	x <- x[rowData(x)[[field]] %in% c(treatment, control)]
+	latent_dim <- dim(rowData(x)[['vae_z_mean']])[2]
 
-  d <- model %>%
-	  prepare_data(x) %>%
-		tensor_slices_dataset() %>%
-		dataset_batch(batch_size)
-	iter <- d %>% make_iterator_one_shot()
+	i <- x@dimdata[['sample']][[field]] == treatment
+	z_treatment <- rowData(x)[['vae_z_mean']][, i, , drop = FALSE] 
+	z_treatment <- aperm(z_treatment, c(2L, 1L, 3L))
+	z_treatment <- colMeans(z_treatment)
+	z_stddev_treatment <- rowData(x)[['vae_z_stddev']][, i, , drop = FALSE] 
+  z_stddev_treatment  <- aperm(z_stddev_treatment, c(2L, 1L, 3L))
+  z_stddev_treatment <- colSums(z_stddev_treatment^2) %>% sqrt() / sum(i)
+	nucleosome_treatment <- rowData(x)[['predicted_nucleosome']][, i, , drop = FALSE]
+	nucleosome_treatment <- aperm(nucleosome_treatment, c(2L, 1L, 3L))
+	nucleosome_treatment <- colMeans(nucleosome_treatment)
 
-	z_mean <- NULL
-	z_stddev <- NULL
+	i <- x@dimdata[['sample']][[field]] == control
+	z_control <- rowData(x)[['vae_z_mean']][, i, , drop = FALSE] 
+	z_control <- aperm(z_control, c(2L, 1L, 3L))
+	z_control <- colMeans(z_control)
+	z_stddev_control <- rowData(x)[['vae_z_stddev']][, i, , drop = FALSE] 
+  z_stddev_control <- aperm(z_stddev_control, c(2L, 1L, 3L))
+  z_stddev_control <- colSums(z_stddev_control^2) %>% sqrt() / sum(i)
+	nucleosome_control <- rowData(x)[['predicted_nucleosome']][, i, , drop = FALSE]
+	nucleosome_control <- aperm(nucleosome_control, c(2L, 1L, 3L))
+	nucleosome_control <- colMeans(nucleosome_control)
 
-	i <- 1
-	res <- until_out_of_range({
-		batch <- iterator_get_next(iter)
-		batch$vplots <- batch$vplots %>%
-			tf$sparse$to_dense() %>%
-			scale01()
-		res <- model@model(batch, training = FALSE)
-		z_mean <- c(z_mean, res$posterior$mean())
-		z_stddev <- c(z_stddev, res$posterior$stddev())
-		if (i %% 10 == 0)
-			sprintf('results_vplots | batch=%6.d/%6.d', i, ceiling(nrow(x) / batch_size)) %>% message()
-		i <- i + 1
-	})
-
-	z_mean <- z_mean %>% tf$concat(axis = 0L)
-	z_stddev <- z_stddev %>% tf$concat(axis = 0L)
-
-	rowData(x)[['z_mean']] <- as.matrix(z_mean)
-	rowData(x)[['z_stddev']] <- as.matrix(z_stddev)
-
-	z_control <- rowData(x[rowData(x)[[field]] == control])[['z_mean']] 
-	z_control_stddev <- rowData(x[rowData(x)[[field]] == control])[['z_stddev']] 
-	z_treatment <- rowData(x[rowData(x)[[field]] == treatment])[['z_mean']] 
-	z_treatment_stddev <- rowData(x[rowData(x)[[field]] == treatment])[['z_stddev']] 
-
-	h <- ((z_treatment - z_control)^2 / (z_control_stddev^2 + z_treatment_stddev^2)) %>%
+	h <- ((z_treatment - z_control)^2 / (z_stddev_treatment^2 + z_stddev_control^2)) %>% 
 		rowSums()
-	pvalue_z <- 1 - pchisq(h, df = model@model$latent_dim)
 
-	res <- granges(x[rowData(x)[[field]] == control])
-	mcols(res) <- mcols(res)[c('id')]
+	pvalue_z <- 1 - pchisq(h, df = latent_dim)
+	res <- granges(x)
+	mcols(res) <- NULL
 	res$pvalue_z <- pvalue_z
+	res$padj <- p.adjust(pvalue_z)
+
+	is_center <- x@dimdata$bin$position >= -width / 2 & x@dimdata$bin$position <= width / 2
+	res$nucleosome_treatment <- rowMeans(nucleosome_treatment[, is_center, drop = FALSE])
+	res$nucleosome_control <- rowMeans(nucleosome_control[, is_center, drop = FALSE])
+	res$log_ratio <- log(res$nucleosome_treatment + .Machine$double.eps) - log(res$nucleosome_control + .Machine$double.eps)
+
 	res
 
 }
