@@ -6,7 +6,7 @@
 
 ## SeATAC
 
-SeATAC is an R package to estimate the genomic regions with statistically differential chromatin accessibility from multiple ATAC-seq data. Using SeATAC, each genomic region is represented as a V-plot, a dot-plot showing how sequencing reads with different fragment sizes distribute surrounding one or a set of genomic region(s).  For a more detailed overview of the method, please see [the manuscript](https://www.biorxiv.org/content/10.1101/2022.04.25.489439v1).  
+SeATAC is an R package to estimate the genomic regions with statistically differential chromatin accessibility from multiple ATAC-seq data. Using SeATAC, each genomic region is represented as a V-plot, a dot-plot showing how sequencing reads with different fragment sizes distribute surrounding one or a set of genomic region(s).  For a more detailed overview of the method, please see [the manuscript](https://www.biorxiv.org/content/10.1101/2022.04.25.489439v1).  The notebooks and scripts to reproduce the results in the manuscript can be found [here](https://github.com/gongx030/seatac_manuscript). 
 
 ![Screen Shot 2022-04-20 at 3 00 15 PM](https://user-images.githubusercontent.com/16770031/164312915-c6239042-37d4-4fc9-967f-b548261ac32a.png)
 
