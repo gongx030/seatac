@@ -202,3 +202,24 @@ standarize_1d <- function(x){
 	x <- (x - x_mean) / x_sd
 	x
 }
+
+#' Execute code that traverses a dataset until an out of range condition occurs
+#'
+#' https://www.rdocumentation.org/packages/tfdatasets/versions/2.7.0/topics/until_out_of_range
+#' As of 5/17/2022, `until_out_of_range` from the tfdatasets failed on colab, due to the following error:
+#' Error: tensorflow.python.framework.errors_impl.OutOfRangeError: End of sequence [Op:IteratorGetNext]
+#'
+#' @param x an expression
+#'
+until_out_of_range2 <- function(expr){
+	break_error <- tryCatch(eval(parse(text = "break")), error = function(e) e)
+  expr <- substitute(expr)
+	envir <- parent.frame()
+	tryCatch({
+		while (TRUE) eval(expr, envir = envir)
+	}, error = function(e) {
+		NULL
+#   if (!identical(e$message, break_error$message))
+#     out_of_range_handler(e)
+  })
+}

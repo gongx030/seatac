@@ -42,7 +42,7 @@ setMethod(
 	  # seqlengths(seqinfo(peaks)) <-  seqlengths(seqinfo(gr))
 	  # genome(seqinfo(peaks)) <-  genome(seqinfo(gr))
 
- 		param <- ScanBamParam(which = reduce(peaks), flag = flag, what = 'isize')
+ 		param <- ScanBamParam(which = reduce(peaks), flag = flag, what = c('isize'), tag = 'RG')
 
 		# Read the PE reads 
 		message(sprintf('read_bam | reading %s', filename))

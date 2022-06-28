@@ -319,7 +319,7 @@ setMethod(
 			iter <- x %>%
 				dataset_shuffle(1000L) %>%
 				make_iterator_one_shot()
-			res <- until_out_of_range({
+			res <- until_out_of_range2({
 				batch <- iterator_get_next(iter)
 				res <- train_step(batch, beta[epoch])
 				loss <- rbind(loss, sapply(res, as.numeric))
@@ -389,7 +389,7 @@ setMethod(
 			predicted_nucleosome  <- NULL
 		}
 
-		res <- until_out_of_range({
+		res <- until_out_of_range2({
 			batch <- iterator_get_next(iter)
 			batch$vplots <- batch$vplots %>% 
 				tf$sparse$to_dense() %>%
@@ -491,7 +491,7 @@ setMethod(
 		fragment_size <- NULL
 		predicted_fragment_size <- NULL
 
-		res <- until_out_of_range({
+		res <- until_out_of_range2({
 			batch <- iterator_get_next(iter)
 			batch$vplots <- batch$vplots %>% 
 				tf$sparse$to_dense() %>%

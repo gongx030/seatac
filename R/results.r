@@ -94,7 +94,7 @@ results_phase <- function(model, x, contrast, width = 100L, repeats = 100L, batc
 	fs_stddev <- NULL
 
 	i <- 1
-	res <- until_out_of_range({
+	res <- until_out_of_range2({
 		batch <- iterator_get_next(iter)
 		batch$vplots <- batch$vplots %>%
 			tf$sparse$to_dense() %>%
@@ -237,7 +237,7 @@ results_nucleosome <- function(model, x, contrast, fragment_size_threshold = 150
 	nuc_nfr <- NULL
 
 	i <- 1
-	res <- until_out_of_range({
+	res <- until_out_of_range2({
 
 		batch <- iterator_get_next(iter)
 		batch$vplots <- batch$vplots %>%
