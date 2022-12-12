@@ -38,9 +38,19 @@ setMethod(
 		# this block will cause error on R4.1.1. with GenomicAlignments_1.28.0: 
 		# Error in .io_bam(.scan_bamfile, file, reverseComplement, yieldSize(file), : seqlevels(param) not in BAM header:
 
- 		# seqlevels(peaks, pruning.mode = 'coarse') <- seqlevels(gr)
-	  # seqlengths(seqinfo(peaks)) <-  seqlengths(seqinfo(gr))
-	  # genome(seqinfo(peaks)) <-  genome(seqinfo(gr))
+#		seqlevels(peaks, pruning.mode = 'coarse') <- seqlevels(gr)
+#	  seqlengths(seqinfo(peaks)) <-  seqlengths(seqinfo(gr))
+#	  genome(seqinfo(peaks)) <-  genome(seqinfo(gr))
+
+		# find the seqlevels that are overlapped between BAM and BSgenome
+		slevels <- intersect(seqlevels(gr), seqlevels(peaks))
+		sinfo <- seqinfo(gr)[slevels]
+
+		# change the seqlevel and seqinfo to the overlapped seqs
+		# so that readGAlignments will not produce error when there is missing seqlevels in the BAM
+		seqlevels(peaks, pruning.mode = 'coarse') <- slevels
+		seqlengths(seqinfo(peaks)) <-  seqlengths(sinfo)
+	  genome(seqinfo(peaks)) <-  genome(seqinfo(gr))
 
  		param <- ScanBamParam(which = reduce(peaks), flag = flag, what = c('isize'), tag = 'RG')
 
