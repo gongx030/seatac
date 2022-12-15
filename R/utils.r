@@ -209,7 +209,7 @@ standarize_1d <- function(x){
 #' As of 5/17/2022, `until_out_of_range` from the tfdatasets failed on colab, due to the following error:
 #' Error: tensorflow.python.framework.errors_impl.OutOfRangeError: End of sequence [Op:IteratorGetNext]
 #'
-#' @param x an expression
+#' @param expr an expression
 #'
 until_out_of_range2 <- function(expr){
 	break_error <- tryCatch(eval(parse(text = "break")), error = function(e) e)

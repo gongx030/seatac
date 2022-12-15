@@ -31,11 +31,11 @@ setMethod(
 		stopifnot(!is.null(mcols(y)[[y_name]]))
 		stopifnot(!is.null(x_name))
 
-		if (class(mcols(y)[[y_name]]) == 'numeric'){
+		if (is(mcols(y)[[y_name]], 'numeric')){
 
 			rowData(x)[[x_name]] <- coverage(y, weight = y_name)[granges(x)] %>% as.matrix()
 
-		}else if (class(mcols(y)[[y_name]]) == 'character'){
+		}else if (is(mcols(y)[[y_name]], 'character')){
 
 			y <- split(y, mcols(y)[[y_name]])
 			y <- as(y, 'GRangesList')

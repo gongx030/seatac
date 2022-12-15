@@ -40,13 +40,61 @@ setMethod(
 		})
 
 		se <- Reduce('cbind', se)
-		se@dimdata[['sample']] <- DataFrame(id = 1:length(filenames), filename = filenames, name = names(filenames))
+
+		se@dimdata[['sample']] <- DataFrame(
+			id = 1:length(filenames), 
+			filename = filenames, 
+			name = names(filenames)
+		)
+
 		colData(se)$sample <- factor(rep(names(filenames), each = nrow(se@dimdata[['bin']])* nrow(se@dimdata[['interval']])), names(filenames)) %>% 
 			as.numeric()
 		se
 	}
 
 ) # read_vplot
+
+
+#' Read the V-plot
+#' 
+#' Read the V-plot from BAM files within a set of genomic regions
+#'
+#' @param x a GRangesList object that define a set of genomic regions.
+#' @param filenames BAM file names
+#' @param genome a BSgenome object
+#' @param ... Additional arguments for read_vplot('GRanges', 'character', 'BSgenome', ...)
+#' @return a VplotsList object
+#'
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
+setMethod(
+	'read_vplot',
+	signature(
+		x = 'GRangesList',
+		filenames = 'character',
+		genome = 'BSgenome'
+	), 
+	function(
+		x, 
+		filenames, 
+		genome,
+		...
+	){
+
+		if (length(x) != length(filenames))
+			stop('The length of x should be the same as filenames')
+
+		se <- lapply(1:length(filenames), function(i){
+			read_vplot(x[[i]], filenames[i], genome, ...)
+		})
+
+		se <- VplotsList(se)
+		se
+	}
+
+) # read_vplot
+
 
 
 #' Read the V-plot
@@ -147,18 +195,43 @@ read_vplot_core <- function(
 	seqlengths(seqinfo(x)) <- seqlengths(genome)
 	genome(seqinfo(x)) <- metadata(genome)$genome
 
-	se <- SummarizedExperiment(
+	.prepare_vplots(
+		x = x,
 		assays = list(counts = counts),
+		bin_size = bin_size,
+		fragment_size_range = fragment_size_range,
+		fragment_size_interval = fragment_size_interval
+	)
+
+} # read_vplot_core
+
+.prepare_vplots <- function(
+	x,
+	assays, 
+	bin_size,
+	fragment_size_range,
+	fragment_size_interval
+){
+
+	window_size <- width(x)[1]
+	n_bins_per_window <- window_size / bin_size
+	breaks <- seq(fragment_size_range[1], fragment_size_range[2], by = fragment_size_interval)
+	centers <- (breaks[-1] + breaks[-length(breaks)]) / 2
+	n_intervals <- (fragment_size_range[2] - fragment_size_range[1]) / fragment_size_interval
+
+
+	se <- SummarizedExperiment(
+		assays = assays,
 		rowRanges = x
 	)
+
 	colData(se)$bin <- rep(1:n_bins_per_window, n_intervals)
 	colData(se)$interval <- rep(1:n_intervals, each = n_bins_per_window)
 	colData(se)$sample <- rep(1, n_bins_per_window * n_intervals) 
 
 	dimdata <- list(
 		grange = DataFrame(
-			id = 1:length(x),
-			sequence = getSeq(genome, x)
+			id = 1:length(x)
 		),	# dim 1: GRanges dimension 
 		sample = DataFrame(
 			id = 1
@@ -183,5 +256,5 @@ read_vplot_core <- function(
 		window_size = as.integer(window_size),
 		dimdata = dimdata
 	)
-} # read_vplot_core
+}
 
