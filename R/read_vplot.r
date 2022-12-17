@@ -49,6 +49,9 @@ setMethod(
 
 		colData(se)$sample <- factor(rep(names(filenames), each = nrow(se@dimdata[['bin']])* nrow(se@dimdata[['interval']])), names(filenames)) %>% 
 			as.numeric()
+
+		se@n_samples <- nrow(se@dimdata[['sample']])
+
 		se
 	}
 
@@ -204,6 +207,7 @@ read_vplot_core <- function(
 	)
 
 } # read_vplot_core
+
 
 .prepare_vplots <- function(
 	x,

@@ -13,6 +13,7 @@ setOldClass('tensorflow.python.framework.sparse_tensor.SparseTensor')
 setClass(
 	'Vplots', 
 	representation(
+		n_samples = 'integer',
 		fragment_size_range  = 'integer',
 		fragment_size_interval = 'integer',
 		bin_size = 'integer',

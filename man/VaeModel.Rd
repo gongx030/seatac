@@ -5,17 +5,13 @@
 \title{VaeModel}
 \usage{
 VaeModel(
-  n_samples = 1L,
+  x,
   latent_dim = 10L,
-  block_size = 640L,
-  bin_size = 5L,
   filters0 = 128L,
   filters = 32L,
   kernel_size = 3L,
   downsample_layers = 4L,
   upsample_layers = 4L,
-  fragment_size_range = c(0L, 320L),
-  fragment_size_interval = 10L,
   strides = c(2L, 2L),
   momentum = 0.8,
   rate = 0.1,
@@ -23,13 +19,9 @@ VaeModel(
 )
 }
 \arguments{
-\item{n_samples}{Number of samples (default: 1L)}
+\item{x}{a Vplots or a VplotsList object}
 
 \item{latent_dim}{Latent dimension (default: 10L)}
-
-\item{block_size}{Block size in base pairs (default: 640L)}
-
-\item{bin_size}{Bin size in base pairs(default: 5L)}
 
 \item{filters0}{Filter size after the latent layer (default: 128L)}
 
@@ -41,10 +33,6 @@ VaeModel(
 
 \item{upsample_layers}{Upsample layers (default: 4L)}
 
-\item{fragment_size_range}{Fragment size ranges (default: c(0L, 320L))}
-
-\item{fragment_size_interval}{Fragment size interval (default: 10L)}
-
 \item{strides}{Convolution strides}
 
 \item{momentum}{Momentum in BatchNormalization layer (default: 0.8)}
@@ -53,6 +41,9 @@ VaeModel(
 
 \item{name}{Model name}
 }
+\value{
+a VaeModel object
+}
 \description{
-A VAE model for V-plot of multiple ATAC-seq datasets. This model takes the stacked V-plots of the same genomic regions as the input.
+Build a VAE model for V-plot of multiple ATAC-seq datasets. This model takes the stacked V-plots of the same genomic regions as the input.
 }

@@ -34,6 +34,46 @@ setMethod(
 
 	}
 ) # count_reads
+
+
+
+#' Count reads
+#'
+#' Count how many reads fall into a specific fragment size range
+#'
+#' @param x a GRangesList object defining the peaks; the width must be the same for all peaks.
+#' @param filenames BAM file name(s).
+#' @param genome a BS genome object such as BSgenome.Mmusculus.UCSC.mm10
+#' @param fragment_size_range fragment size ranges (default:  c(80, 320))
+#' @return a list of read counts
+#' 
+#' @export
+#' @author Wuming Gong (gongx030@umn.edu)
+#'
+setMethod(
+	'count_reads',
+	signature(
+		x = 'GRangesList',
+		filenames = 'character',
+		genome = 'BSgenome'
+	), 
+	function(
+		x, 
+		filenames, 
+		genome,
+		fragment_size_range = c(0L, 320)
+	){
+
+		if (length(x) != length(filenames))
+			stop('The length of x should be the same as filenames')
+
+		counts <- lapply(1:length(filenames), function(i){
+			count_reads(x[[i]], filenames[i], genome)
+		})
+		counts
+	}
+) # count_reads
+
 	
 
 #' count_reads_core
