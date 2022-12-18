@@ -424,7 +424,7 @@ setMethod(
 #' @param epochs Number of training epochs (default: 100L)
 #' @param learning_rate Learning rate (default: 1e-3)
 #' @param compile Whether or not compile the tensorflow model (default: TRUE)
-#' @param beta Beta sequences (default: 5e-5)
+#' @param beta Beta sequences (default: 1)
 #'
 #' @export
 #' @return a VaeModel
@@ -442,7 +442,7 @@ setMethod(
 		 epochs = 100L,
 		 learning_rate = 1e-3,
 		 compile = TRUE,
-		 beta = 5e-5
+		 beta = 1
 	 ){
 
 		if (length(beta) == 1)
