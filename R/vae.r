@@ -422,7 +422,7 @@ setMethod(
 #' @param x a tf_dataset object
 #' @param batch_size Batch size (default: 128L)
 #' @param epochs Number of training epochs (default: 100L)
-#' @param learning_rate Learning rate (default: 1e-3)
+#' @param learning_rate Learning rate (default: 1e-2)
 #' @param compile Whether or not compile the tensorflow model (default: TRUE)
 #' @param beta Beta sequences (default: 1)
 #'
@@ -440,7 +440,7 @@ setMethod(
 		 x,
 		 batch_size = 128L,
 		 epochs = 100L,
-		 learning_rate = 1e-3,
+		 learning_rate = 1e-2,
 		 compile = TRUE,
 		 beta = 1
 	 ){
@@ -449,10 +449,18 @@ setMethod(
 			beta <- rep(beta, epochs)
 		beta <- tf$cast(beta, tf$float32)
 
+		lr <- WarmUpAndCosineDecay(
+			base_learning_rate = learning_rate,
+			num_examples = x$cardinality() %>% as.integer(),
+			batch_size = batch_size,
+			epochs = epochs,
+			warmup_epochs = as.integer(epochs * 0.1)
+		)
+
 		x <- x %>%
 			dataset_batch(batch_size)
 
-		optimizer <- tf$keras$optimizers$Adam(learning_rate)
+		optimizer <- tf$keras$optimizers$Adam(lr)
 		reconstrution_loss <- tf$keras$losses$BinaryCrossentropy(reduction = 'none')	# loss for the V-plot
 
 		train_step <- function(batch, b){
