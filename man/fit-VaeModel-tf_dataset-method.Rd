@@ -9,9 +9,9 @@
   x,
   batch_size = 128L,
   epochs = 100L,
-  learning_rate = 0.001,
+  learning_rate = 0.01,
   compile = TRUE,
-  beta = 5e-05
+  beta = 1
 )
 }
 \arguments{
@@ -23,11 +23,11 @@
 
 \item{epochs}{Number of training epochs (default: 100L)}
 
-\item{learning_rate}{Learning rate (default: 1e-3)}
+\item{learning_rate}{Learning rate (default: 1e-2)}
 
 \item{compile}{Whether or not compile the tensorflow model (default: TRUE)}
 
-\item{beta}{Beta sequences (default: 5e-5)}
+\item{beta}{Beta sequences (default: 1)}
 }
 \value{
 a VaeModel

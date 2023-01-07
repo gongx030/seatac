@@ -10,7 +10,8 @@
   batch_size = 256L,
   vplots = FALSE,
   nucleosome = TRUE,
-  fragment_size_threshold = 150L
+  fragment_size_threshold = 150L,
+  ...
 )
 }
 \arguments{
